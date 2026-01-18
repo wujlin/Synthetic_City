@@ -38,6 +38,8 @@
 
 采用“城市维度隔离 + raw/interim/processed/outputs”四层结构，避免不同城市/不同run相互污染。
 
+工作站落盘口径（与 `docs/WORKSTATION_GUIDE.md` 一致）：仓库只放代码与文档；**大数据不进 git**。实践上建议把仓库内的 `data/` 做成软链接，指向外置目录（例如 `$RAW_ROOT/synthetic_city/data`），从而保持代码引用路径稳定，同时避免误把大文件提交到 GitHub（本仓库已在 `.gitignore` 忽略 `data/`）。
+
 ### 2.1 目录树（建议）
 
 ```text
@@ -93,6 +95,29 @@ data/
 - 大文件命名：`<dataset>_<year>_<geolevel>.<ext>`；所有文件使用 UTF-8。  
 - 坐标系：存储可用 `EPSG:4326`；涉及面积/距离计算时统一投影到 Detroit 合适的投影（如 UTM 17N，或地方投影），并在 `metadata.json` 记录。
 
+### 2.3 wsA 拉取公开数据（P0 最小集）
+
+> 目标：把 `raw/` 的公共数据先落盘，确保后续 `processed/` 的裁剪/叠加/约束构建都可复现。
+
+推荐把仓库内 `data/` 软链到外置目录（不进 git）：
+
+```bash
+export RAW_ROOT=/home/jinlin/data/geoexplicit_data
+mkdir -p "$RAW_ROOT/synthetic_city/data"
+ln -snf "$RAW_ROOT/synthetic_city/data" data
+```
+
+拉取 TIGER/ACS/PUMS/OSM（以及注册 SafeGraph 现有目录）：
+
+```bash
+python tools/detroit_fetch_public_data.py tiger --out_root "$RAW_ROOT/synthetic_city/data"
+python tools/detroit_fetch_public_data.py acs --out_root "$RAW_ROOT/synthetic_city/data" --acs_year 2023
+python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_city/data" --pums_year 2023
+python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_city/data" --region michigan
+python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" \
+  --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
+```
+
 ---
 
 ## 3. 关键数据表（Data Schema）
@@ -121,6 +146,20 @@ data/
 - `res_capacity`：居住容量先验（可为空；后续由模型估计）
 - `work_capacity`：就业容量先验（可选）
 - `data_source`：OSM/Microsoft/City open data 等
+
+**推荐数据源：GlobalBuildingAtlas（GBA）LoD1（你已在工作站下载北美 tiles）**
+- Detroit 预计 tile：`w085_n45_w080_n40.geojson`（需以实际文件为准）
+- 工作站路径（你提供的现状）：`/home/jinlin/DATASET/LoD1/northamerica/`
+- 最小核验（请在工作站执行并把输出贴回）：  
+  - `ls /home/jinlin/DATASET/LoD1/northamerica | rg "w085_n45_w080_n40\\.geojson" || true`  
+  - `TILE=/home/jinlin/DATASET/LoD1/northamerica/w085_n45_w080_n40.geojson; ls -lh "$TILE"`  
+  - `rg -n -m 1 "\"height\"" "$TILE" || true`（只为快速判断是否含高度字段；最终以 schema 为准）
+
+**已核验（你回传的样例 feature）**
+- `properties`：`source`（示例值 `ms`）、`id`、`height`、`var`、`region`
+- `geometry`：`Polygon`，坐标为 2D 平面坐标；数值量级与 Web Mercator（`EPSG:3857`）一致（需在 `metadata.md` 明确 CRS）
+
+> 处理建议（后续实现时）：先按 Detroit 边界裁剪 LoD1 tile，再统一投影计算 `footprint_area_m2` 与派生 `volume`/`capacity` 先验，最后写入 `processed/buildings/buildings.parquet`（或 GeoParquet）。
 
 ### 3.3 种子微观样本（`processed/pums/`）
 
@@ -253,4 +292,3 @@ docs/
 2) 首版要不要做 households（户—人层级）？  
 3) 时间维度：`静态` / `日夜` / `24小时`？  
 4) 你们手里已有的数据清单（尤其 buildings、POI、mobility/OD）。  
-

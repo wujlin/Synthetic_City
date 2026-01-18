@@ -1,0 +1,52 @@
+# --------
+# Data / Outputs (usually large or private)
+# --------
+data/
+outputs/
+_sync/
+
+# --------
+# Python / Jupyter
+# --------
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# --------
+# Virtual env / Conda
+# --------
+.venv/
+venv/
+ENV/
+.env
+.env.*
+.conda/
+conda/
+
+# --------
+# Build artifacts
+# --------
+build/
+dist/
+*.egg-info/
+
+# --------
+# Logs
+# --------
+*.log
+
+# --------
+# OS / Editors
+# --------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

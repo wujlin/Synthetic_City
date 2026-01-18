@@ -2,6 +2,8 @@
 
 > 用途：请 Partner 按本清单检索“可获取的数据源链接 + 数据字典/字段说明 + 许可/使用限制 + 覆盖范围/年份 + 下载方式”。  
 > 目标：先跑通 Detroit 的**建筑物尺度静态人口画像**（P0），再逐步增强到**户—人层级**与**日/夜或小时动态**（P1/P2）。
+>
+> 注：若已形成包含 URL/表号/许可条款的检索结果（例如 `docs/DATA_SEARCH.md`），请把它视为“来源证据链”；本清单主要定义**字段口径/优先级/回传模板**，避免后续实现时口径漂移。
 
 ---
 
@@ -58,7 +60,12 @@
 - **Building footprints（Detroit 全覆盖）**
   - 需求字段：`geometry`，最好有 `source_id`
   - 必要派生字段：`bldg_id`、`footprint_area_m2`、`centroid`、`bg_geoid/tract_geoid`（后续空间叠加产生）
-  - 可能来源（请优先检索开放）：Microsoft US Building Footprints、OSM、Detroit/Wayne open data（如有）
+  - 推荐来源（已具备，优先用）：GlobalBuildingAtlas（GBA）LoD1/Polygon（tile GeoJSON）
+    - 工作站现状：你已在 `/home/jinlin/DATASET/LoD1/northamerica` 下载北美建筑数据
+    - 已核验（样例 tile）：`properties` 字段为 `source/id/height/var/region`，其中 `height` 已存在
+    - 关键注意：GeoJSON 坐标为**投影平面坐标**（数值量级与 Web Mercator / `EPSG:3857` 一致），不是经纬度；需在 `metadata.md` 记录 CRS，并在与 TIGER 边界/ACS 地理单元叠加前做重投影
+    - 备注：`height` 单位以官方文档为准（通常为米）；`var` 可作为高度不确定度/质量权重的候选特征
+  - 备选来源（请优先检索开放）：Microsoft US Building Footprints、OSM、Detroit/Wayne open data（如有）
 
 > 重要：请同时检索“是否有建筑物用途/居住属性/层数高度”等字段（即使是 P1，也先确认可得性）。
 
@@ -67,7 +74,9 @@
 - **POI（点或面）**
   - 需求字段：`geometry`、`category`（可标准化到若干大类）
   - 用途：作为建筑物 landuse/功能强度的弱监督条件；也用于空间真实性验证
-  - 可能来源：OSM POI、政府开放POI、商业POI（若能合作）
+  - 已有：SafeGraph POI（Deway 平台）
+  - 待补齐：许可/使用限制（尤其是否允许公开派生结果、是否允许论文/开源发布）
+  - 备选来源：OSM POI、政府开放POI、商业POI（若能合作）
 
 ---
 
@@ -83,6 +92,7 @@
 ### P1-2 建筑高度/层数（用于容量先验）
 
 - **Building height / floors（任一可用即可）**
+  - 说明：若采用 GlobalBuildingAtlas（LoD1 或 Height），这项可视为已满足；否则再走备选来源
   - 来源可能性：城市三维建筑数据、LiDAR 派生、OSM `building:levels`
   - 用途：把 footprint area → volume → capacity 先验
 
@@ -129,4 +139,3 @@
 5) **许可与使用限制**（是否可用于基金申报、是否可公开发布派生结果）  
 6) **字段字典/数据字典**（至少列出关键字段与含义）  
 7) **文件格式与大致体量**（MB/GB）  
-
