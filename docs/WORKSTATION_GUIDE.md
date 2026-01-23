@@ -39,6 +39,16 @@ export REPO="$HOME/projects/Mobility_v3"
 export RAW_ROOT="$HOME/data/geoexplicit_data"
 ```
 
+#### 1.1.0 Synthetic_City（Detroit）落盘口径（本仓库相关）
+
+> 口径：`Synthetic_City` 仓库只放代码与文档；Detroit 落地数据统一落在工作站外置目录（不进 git）。
+
+- **Synthetic_City 仓库路径**：`~/projects/Synthetic_City`
+- **Detroit 数据根目录（推荐）**：`$RAW_ROOT/synthetic_city/data/`
+- **SafeGraph（已注册软链接入口）**：`$RAW_ROOT/synthetic_city/data/detroit/raw/poi/safegraph/safegraph_unzip/`
+- **建筑物 LoD1 tiles（你已下载）**：`/home/jinlin/DATASET/LoD1/northamerica/`（GeoJSON；字段样例 `source/id/height/var/region`；坐标系量级与 `EPSG:3857` 一致）
+- **代码入口（本仓库）**：在 `~/projects/Synthetic_City` 下运行 `python -m src.synthpop paths` 可打印当前解析到的 `data_root` 与 Detroit 关键路径；运行 `python -m src.synthpop detroit status` 可快速检查 Detroit 原始数据是否到位（仅路径存在性检查，避免繁琐验证）。
+
 设备信息快速自检（仅打印，不写盘）：
 
 ```bash

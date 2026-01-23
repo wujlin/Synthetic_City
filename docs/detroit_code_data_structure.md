@@ -3,6 +3,9 @@
 > 目的：把“基于扩散的多层次人口生成方法”在底特律落地所需的**代码目录结构**与**数据目录/表结构**先定义清楚，便于后续按步骤实现与迭代。  
 > 说明：本文档是“构思方案”版本，包含若干待确认项；确认后再进入实现与数据落地。
 
+相关架构文档：
+- 方法路线 → 代码模块映射：`docs/synthpop_architecture.md`
+
 ---
 
 ## 0. 范围与输出（我们到底要产出什么）
@@ -31,6 +34,8 @@
 8) **动态验证参照数据**：是否有（或能合作拿到）信令/平台热力/OD？否则时间层验证只能做弱证据链。
 
 > 建议默认决策（除非你另有要求）：Detroit city + building footprint；静态 + 日/夜两时段；PUMS 作种子；控制量以 tract/BG 混合（主 tract，BG 用于局部细化）。
+
+> PI review 建议的 v0 口径：Detroit city boundary；**先静态、后日/夜（v0.5）**；**先 person-only、后 household（v1）**；控制量 tract 主控 + BG 诊断；空间锚定 building + POI（parcel optional）。
 
 ---
 
@@ -117,6 +122,15 @@ python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_ci
 python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" \
   --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
 ```
+
+注册完成后，后续代码统一从以下入口读取 SafeGraph（避免硬编码绝对路径、避免重复拷贝大文件）：
+- 数据入口（软链）：`$RAW_ROOT/synthetic_city/data/detroit/raw/poi/safegraph/safegraph_unzip/`
+- 元数据：`$RAW_ROOT/synthetic_city/data/detroit/raw/poi/safegraph/safegraph.metadata.json`（分片数/时间戳以此为准；许可条款需补齐）
+
+> 常见问题（TIGER 403）：若工作站直连下载 TIGER/Line 触发 `403 Forbidden`，实践上可在本地浏览器下载后 `rsync` 到工作站：
+>
+> - 需要的 4 个文件：`tl_2023_26_place.zip`、`tl_2023_26_tract.zip`、`tl_2023_26_bg.zip`、`tl_2023_26_puma20.zip`
+> - 建议落盘目录：`$RAW_ROOT/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/`
 
 ---
 
@@ -217,46 +231,27 @@ python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthe
 
 ```text
 src/
+  __init__.py
   synthpop/
     __init__.py
-    cli.py                   # 统一入口：prepare / train / sample / validate
-    config.py                # 读取/校验 YAML 配置
+    __main__.py              # python -m src.synthpop
+    paths.py                 # 项目/数据根目录解析（RAW_ROOT 优先）
+    cli.py                   # 统一入口（v0：paths / detroit status/init-dirs/stage-tiger）
+    config.py                # 轻量配置读取（json/yaml 可选）
 
-    data/
-      ingest.py              # 读 raw → interim
-      standardize.py         # interim → processed（统一schema）
-      pums.py                # PUMS 清洗与编码
-      census.py              # ACS/Decennial 约束表构建
+    detroit/
+      __init__.py
+      constants.py           # MI/Wayne 等固定口径
+      paths.py               # Detroit 数据目录约定
+      stage_tiger.py         # TIGER zip 落盘到标准目录（默认 copy，非破坏）
 
-    geo/
-      crs.py
-      overlay.py             # building↔BG/tract 空间叠加
-      boundaries.py
+    pipeline/                # Detroit v0 编排（只串联，不写重算法）
+    data/                    # raw → processed（接口占位，按需补齐）
+    features/                # 条件向量构建（接口占位）
+    model/                   # 扩散生成模型 API（接口占位）
+    constraints/             # 软约束引导 + 硬约束渐进校正（接口占位）
+    validation/              # 统计/空间/时间三层验证（接口占位）
 
-    features/
-      building_features.py   # capacity/landuse/POI 聚合
-      condition_vectors.py   # 生成条件向量（geo+space+time）
-
-    constraints/
-      marginals.py           # 约束接口：读取/汇总/对齐
-      rules.py               # 规则校验与修复（投影）
-
-    model/
-      diffusion_tabular.py   # 表格扩散核心（混合类型）
-      schedule.py
-
-    sampling/
-      generate.py            # 采样：条件注入 + 规则投影
-
-    validation/
-      stats.py               # 边际/二阶关联一致性
-      spatial.py             # 建筑物/热点/用地一致性
-      temporal.py            # 日/夜或小时曲线一致性（若有数据）
-
-configs/
-  detroit.yaml
-scripts/
-  detroit_pipeline.sh        # 可选：一键串联
 docs/
   detroit_code_data_structure.md
 ```
@@ -279,7 +274,7 @@ docs/
 1) **准备 Detroit 数据**：`raw/` → `processed/`（统一 CRS/字段）  
 2) **构建控制量（marginals）与规则（rules）**：形成可被模型调用的约束接口  
 3) **训练表格扩散模型**：以种子样本学习联合分布结构（可先无条件/弱条件）  
-4) **条件化采样 + 规则投影**：输出 persons/households + building assignment  
+4) **条件化采样 + 规则投影**：v0 先输出 `persons + tract/BG`，再在 BG 内按建筑容量/功能先验做两阶段 `building assignment`（避免把 `building_id` 作为超大类别变量直接进模型）  
 5) **三层验证**：统计一致性 → 空间真实性 → 时间动态（若有参照）  
 
 ---

@@ -8,6 +8,7 @@
 - 扩散方法分稿：`NSFC/生成扩散.md`
 - 文献证据链（v0.3）：`docs/literature_review_popdyn_partner_v0.3_2026-01-17.md`
 - Detroit 落地蓝图（代码/数据结构）：`docs/detroit_code_data_structure.md`
+- 合成人口代码架构（方法路线→模块映射）：`docs/synthpop_architecture.md`
 - Detroit 数据需求清单（给检索用）：`docs/detroit_data_request.md`
 - Detroit 数据检索结果（来源证据链）：`docs/DATA_SEARCH.md`
 - 工作站运行与数据落盘口径：`docs/WORKSTATION_GUIDE.md`
@@ -39,6 +40,51 @@ python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_c
 python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_city/data" --region michigan
 python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" \
   --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
+```
+
+注册完成后 SafeGraph 的统一入口：
+- `$RAW_ROOT/synthetic_city/data/detroit/raw/poi/safegraph/safegraph_unzip/`
+- `$RAW_ROOT/synthetic_city/data/detroit/raw/poi/safegraph/safegraph.metadata.json`
+
+## 代码入口（Detroit v0）
+
+打印项目/数据根目录解析（便于排查路径口径）：
+
+```bash
+python -m src.synthpop paths
+```
+
+查看 Detroit 原始数据是否到位（只做路径存在性检查，不做重验证）：
+
+```bash
+python -m src.synthpop detroit status
+```
+
+初始化 Detroit 目录结构（只创建目录，不移动/删除文件）：
+
+```bash
+python -m src.synthpop detroit init-dirs
+```
+
+将 4 个 TIGER zip（`tl_2023_26_{place,tract,bg,puma20}.zip`）落到标准目录（默认 copy，不会删除源文件）：
+
+```bash
+python -m src.synthpop detroit stage-tiger --tiger_year 2023 --src_dir data
+```
+
+## 最小技术验证（TabDDPM + PUMS）
+
+在 wsA 上用 PUMS person 子集跑一个 PoC（验证“混合类型扩散 + 条件化”可训练可采样）：
+
+```bash
+python tools/poc_tabddpm_pums.py --data_root "$RAW_ROOT/synthetic_city/data" --pums_year 2023 --epochs 5 --timesteps 200
+```
+
+也可用 CLI wrapper（等价调用 tools 脚本）：
+
+```bash
+python -m src.synthpop detroit poc-train --data_root "$RAW_ROOT/synthetic_city/data"
+python -m src.synthpop detroit poc-sample --data_root "$RAW_ROOT/synthetic_city/data"
 ```
 
 ## GitHub 首次同步（常见报错修复）
