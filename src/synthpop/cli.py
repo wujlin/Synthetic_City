@@ -77,6 +77,10 @@ def _run_poc_tabddpm_pums(*, mode: str, args: argparse.Namespace) -> None:
     if not script.exists():
         raise SystemExit(f"PoC script not found: {script}")
 
+    env = os.environ.copy()
+    repo_root = str(project_root())
+    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+
     cmd = [
         sys.executable,
         str(script),
@@ -115,7 +119,7 @@ def _run_poc_tabddpm_pums(*, mode: str, args: argparse.Namespace) -> None:
     if args.encoder_path:
         cmd += ["--encoder_path", str(args.encoder_path)]
 
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, cwd=repo_root, env=env)
 
 
 def _cmd_detroit_poc_train(args: argparse.Namespace) -> None:
