@@ -133,7 +133,28 @@ def main() -> None:
         )
         zip_path = raw_dir / f"psam_p{args.statefp}.zip"
         if not zip_path.exists():
-            raise SystemExit(f"PUMS zip not found: {zip_path}")
+            # Fallback: user may have staged the zip under a different subfolder name.
+            search_root = data_root_path / "detroit" / "raw" / "pums"
+            found = sorted(search_root.glob(f"**/psam_p{args.statefp}.zip"))
+            if len(found) == 1:
+                zip_path = found[0]
+                print(f"[warn] using staged PUMS zip from non-default path: {zip_path}")
+            elif len(found) > 1:
+                msg = "\n".join([str(p) for p in found[:10]])
+                raise SystemExit(
+                    "PUMS zip not found at default path and multiple candidates exist.\n"
+                    f"default: {zip_path}\n"
+                    f"candidates (first 10):\n{msg}\n"
+                    "Please keep only one under detroit/raw/pums/ or set --pums_period/--pums_year to match."
+                )
+            else:
+                raise SystemExit(
+                    f"PUMS zip not found: {zip_path}\n"
+                    "Hint: download it first, e.g.\n"
+                    f"  python tools/detroit_fetch_public_data.py pums --out_root \"{data_root_path}\" --pums_year {args.pums_year} --pums_period \"{args.pums_period}\" --statefp {args.statefp}\n"
+                    f"or manually place psam_p{args.statefp}.zip into:\n"
+                    f"  {search_root}/pums_{args.pums_year}_{args.pums_period}/\n"
+                )
 
         member = _find_first_csv_in_zip(zip_path)
         with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
