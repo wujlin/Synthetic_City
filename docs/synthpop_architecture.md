@@ -113,9 +113,17 @@ PI review 指出的最大技术风险在于“混合类型表格扩散不是 tri
 **输入**：`marginals_long.parquet`（宏观目标）+ `buildings.parquet`（空间锚定）+ `rules.yaml`（可行域）  
 **输出**：`synthetic/*.parquet`
 
-空间锚定的 v0 策略采用“两阶段”，避免把 `building_id` 作为超大类别变量直接进扩散模型：
-1) 生成 `persons` 的属性 + tract/BG 落点（类别数可控，便于做宏观约束）
-2) 在每个 BG/tract 内部，按建筑容量/功能先验做概率分配得到 `assignments_building`
+空间锚定的关键口径：**建筑不是事后分配，而是生成过程中的条件注入**。  
+为避免把 `building_id` 当作超大类别变量直接进扩散模型，v0 用“建筑特征向量”表达空间条件，并把 `bldg_id` 作为采样时的上下文变量随样本一同输出：
+
+1) **宏观条件**：从 tract/BG/PUMA 等控制量层级抽样/引导，确定该样本的宏观约束上下文  
+2) **建筑条件**：在对应空间单元内按容量/功能先验抽取 `bldg_id`，并取 `building_feature`（如 footprint/height/capacity_proxy/dist_to_cbd…）  
+   - **经济条件（核心）**：Wayne County parcel assessment → `price_per_sqft` → tract 内分位数 `price_tier(Q1..Q5)`，作为建筑级收入代理  
+3) **条件化生成**：扩散模型生成属性  
+   \[
+   x \sim P(\text{attrs}\mid \text{macro\_cond}, \text{building\_feature})
+   \]
+   输出样本携带 `bldg_id`，从而得到可采样的联合结构 \(P(\text{attrs}, \text{bldg}\mid \cdot)\)，而非“先生成再落点”的后处理
 
 采样时的“两个力”：
 - **软约束引导**：把生成总体的统计偏差写成可优化的目标，并在采样过程中持续把生成分布拉回目标统计附近（实现上留接口，v0 可先用“分批采样→评估→调强度”的简化版本）。
@@ -169,7 +177,7 @@ src/synthpop/
     temporal.py                # 日/周周期（若启用动态）
 
   spatial/
-    assign_buildings.py        # 两阶段空间锚定：BG/tract → building
+    assign_buildings.py        # BG/tract → building 抽样（可作为生成过程中的空间条件）
 ```
 
 > 说明：v0 先把“接口与数据契约”固定，算法实现按优先级逐步补齐；不要一上来把全部下载、清洗、训练、评估都写成一个巨大脚本。

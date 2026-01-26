@@ -16,7 +16,8 @@
 **核心输出（建议最小可用集）**
 - `persons`：合成人口个体表（人口属性）。
 - `households`（可选但强建议）：合成家庭表（户属性），并与 persons 绑定以保证户—人一致性。
-- `assignments`：个体/家庭 → 建筑物（或地块/格网）空间落点。
+- `assignments`：个体/家庭 → 建筑物（或地块/格网）空间落点（注意：`bldg_id` 应来自生成过程中的空间条件注入，而非纯事后分配）。
+- `building_portrait`：建筑物尺度画像表（pop_count / age / income 等聚合统计），用于可视化与应用。
 - `time_profiles`（可选）：日间/夜间或小时级的人口位置/活动强度分配。
 - `metrics`：统计一致性、空间真实性、时间动态一致性三层验证指标与可视化产物。
 
@@ -174,6 +175,19 @@ python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthe
 - `geometry`：`Polygon`，坐标为 2D 平面坐标；数值量级与 Web Mercator（`EPSG:3857`）一致（需在 `metadata.md` 明确 CRS）
 
 > 处理建议（后续实现时）：先按 Detroit 边界裁剪 LoD1 tile，再统一投影计算 `footprint_area_m2` 与派生 `volume`/`capacity` 先验，最后写入 `processed/buildings/buildings.parquet`（或 GeoParquet）。
+
+**建筑级收入代理（核心新增口径）｜Wayne County Property Assessment**
+
+PI 已明确：为避免“生成后再落地”的传统两阶段口径，Detroit v0 的 building-level portrait 需要一个可审查的经济条件。建议以 **parcel assessment 的房价/评估值**作为建筑级收入代理：
+
+- **raw 数据**：`data/detroit/raw/parcels/wayne_county/`（格式任意：shp/geojson/gpkg/...；以可被 geopandas 读取为准）
+- **最小字段**：`parcel_id`, `assessed_value`（或等价字段）, `geometry`
+- **派生字段**：
+  - `price_per_sqft`：parcel 评估值与建筑 footprint 结合得到的价格密度代理
+  - `price_tier`：在 tract 内做分位数分档（Q1–Q5），作为主导空间经济条件
+- **处理脚本**：
+  - 先生成建筑特征：`tools/prepare_detroit_buildings_gba.py`（建议带 `--tiger_tract_zip` 输出 `tract_geoid`）
+  - 再做 parcel join + tier：`tools/join_detroit_buildings_parcel_assessment.py`
 
 ### 3.3 种子微观样本（`processed/pums/`）
 

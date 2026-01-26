@@ -192,13 +192,31 @@
    - ODP about 页：https://data.detroitmi.gov/maps/detroitmi%3A%3Aparcels-current-1/about
    - ODP Explore（可看表）：https://data.detroitmi.gov/datasets/3c784c118e5c4083b37038e9b38573df_0/explore?showTable=true
    - DetroitData 镜像页（便于记录 license）：https://detroitdata.org/dataset/parcels
+   - **ArcGIS FeatureServer（推荐给工程用，可分页拉全量）**：
+
+```text
+https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services/Parcels_Current/FeatureServer/0
+```
+
 4) **许可与使用限制**：常见显示 “No License Provided / Request permission to use”；另需遵循 ODP 免责声明/条款（Partner 回传时必须截图或摘录关键句到 metadata）。  
 5) **关键字段（建议至少保留/核验是否存在）**：
    - 标识：`parcel_number`/`parcel_id`（实际字段名以表为准）
+   - 评估值/交易（用于房价代理）：`assessed_value`、`taxable_value`、`sale_price`、`sale_date`
    - 地址：`address`、`zip`
    - 用途/分类：`use_code`、`use_code_desc`、`property_class(_desc)`、`zoning`
    - 容量/属性：`num_bldgs`、`total_floor_area`/`total_square_footage`、`year_built`、`is_improved`
 6) **格式与体量**：Feature layer 导出（GeoJSON/GPKG/Shapefile）；记录导出格式与大小。
+
+**工程下载代码（推荐｜可断点续跑，chunked GeoJSON）**
+
+```bash
+export RAW_ROOT=/home/jinlin/data/geoexplicit_data
+python tools/detroit_fetch_public_data.py parcels-detroit \
+  --out_root "$RAW_ROOT/synthetic_city/data" \
+  --out_fields "parcel_number,assessed_value,taxable_value,sale_price,sale_date"
+
+# 输出目录：$RAW_ROOT/synthetic_city/data/detroit/raw/parcels/detroit_parcels_current/
+```
 
 ---
 
@@ -218,6 +236,28 @@
 1) **数据集名称**：Current Master Plan Future General Land Use（City of Detroit ODP）  
 2) **下载入口（URL）**：
    - ODP about：https://data.detroitmi.gov/datasets/current-master-plan-future-general-land-use/about
+
+---
+
+### 数据源 P1-1d（备选/补充）：Wayne County Annual Assessment Data（County 级评估数据）
+> 说明：Wayne County 的年度 assessment 包通常是表格压缩包；若要用于空间 join，需要再配套 parcel 几何（且 join key 必须一致）。  
+> 我们 v0 更推荐用 Detroit 的 Parcels_Current（自带 geometry + assessed_value），这条作为备用证据链。
+
+1) **数据集名称**：Wayne County Annual Assessment Data (2025)  
+2) **入口页**：https://www.waynecountymi.gov/Government/Departments/Management-Budget/Assessment-Equalization/Annual-Assessment-Data  
+3) **直接下载（2025）**：
+
+```text
+Detroit: https://www.waynecountymi.gov/files/assets/mainsite/v/1/management-amp-budget/documents/assessment-data/2025/detroit.zip
+Full county: https://www.waynecountymi.gov/files/assets/mainsite/v/1/management-amp-budget/documents/assessment-data/2025/2025-82-wayne-county-foia.zip
+```
+
+4) **工程下载代码**：
+
+```bash
+export RAW_ROOT=/home/jinlin/data/geoexplicit_data
+python tools/detroit_fetch_public_data.py wayne-assessment-2025 --scope detroit --out_root "$RAW_ROOT/synthetic_city/data"
+```
 3) **用途**：对 POI/parcel 的 land-use 分类做补充与解释（尤其是 residential/industrial/commercial 区）。  
 4) **Partner 回传**：分类字段字典、更新日期、许可限制。
 
@@ -291,6 +331,23 @@ Partner 回传需要补齐：
 Partner 回传需要补齐：
 - 产品版本号、时间范围、空间分辨率、投影与 nodata
 - 下载方式（直接下载 / GEE 导出 / 其他平台）
+
+---
+
+# P2-4 GUS-3D（全球 500m 网格 3D 城市形态）——供宏观先验/背景引用
+> 备注：该数据是 **500m 网格**层级的建筑结构统计（不是建筑物 footprint）。对 Detroit building-level portrait 不能直接替代 GBA，但可用于：  
+> - 宏观背景叙事（城市形态与不平等）  
+> - coarse-level 的 sanity check / prior（例如高度/体量与夜光的一致性）  
+
+1) **论文（来源）**：Global Mapping of 3D Urban Structure Inequality: Unveiling the Urban Form’s Role in Unequal Outcomes. *The Engineering* (2024). DOI: `10.1016/j.eng.2024.01.025`  
+2) **数据内容（文中描述）**：以全球 urban clusters 为单位，在 500m 网格尺度提供 `average building height`、`building volume`、`building footprint`、`building coverage ratio (BCR)`、`building volume density (BVD)` 等建筑结构指标（文中以 2015 年为例）。  
+3) **开放数据入口（Figshare，需核验可达性与文件清单）**：
+
+```text
+https://figshare.com/articles/dataset/Global_Mapping_of_Three-Dimensional_3D_Urban_Structures_Inequality_Unveiling_the_Urban_Form_s_Role_in_Unequal_Outcomes/21507537
+```
+
+4) **关键点（回应 reviewer 可能的追问）**：该工作属于“多源遥感 + 机器学习”反演网格化 3D 城市形态；文中明确用带高度信息的建筑 footprint 数据作为参考/校准来源之一，但最终公开产品是网格化结构指标，而非逐栋建筑几何。
 
 ---
 

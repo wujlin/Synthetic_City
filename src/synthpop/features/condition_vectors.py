@@ -9,8 +9,11 @@ Design intent:
 
 v0 (Detroit) encoding policy (PI review aligned):
 - Do NOT treat `building_id` as a categorical variable in the diffusion model (too many categories).
-- Use a two-stage strategy: generate person attributes + tract/BG, then assign buildings within BG by capacity proxies.
-- Building conditions (if used in later versions) should start as a continuous feature vector, not an ID embedding.
+- Building must NOT be a pure post-processing assignment; spatial anchoring should be part of generation.
+  Practically, this means: sample with building context, i.e. generate
+  P(attrs | macro_condition, building_feature) and carry `bldg_id` with the sample.
+- If an approximate staged implementation is needed, it must keep feedback (resample/reweight)
+  and be described as an approximation rather than the core innovation.
 """
 
 import pathlib

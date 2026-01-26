@@ -98,6 +98,32 @@ def _download(url: str, dest: pathlib.Path, *, overwrite: bool = False, timeout_
     print(f"[ok] downloaded: {dest}", file=sys.stderr)
 
 
+def _http_get(url: str, *, timeout_s: int = 120) -> bytes:
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Synthetic_City/1.0 (+https://github.com/wujlin/Synthetic_City)"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        return resp.read()
+
+
+def _http_get_json(url: str, *, timeout_s: int = 120) -> dict:
+    payload = _http_get(url, timeout_s=timeout_s)
+    try:
+        return json.loads(payload.decode("utf-8"))
+    except Exception as e:
+        raise RuntimeError(f"failed to decode json from url={url}") from e
+
+
+def _arcgis_query(layer_url: str, params: dict[str, str], *, timeout_s: int = 180) -> dict:
+    qs = urllib.parse.urlencode(params, safe=":,=*")
+    url = layer_url.rstrip("/") + "/query?" + qs
+    data = _http_get_json(url, timeout_s=timeout_s)
+    if isinstance(data, dict) and "error" in data:
+        raise RuntimeError(f"ArcGIS query error: url={url}, error={data.get('error')}")
+    return data
+
+
 def _acs_select_estimate_variables(
     variables: dict[str, dict], table_id: str
 ) -> tuple[list[str], dict[str, dict]]:
@@ -198,6 +224,128 @@ def _cmd_tiger(args: argparse.Namespace) -> None:
                 "license": "Public domain (US Census TIGER/Line).",
             },
         )
+
+
+def _cmd_parcels_detroit(args: argparse.Namespace) -> None:
+    """
+    Download Detroit "Parcels_Current" from the City of Detroit Assessor ArcGIS FeatureServer.
+
+    Why this source:
+    - Parcel polygons + assessed_value are available directly from the service (no extra joins).
+    - Supports GeoJSON query output.
+    - We download in chunks for resumability (offset-based pagination).
+    """
+
+    out_root = pathlib.Path(args.out_root).resolve()
+    service_url = str(args.service_url).strip().rstrip("/")
+    where = str(args.where).strip()
+    out_fields = str(args.out_fields).strip()
+
+    out_dir = out_root / "detroit" / "raw" / "parcels" / "detroit_parcels_current"
+    _ensure_dir(out_dir)
+
+    # 1) Count
+    count_payload = _arcgis_query(
+        service_url,
+        {"where": where, "returnCountOnly": "true", "f": "json"},
+        timeout_s=180,
+    )
+    total = int(count_payload.get("count", 0) or 0)
+    if total <= 0:
+        raise SystemExit(f"ArcGIS returned count={total}. Check service_url/where: {service_url} | {where}")
+
+    record_count = int(args.record_count)
+    if record_count <= 0:
+        record_count = 2000
+
+    max_chunks = int(args.max_chunks)
+
+    downloaded = 0
+    for offset in range(0, total, record_count):
+        if max_chunks > 0 and downloaded >= max_chunks:
+            break
+
+        dest = out_dir / f"parcels_offset{offset:07d}.geojson"
+        if dest.exists() and not args.overwrite:
+            downloaded += 1
+            continue
+
+        data = _arcgis_query(
+            service_url,
+            {
+                "where": where,
+                "outFields": out_fields,
+                "returnGeometry": "true",
+                "f": "geojson",
+                "outSR": "4326",
+                "resultOffset": str(offset),
+                "resultRecordCount": str(record_count),
+            },
+            timeout_s=300,
+        )
+
+        features = data.get("features", [])
+        if not isinstance(features, list) or not features:
+            # No more rows (or service doesn't support resultOffset); stop to avoid infinite loops.
+            break
+
+        dest.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
+        downloaded += 1
+        print(f"[ok] chunk {downloaded}: {dest.name} (features={len(features)})", file=sys.stderr)
+
+    _write_json(
+        out_dir / "parcels_current.metadata.json",
+        {
+            "dataset": "City of Detroit Parcels_Current (Assessor) via ArcGIS FeatureServer",
+            "service_url": service_url,
+            "where": where,
+            "out_fields": out_fields,
+            "record_count": record_count,
+            "count": total,
+            "chunks_written": downloaded,
+            "download_utc": _utc_now_iso(),
+            "license": "UNKNOWN (check Detroit Open Data / ArcGIS Hub terms; do not redistribute without review).",
+        },
+    )
+    print(f"[ok] wrote {downloaded} chunk(s) under: {out_dir}", file=sys.stderr)
+
+
+def _cmd_wayne_assessment_2025(args: argparse.Namespace) -> None:
+    """
+    Download Wayne County annual assessment data (2025).
+
+    Note:
+    - These URLs are from Wayne County official site and may change in future years.
+    - If this download returns 403/blocked on the workstation, fallback is manual browser download + rsync.
+    """
+
+    out_root = pathlib.Path(args.out_root).resolve()
+    scope = str(args.scope).strip().lower()
+    url_map = {
+        "full": "https://www.waynecountymi.gov/files/assets/mainsite/v/1/management-amp-budget/documents/assessment-data/2025/2025-82-wayne-county-foia.zip",
+        "detroit": "https://www.waynecountymi.gov/files/assets/mainsite/v/1/management-amp-budget/documents/assessment-data/2025/detroit.zip",
+    }
+    if scope not in url_map:
+        raise SystemExit(f"unknown --scope={scope} (use: full|detroit)")
+    url = url_map[scope]
+
+    out_dir = out_root / "detroit" / "raw" / "parcels" / "wayne_county_assessment" / "2025"
+    _ensure_dir(out_dir)
+    filename = pathlib.Path(urllib.parse.urlparse(url).path).name
+    dest = out_dir / filename
+
+    _download(url, dest, overwrite=args.overwrite, timeout_s=300)
+    _write_json(
+        dest.with_suffix(dest.suffix + ".metadata.json"),
+        {
+            "dataset": "Wayne County Annual Assessment Data",
+            "year": 2025,
+            "scope": scope,
+            "url": url,
+            "download_utc": _utc_now_iso(),
+            "license": "UNKNOWN (check Wayne County terms; do not redistribute without review).",
+        },
+    )
 
 
 def _cmd_acs(args: argparse.Namespace) -> None:
@@ -428,7 +576,7 @@ def main() -> None:
 
     p_tiger = sub.add_parser("tiger", help="Download TIGER/Line shapefiles (MI).")
     _add_common_after(p_tiger)
-    p_tiger.add_argument("--tiger_year", default="2025")
+    p_tiger.add_argument("--tiger_year", default="2023")
     p_tiger.add_argument("--statefp", default="26", help="State FIPS (MI=26).")
     p_tiger.add_argument(
         "--layers",
@@ -475,6 +623,36 @@ def main() -> None:
         help="Existing SafeGraph unzip directory on wsA.",
     )
     p_safe.set_defaults(func=_cmd_safegraph)
+
+    p_parcels = sub.add_parser("parcels-detroit", help="Download City of Detroit parcel polygons (Parcels_Current).")
+    _add_common_after(p_parcels)
+    p_parcels.add_argument(
+        "--service_url",
+        default="https://services2.arcgis.com/qvkbeam7Wirps6zC/arcgis/rest/services/Parcels_Current/FeatureServer/0",
+        help="ArcGIS layer URL for Parcels_Current (layer 0).",
+    )
+    p_parcels.add_argument("--where", default="1=1", help="ArcGIS where clause (default: 1=1).")
+    p_parcels.add_argument(
+        "--out_fields",
+        default="parcel_number,assessed_value",
+        help="Comma-separated fields to include (default: parcel_number,assessed_value).",
+    )
+    p_parcels.add_argument(
+        "--record_count",
+        default="2000",
+        help="Records per chunk (ArcGIS maxRecordCount is typically 2000).",
+    )
+    p_parcels.add_argument(
+        "--max_chunks",
+        default="0",
+        help="For debugging: limit number of chunks (0 = no limit).",
+    )
+    p_parcels.set_defaults(func=_cmd_parcels_detroit)
+
+    p_assess = sub.add_parser("wayne-assessment-2025", help="Download Wayne County 2025 assessment data (ZIP).")
+    _add_common_after(p_assess)
+    p_assess.add_argument("--scope", choices=["full", "detroit"], default="detroit", help="Download full county or Detroit only.")
+    p_assess.set_defaults(func=_cmd_wayne_assessment_2025)
 
     args = parser.parse_args()
     if not getattr(args, "out_root", None):
