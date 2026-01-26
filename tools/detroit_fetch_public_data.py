@@ -290,12 +290,23 @@ def _cmd_pums(args: argparse.Namespace) -> None:
     out_root = pathlib.Path(args.out_root).resolve()
     year = int(args.pums_year)
     period = args.pums_period
-    state = args.statefp
+    state = str(args.statefp).zfill(2)
+
+    # Detroit v0 only needs Michigan (MI=26). Keep it explicit to avoid silent mistakes.
+    state_postal_lower = "mi" if state == "26" else None
+    if state_postal_lower is None:
+        raise SystemExit(
+            f"Unsupported --statefp={args.statefp}. This detroit helper currently only supports MI (26)."
+        )
 
     base_url = f"https://www2.census.gov/programs-surveys/acs/data/pums/{year}/{period}/"
     candidates = [
+        # Older naming (common in older releases / mirrors)
         f"psam_h{state}.zip",
         f"psam_p{state}.zip",
+        # Newer naming seen in some recent releases (postal abbreviation)
+        f"csv_h{state_postal_lower}.zip",
+        f"csv_p{state_postal_lower}.zip",
     ]
 
     out_dir = out_root / "detroit" / "raw" / "pums" / f"pums_{year}_{period}"
@@ -310,7 +321,7 @@ def _cmd_pums(args: argparse.Namespace) -> None:
             "base_url": base_url,
             "download_utc": _utc_now_iso(),
             "license": "Public microdata sample (US Census). Follow non-identification principle.",
-            "note": "File naming may change across years; script tries psam_hXX.zip/psam_pXX.zip.",
+            "note": "File naming may change across years; script tries psam_hXX/psam_pXX and csv_h{state}/csv_p{state}.",
         },
     )
 

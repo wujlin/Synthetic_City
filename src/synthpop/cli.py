@@ -9,6 +9,7 @@ import sys
 
 from .detroit.constants import DEFAULT_TIGER_YEAR, STATEFP_MI
 from .detroit.paths import tiger_dir
+from .detroit.stage_pums import stage_pums_zips
 from .detroit.stage_tiger import stage_tiger_zips
 from .pipeline.detroit_v0 import init_dirs as detroit_init_dirs
 from .pipeline.detroit_v0 import print_status as detroit_print_status
@@ -59,6 +60,38 @@ def _cmd_detroit_stage_tiger(args: argparse.Namespace) -> None:
         print("[warn] Some TIGER zips are missing in src_dir (expected 4).", file=sys.stderr)
         print(f"[hint] expected names: tl_{year}_{statefp}_{{place,tract,bg,puma20}}.zip", file=sys.stderr)
     print(f"[ok] staged {len(staged)}/4 TIGER zip(s) to: {dst_dir}", file=sys.stderr)
+
+
+def _cmd_detroit_stage_pums(args: argparse.Namespace) -> None:
+    """
+    Stage PUMS zips into the canonical folder layout.
+    Default behavior is non-destructive: copy (not move).
+    """
+    year = int(args.pums_year)
+    period = args.pums_period
+    statefp = args.statefp
+    src_dir = pathlib.Path(args.src_dir).expanduser().resolve()
+    dst_dir = pathlib.Path(args.dst_dir).expanduser().resolve()
+    mode = args.mode
+    overwrite = args.overwrite
+
+    staged = stage_pums_zips(
+        pums_year=year,
+        pums_period=period,
+        statefp=statefp,
+        src_dir=src_dir,
+        dst_dir=dst_dir,
+        mode=mode,
+        overwrite=overwrite,
+    )
+
+    if not staged:
+        print("[warn] No PUMS zips found in src_dir.", file=sys.stderr)
+        print(
+            f"[hint] expected names (MI): psam_p{str(statefp).zfill(2)}.zip / csv_pmi.zip (and household variants).",
+            file=sys.stderr,
+        )
+    print(f"[ok] staged {len(staged)} PUMS zip(s) to: {dst_dir}", file=sys.stderr)
 
 
 def _cmd_detroit_status(args: argparse.Namespace) -> None:
@@ -156,6 +189,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_stage.add_argument("--mode", choices=["copy", "symlink"], default="copy", help="Default: copy (non-destructive).")
     p_stage.add_argument("--overwrite", action="store_true", help="Overwrite existing staged files.")
     p_stage.set_defaults(func=_cmd_detroit_stage_tiger)
+
+    p_stage_pums = det_sub.add_parser("stage-pums", help="Copy/symlink PUMS zips into canonical folder.")
+    p_stage_pums.add_argument("--pums_year", default="2023")
+    p_stage_pums.add_argument("--pums_period", default="5-Year")
+    p_stage_pums.add_argument("--statefp", default=STATEFP_MI, help="State FIPS (MI=26).")
+    p_stage_pums.add_argument(
+        "--src_dir",
+        default=str(data_root()),
+        help="Source dir containing downloaded PUMS zip files (e.g., csv_pmi.zip).",
+    )
+    p_stage_pums.add_argument(
+        "--dst_dir",
+        default=str(data_root() / "detroit" / "raw" / "pums" / "pums_2023_5-Year"),
+        help="Destination PUMS directory (canonical layout).",
+    )
+    p_stage_pums.add_argument("--mode", choices=["copy", "symlink"], default="copy", help="Default: copy (non-destructive).")
+    p_stage_pums.add_argument("--overwrite", action="store_true", help="Overwrite existing staged files.")
+    p_stage_pums.set_defaults(func=_cmd_detroit_stage_pums)
 
     p_status = det_sub.add_parser("status", help="Print Detroit raw data status (JSON).")
     p_status.add_argument(

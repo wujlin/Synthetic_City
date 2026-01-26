@@ -11,6 +11,7 @@ from ..paths import ensure_dir
 
 _DEFAULT_PUMS_YEAR = 2023
 _DEFAULT_PUMS_PERIOD = "5-Year"
+_DEFAULT_PUMS_STATE_POSTAL_LOWER = "mi"  # MI for Detroit v0
 
 
 def make_run_id(*, prefix: str = "detroit_v0") -> str:
@@ -41,8 +42,20 @@ def status(*, data_root: pathlib.Path) -> dict[str, Any]:
     }
 
     pums_root = det / "raw" / "pums"
-    pums_default_zip = pums_root / f"pums_{_DEFAULT_PUMS_YEAR}_{_DEFAULT_PUMS_PERIOD}" / f"psam_p{STATEFP_MI}.zip"
-    pums_found = sorted(pums_root.glob(f"pums_*/*psam_p{STATEFP_MI}.zip"))
+    pums_default_psam = (
+        pums_root / f"pums_{_DEFAULT_PUMS_YEAR}_{_DEFAULT_PUMS_PERIOD}" / f"psam_p{STATEFP_MI}.zip"
+    )
+    pums_default_csv = (
+        pums_root
+        / f"pums_{_DEFAULT_PUMS_YEAR}_{_DEFAULT_PUMS_PERIOD}"
+        / f"csv_p{_DEFAULT_PUMS_STATE_POSTAL_LOWER}.zip"
+    )
+    pums_found = sorted(
+        set(
+            list(pums_root.glob(f"pums_*/*psam_p{STATEFP_MI}.zip"))
+            + list(pums_root.glob(f"pums_*/*csv_p{_DEFAULT_PUMS_STATE_POSTAL_LOWER}.zip"))
+        )
+    )
 
     return {
         "data_root": str(data_root),
@@ -51,7 +64,10 @@ def status(*, data_root: pathlib.Path) -> dict[str, Any]:
             "tiger_dir": str(tiger),
             "tiger_expected": {k: {"path": str(v), "exists": _exists(v)} for k, v in expected_tiger.items()},
             "pums": {
-                "default_zip": {"path": str(pums_default_zip), "exists": _exists(pums_default_zip)},
+                "default_person_zips": {
+                    "psam": {"path": str(pums_default_psam), "exists": _exists(pums_default_psam)},
+                    "csv": {"path": str(pums_default_csv), "exists": _exists(pums_default_csv)},
+                },
                 "found_zips": [str(p) for p in pums_found[:10]],
             },
             "safegraph_dir": str(sg),

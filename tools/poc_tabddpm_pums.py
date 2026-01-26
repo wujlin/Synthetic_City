@@ -124,6 +124,12 @@ def main() -> None:
 
     if args.mode in {"train", "train-sample"}:
         data_root_path = pathlib.Path(args.data_root).expanduser().resolve()
+        statefp = str(args.statefp).zfill(2)
+        state_postal_lower = "mi" if statefp == "26" else None
+        if state_postal_lower is None:
+            raise SystemExit(
+                f"Unsupported --statefp={args.statefp} for this Detroit PoC. v0 currently only supports MI (26)."
+            )
         raw_dir = (
             data_root_path
             / "detroit"
@@ -131,11 +137,22 @@ def main() -> None:
             / "pums"
             / f"pums_{args.pums_year}_{args.pums_period}"
         )
-        zip_path = raw_dir / f"psam_p{args.statefp}.zip"
+        candidates = [
+            raw_dir / f"psam_p{statefp}.zip",  # older naming
+            raw_dir / f"csv_p{state_postal_lower}.zip",  # newer naming
+        ]
+        zip_path = next((p for p in candidates if p.exists()), candidates[0])
         if not zip_path.exists():
             # Fallback: user may have staged the zip under a different subfolder name.
             search_root = data_root_path / "detroit" / "raw" / "pums"
-            found = sorted(search_root.glob(f"**/psam_p{args.statefp}.zip"))
+            patterns = [f"psam_p{statefp}.zip", f"csv_p{state_postal_lower}.zip"]
+            found: list[pathlib.Path] = []
+            for pat in patterns:
+                found.extend(sorted(search_root.glob(f"**/{pat}")))
+            # de-dup while keeping order
+            seen = set()
+            found = [p for p in found if not (str(p) in seen or seen.add(str(p)))]
+
             if len(found) == 1:
                 zip_path = found[0]
                 print(f"[warn] using staged PUMS zip from non-default path: {zip_path}")
@@ -143,17 +160,20 @@ def main() -> None:
                 msg = "\n".join([str(p) for p in found[:10]])
                 raise SystemExit(
                     "PUMS zip not found at default path and multiple candidates exist.\n"
-                    f"default: {zip_path}\n"
+                    f"default candidates:\n  - {candidates[0]}\n  - {candidates[1]}\n"
                     f"candidates (first 10):\n{msg}\n"
                     "Please keep only one under detroit/raw/pums/ or set --pums_period/--pums_year to match."
                 )
             else:
                 raise SystemExit(
-                    f"PUMS zip not found: {zip_path}\n"
+                    "PUMS zip not found.\n"
+                    f"Tried:\n  - {candidates[0]}\n  - {candidates[1]}\n"
                     "Hint: download it first, e.g.\n"
-                    f"  python tools/detroit_fetch_public_data.py pums --out_root \"{data_root_path}\" --pums_year {args.pums_year} --pums_period \"{args.pums_period}\" --statefp {args.statefp}\n"
-                    f"or manually place psam_p{args.statefp}.zip into:\n"
+                    f"  python tools/detroit_fetch_public_data.py pums --out_root \"{data_root_path}\" --pums_year {args.pums_year} --pums_period \"{args.pums_period}\" --statefp {statefp}\n"
+                    "or manually place one of the following into:\n"
                     f"  {search_root}/pums_{args.pums_year}_{args.pums_period}/\n"
+                    f"  - psam_p{statefp}.zip (older naming)\n"
+                    f"  - csv_p{state_postal_lower}.zip (newer naming)\n"
                 )
 
         member = _find_first_csv_in_zip(zip_path)

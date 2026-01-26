@@ -72,6 +72,12 @@ python -m src.synthpop detroit init-dirs
 python -m src.synthpop detroit stage-tiger --tiger_year 2023 --src_dir data
 ```
 
+将 PUMS zip（常见命名：`psam_p26.zip` 或 `csv_pmi.zip`）落到标准目录（默认 copy，不会删除源文件）：
+
+```bash
+python -m src.synthpop detroit stage-pums --pums_year 2023 --pums_period 5-Year --src_dir data
+```
+
 ## 最小技术验证（TabDDPM + PUMS）
 
 在 wsA 上用 PUMS person 子集跑一个 PoC（验证“混合类型扩散 + 条件化”可训练可采样）：
