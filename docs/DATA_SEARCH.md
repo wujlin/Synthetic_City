@@ -218,6 +218,15 @@ python tools/detroit_fetch_public_data.py parcels-detroit \
 # 输出目录：$RAW_ROOT/synthetic_city/data/detroit/raw/parcels/detroit_parcels_current/
 ```
 
+如遇 `ssl.SSLEOFError` / 连接被重置等瞬时网络问题，可直接重跑（脚本会跳过已存在 chunk），或加大重试/降低请求压力：
+
+```bash
+python tools/detroit_fetch_public_data.py parcels-detroit \
+  --out_root "$RAW_ROOT/synthetic_city/data" \
+  --out_fields "parcel_number,assessed_value,taxable_value,sale_price,sale_date" \
+  --retries 12 --backoff_s 1.0 --sleep_s 0.5 --record_count 1000
+```
+
 ---
 
 ### 数据源 P1-1b：Zoning（分区）

@@ -26,8 +26,11 @@ import gzip
 import json
 import os
 import pathlib
+import random
 import re
+import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -98,27 +101,55 @@ def _download(url: str, dest: pathlib.Path, *, overwrite: bool = False, timeout_
     print(f"[ok] downloaded: {dest}", file=sys.stderr)
 
 
-def _http_get(url: str, *, timeout_s: int = 120) -> bytes:
+def _http_get(url: str, *, timeout_s: int = 120, retries: int = 6, backoff_s: float = 1.0) -> bytes:
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "Synthetic_City/1.0 (+https://github.com/wujlin/Synthetic_City)"},
+        headers={
+            "User-Agent": "Synthetic_City/1.0 (+https://github.com/wujlin/Synthetic_City)",
+            # Some servers/proxies are less flaky with explicit close.
+            "Connection": "close",
+        },
     )
-    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-        return resp.read()
+
+    retries = int(retries)
+    if retries < 0:
+        retries = 0
+    backoff_s = float(backoff_s)
+
+    last_err: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                return resp.read()
+        except (urllib.error.URLError, ssl.SSLError, ConnectionResetError, TimeoutError) as e:
+            last_err = e
+            if attempt >= retries:
+                break
+            sleep_s = min(60.0, max(0.0, backoff_s) * (2**attempt) + random.random() * 0.2)
+            print(f"[warn] HTTP error (attempt {attempt+1}/{retries+1}): {e}; sleep {sleep_s:.1f}s", file=sys.stderr)
+            time.sleep(sleep_s)
+    raise urllib.error.URLError(last_err)
 
 
-def _http_get_json(url: str, *, timeout_s: int = 120) -> dict:
-    payload = _http_get(url, timeout_s=timeout_s)
+def _http_get_json(url: str, *, timeout_s: int = 120, retries: int = 6, backoff_s: float = 1.0) -> dict:
+    payload = _http_get(url, timeout_s=timeout_s, retries=retries, backoff_s=backoff_s)
     try:
         return json.loads(payload.decode("utf-8"))
     except Exception as e:
         raise RuntimeError(f"failed to decode json from url={url}") from e
 
 
-def _arcgis_query(layer_url: str, params: dict[str, str], *, timeout_s: int = 180) -> dict:
+def _arcgis_query(
+    layer_url: str,
+    params: dict[str, str],
+    *,
+    timeout_s: int = 180,
+    retries: int = 6,
+    backoff_s: float = 1.0,
+) -> dict:
     qs = urllib.parse.urlencode(params, safe=":,=*")
     url = layer_url.rstrip("/") + "/query?" + qs
-    data = _http_get_json(url, timeout_s=timeout_s)
+    data = _http_get_json(url, timeout_s=timeout_s, retries=retries, backoff_s=backoff_s)
     if isinstance(data, dict) and "error" in data:
         raise RuntimeError(f"ArcGIS query error: url={url}, error={data.get('error')}")
     return data
@@ -244,11 +275,18 @@ def _cmd_parcels_detroit(args: argparse.Namespace) -> None:
     out_dir = out_root / "detroit" / "raw" / "parcels" / "detroit_parcels_current"
     _ensure_dir(out_dir)
 
+    retries = int(args.retries)
+    backoff_s = float(args.backoff_s)
+    sleep_s = float(args.sleep_s)
+    timeout_s = int(args.timeout_s)
+
     # 1) Count
     count_payload = _arcgis_query(
         service_url,
         {"where": where, "returnCountOnly": "true", "f": "json"},
         timeout_s=180,
+        retries=retries,
+        backoff_s=backoff_s,
     )
     total = int(count_payload.get("count", 0) or 0)
     if total <= 0:
@@ -281,7 +319,9 @@ def _cmd_parcels_detroit(args: argparse.Namespace) -> None:
                 "resultOffset": str(offset),
                 "resultRecordCount": str(record_count),
             },
-            timeout_s=300,
+            timeout_s=timeout_s,
+            retries=retries,
+            backoff_s=backoff_s,
         )
 
         features = data.get("features", [])
@@ -292,6 +332,8 @@ def _cmd_parcels_detroit(args: argparse.Namespace) -> None:
         dest.write_text(json.dumps(data, ensure_ascii=False) + "\n", encoding="utf-8")
         downloaded += 1
         print(f"[ok] chunk {downloaded}: {dest.name} (features={len(features)})", file=sys.stderr)
+        if sleep_s > 0:
+            time.sleep(sleep_s)
 
     _write_json(
         out_dir / "parcels_current.metadata.json",
@@ -642,6 +684,10 @@ def main() -> None:
         default="2000",
         help="Records per chunk (ArcGIS maxRecordCount is typically 2000).",
     )
+    p_parcels.add_argument("--timeout_s", default="300", help="Per-chunk request timeout seconds (default: 300).")
+    p_parcels.add_argument("--retries", default="6", help="Retry count on transient SSL/connection errors (default: 6).")
+    p_parcels.add_argument("--backoff_s", default="1.0", help="Retry backoff base seconds (default: 1.0).")
+    p_parcels.add_argument("--sleep_s", default="0.2", help="Politeness sleep between chunks (default: 0.2).")
     p_parcels.add_argument(
         "--max_chunks",
         default="0",
