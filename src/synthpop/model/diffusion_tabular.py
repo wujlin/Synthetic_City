@@ -263,28 +263,30 @@ class DiffusionTabularModel:
         else:
             cond = None
 
-        x_t = torch.randn((int(n), self.input_dim), device=device)
-        betas = self._schedule["betas"]
-        alphas = self._schedule["alphas"]
-        alpha_cumprod = self._schedule["alpha_cumprod"]
-        posterior_variance = self._schedule["posterior_variance"]
-        sqrt_one_minus_alpha_cumprod = self._schedule["sqrt_one_minus_alpha_cumprod"]
+        # Sampling does not require gradients. Without no_grad/inference_mode, the graph across
+        # timesteps will accumulate and can easily OOM on GPU.
+        with torch.inference_mode():
+            x_t = torch.randn((int(n), self.input_dim), device=device)
+            betas = self._schedule["betas"]
+            alphas = self._schedule["alphas"]
+            posterior_variance = self._schedule["posterior_variance"]
+            sqrt_one_minus_alpha_cumprod = self._schedule["sqrt_one_minus_alpha_cumprod"]
 
-        for step in reversed(range(self.config.timesteps)):
-            t = torch.full((int(n),), step, device=device, dtype=torch.long)
-            eps_pred = self._net(x_t, t, cond)
+            for step in reversed(range(self.config.timesteps)):
+                t = torch.full((int(n),), step, device=device, dtype=torch.long)
+                eps_pred = self._net(x_t, t, cond)
 
-            beta_t = betas[step]
-            alpha_t = alphas[step]
-            sqrt_om = sqrt_one_minus_alpha_cumprod[step]
-            model_mean = (1.0 / torch.sqrt(alpha_t)) * (x_t - (beta_t / sqrt_om) * eps_pred)
+                beta_t = betas[step]
+                alpha_t = alphas[step]
+                sqrt_om = sqrt_one_minus_alpha_cumprod[step]
+                model_mean = (1.0 / torch.sqrt(alpha_t)) * (x_t - (beta_t / sqrt_om) * eps_pred)
 
-            if step == 0:
-                x_t = model_mean
-                continue
+                if step == 0:
+                    x_t = model_mean
+                    continue
 
-            var_t = posterior_variance[step]
-            noise = torch.randn_like(x_t)
-            x_t = model_mean + torch.sqrt(var_t) * noise
+                var_t = posterior_variance[step]
+                noise = torch.randn_like(x_t)
+                x_t = model_mean + torch.sqrt(var_t) * noise
 
-        return x_t.detach().cpu()
+            return x_t.detach().cpu()
