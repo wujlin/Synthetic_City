@@ -209,6 +209,9 @@ def _assign_buildings_to_persons(
     np = _require("numpy")
 
     persons = persons.copy()
+    # Important: persons may carry a non-contiguous index (e.g., after filtering rows).
+    # We use numpy arrays for assignment below, so we must align indices to 0..N-1 positions.
+    persons = persons.reset_index(drop=True)
     buildings = buildings.copy()
     buildings[puma_col_bldg] = buildings[puma_col_bldg].map(_normalize_puma)
     persons[puma_col_person] = persons[puma_col_person].map(_normalize_puma)
