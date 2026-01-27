@@ -107,6 +107,32 @@ PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_pums_buildingcond.py \
 ls -lah "$OUT_DIR" | rg "samples_building|building_portrait|summary|model.pt|encoder.json"
 ```
 
+## 最小可视化产物（PNG + GeoJSON）
+
+> 目的：把“建筑尺度画像”变成可 review、可进 QGIS/Kepler 的产物，而不是只留在 CSV。
+
+若缺少绘图依赖（常见于纯训练环境），先安装：
+
+```bash
+conda install -c conda-forge matplotlib
+```
+
+```bash
+python tools/viz_building_portrait.py \
+  --portrait_csv "$OUT_DIR/building_portrait.csv" \
+  --out_dir "$OUT_DIR/viz" \
+  --max_points 20000
+
+ls -lah "$OUT_DIR/viz"
+ls -lah "$OUT_DIR/viz/figures"
+```
+
+产物说明：
+- `building_portrait_points.geojson`：建筑点数据（可直接拖进 QGIS/Kepler）
+- `figures/map_*`：建筑点图（income/age/pop_count）
+- `figures/box_*`：按 `price_tier` 分档的分布图
+- `viz_summary.json`：相关性与分档统计（用于 PI 快速 review）
+
 ---
 
 ## 应用场景（把可视化变成“用得上”）

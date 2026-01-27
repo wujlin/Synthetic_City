@@ -1,5 +1,6 @@
 numpy
 pandas
+matplotlib
 # PyTorch wheels depend on CUDA / Python version. If pip install fails, install via conda or follow
 # https://pytorch.org/get-started/locally/ for the correct command.
 torch

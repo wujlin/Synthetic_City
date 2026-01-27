@@ -133,6 +133,17 @@ python tools/poc_tabddpm_pums_buildingcond.py \
   --epochs 5 --timesteps 200 --n_samples 50000 --device cuda
 ```
 
+## 建筑物尺度画像可视化（PNG + GeoJSON）
+
+对 `building_portrait.csv` 做最小可 review 产物（建筑点图 + 分档箱线图 + GeoJSON）：
+
+```bash
+python tools/viz_building_portrait.py \
+  --portrait_csv "$OUT_DIR/building_portrait.csv" \
+  --out_dir "$OUT_DIR/viz" \
+  --max_points 20000
+```
+
 ## GitHub 首次同步（常见报错修复）
 
 若 `git push -u origin main` 报错 `src refspec main does not match any`，通常是**还没有任何 commit**。
