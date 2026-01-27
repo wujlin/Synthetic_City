@@ -83,17 +83,17 @@ python tools/prepare_detroit_buildings_gba.py \
   --tiger_tract_zip "$DATA_DIR/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip" \
   --out_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features.csv"
 
-# 2) 叠加 Wayne County parcel assessment，得到 price_per_sqft + tract 内 price_tier（Q1-Q5）
-#    parcels_path 由 partner 下载后放到 raw/parcels/ 下（格式任意：shp/geojson/gpkg/...）
+# 2) 叠加 Parcels_Current（City of Detroit），得到 price_per_sqft + tract 内 price_tier（Q1-Q5）
+#    parcels_path 推荐使用 tools/detroit_fetch_public_data.py parcels-detroit 的输出目录
 python tools/join_detroit_buildings_parcel_assessment.py \
   --buildings_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features.csv" \
-  --parcels_path "$DATA_DIR/detroit/raw/parcels/wayne_county/parcel_assessment.gpkg" \
+  --parcels_path "$DATA_DIR/detroit/raw/parcels/detroit_parcels_current" \
   --group_for_tier tract --n_tiers 5 \
   --out_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features_price.csv"
 
 # 3) building-conditioned diffusion PoC：输出 samples_building + building_portrait
 RUN_TAG=$(date -u +%Y%m%dT%H%M%SZ)
-OUT_DIR="outputs/_poc_tabddpm_pums_buildingcond_${RUN_TAG}"
+OUT_DIR="$DATA_DIR/detroit/outputs/runs/${RUN_TAG}_poc_tabddpm_pums_buildingcond"
 
 PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_pums_buildingcond.py \
   --mode train-sample \

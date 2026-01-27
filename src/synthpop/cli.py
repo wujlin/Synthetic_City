@@ -139,12 +139,12 @@ def _run_poc_tabddpm_pums(*, mode: str, args: argparse.Namespace) -> None:
         str(args.batch_size),
         "--seed",
         str(args.seed),
-        "--out_dir",
-        str(args.out_dir),
         "--log_every",
         str(args.log_every),
     ]
 
+    if args.out_dir:
+        cmd += ["--out_dir", str(args.out_dir)]
     if args.device:
         cmd += ["--device", str(args.device)]
     if args.ckpt_path:
@@ -236,14 +236,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_poc_train.add_argument("--batch_size", default="2048")
     p_poc_train.add_argument("--device", default=None)
     p_poc_train.add_argument("--seed", default="0")
-    p_poc_train.add_argument("--out_dir", default="outputs/_poc_tabddpm_pums")
+    p_poc_train.add_argument("--out_dir", default=None, help="Default handled by tools script (runs dir under data_root).")
     p_poc_train.add_argument("--ckpt_path", default=None)
     p_poc_train.add_argument("--encoder_path", default=None)
     p_poc_train.add_argument("--log_every", default="200")
     p_poc_train.set_defaults(func=_cmd_detroit_poc_train)
 
     p_poc_sample = det_sub.add_parser("poc-sample", help="PoC sample: load checkpoint and generate samples.")
-    p_poc_sample.add_argument("--data_root", default=str(data_root()), help="Kept for wrapper parity (not used in sample).")
+    p_poc_sample.add_argument("--data_root", default=str(data_root()), help="Data root (used to locate latest run if --out_dir is omitted).")
     p_poc_sample.add_argument("--pums_year", default="2023", help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--pums_period", default="5-Year", help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--statefp", default=STATEFP_MI, help="Kept for wrapper parity (not used in sample).")
@@ -254,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_poc_sample.add_argument("--batch_size", default="2048", help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--device", default=None)
     p_poc_sample.add_argument("--seed", default="0")
-    p_poc_sample.add_argument("--out_dir", default="outputs/_poc_tabddpm_pums")
+    p_poc_sample.add_argument("--out_dir", default=None, help="Default: use latest PoC run under data_root.")
     p_poc_sample.add_argument("--ckpt_path", default=None, help="Default: <out_dir>/model.pt")
     p_poc_sample.add_argument("--encoder_path", default=None, help="Default: <out_dir>/encoder.json")
     p_poc_sample.add_argument("--log_every", default="200", help="Kept for wrapper parity (not used in sample).")

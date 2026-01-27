@@ -101,6 +101,12 @@ df -h | head
 - 当前工作目录在仓库根（即 `pwd == $REPO`）
 - `python` 对应的环境里安装了 `requirements.txt` 所需依赖
 
+最小安装方式（在对应 conda env 内）：
+
+```bash
+pip install -r requirements.txt
+```
+
 建议实践（不是硬要求）：
 
 - 训练/评估：用一个统一 conda env（例如 `dpl`）

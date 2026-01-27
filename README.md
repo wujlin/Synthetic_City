@@ -95,14 +95,16 @@ python -m src.synthpop detroit poc-train --data_root "$RAW_ROOT/synthetic_city/d
 python -m src.synthpop detroit poc-sample --data_root "$RAW_ROOT/synthetic_city/data"
 ```
 
+> 说明：`poc-sample` 若不指定 `--out_dir`，会默认读取 `data_root/detroit/outputs/runs/_latest_poc_tabddpm_pums.json` 指向的最近一次 PoC 训练目录。
+
 ## 建筑条件注入 PoC（Detroit｜building-level portrait）
 
 PI review 强调：建筑落点不能只是事后分配；应把建筑作为条件注入生成过程。对应的机制 PoC：
 
 1) 从 GBA LoD1 + TIGER 生成 Detroit 建筑特征表（`bldg_id+puma+tract+area/height/cap_proxy/dist_cbd+centroid`）
-2) 叠加 Wayne County parcel assessment，得到 `price_per_sqft` 并在 tract 内分位数分档 `price_tier(Q1..Q5)`（作为建筑级收入代理）
+2) 叠加 Parcels_Current（City of Detroit），得到 `price_per_sqft` 并在 tract 内分位数分档 `price_tier(Q1..Q5)`（作为建筑级收入代理）
 3) 训练条件扩散：`cond = [PUMA one-hot, building_feature(price_tier + 辅助特征)]`
-3) 采样输出 `samples_building.csv` 并聚合得到 `building_portrait.csv`（pop/age/income）
+4) 采样输出 `samples_building.csv` 并聚合得到 `building_portrait.csv`（pop/age/income）
 
 ```bash
 export DATA_DIR="$RAW_ROOT/synthetic_city/data"
@@ -115,10 +117,10 @@ python tools/prepare_detroit_buildings_gba.py \
   --tiger_tract_zip "$DATA_DIR/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip" \
   --out_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features.csv"
 
-# 2) join parcel assessment → price_per_sqft + price_tier（parcels_path 由 partner 下载落盘）
+# 2) join Parcels_Current（City of Detroit）→ price_per_sqft + price_tier（建议先跑 parcels-detroit 抓取到 raw/parcels/）
 python tools/join_detroit_buildings_parcel_assessment.py \
   --buildings_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features.csv" \
-  --parcels_path "$DATA_DIR/detroit/raw/parcels/wayne_county/parcel_assessment.gpkg" \
+  --parcels_path "$DATA_DIR/detroit/raw/parcels/detroit_parcels_current" \
   --group_for_tier tract --n_tiers 5 \
   --out_csv "$DATA_DIR/detroit/processed/buildings/buildings_detroit_features_price.csv"
 

@@ -11,7 +11,8 @@ Intent (PI-aligned):
 Inputs:
 - buildings_csv: output of tools/prepare_detroit_buildings_gba.py (must include centroid_lon/lat, footprint_area_m2,
   and preferably tract_geoid).
-- parcels_path: Wayne County parcel assessment data (any geopandas-readable format: shp/geojson/gpkg/fgdb layer, etc.)
+- parcels_path: parcel dataset path OR a directory of chunked GeoJSON files (as produced by tools/detroit_fetch_public_data.py
+  parcels-detroit). Any geopandas-readable format is supported for file inputs.
 
 Outputs:
 - buildings_out_csv: buildings_csv + parcel_id + assessed_value + price_per_sqft + price_tier
@@ -86,7 +87,11 @@ def main() -> None:
 
     p = argparse.ArgumentParser(prog="join_detroit_buildings_parcel_assessment")
     p.add_argument("--buildings_csv", required=True, help="Input buildings CSV (from prepare_detroit_buildings_gba.py).")
-    p.add_argument("--parcels_path", required=True, help="Wayne County parcel assessment dataset path.")
+    p.add_argument(
+        "--parcels_path",
+        required=True,
+        help="Parcel dataset path OR a directory containing chunked GeoJSON parcels_offset*.geojson.",
+    )
     p.add_argument("--parcel_layer", default=None, help="Optional layer name (for GDB/GeoPackage).")
     p.add_argument("--parcel_id_col", default=None, help="Parcel ID column (default: auto-detect).")
     p.add_argument("--assessed_value_col", default=None, help="Assessed value column (default: auto-detect).")
@@ -132,50 +137,119 @@ def main() -> None:
         crs=4326,
     )
 
-    # Load parcels
-    if args.parcel_layer:
-        parcels = gpd.read_file(parcels_path, layer=args.parcel_layer)
+    parcel_chunks_used: list[str] = []
+    pid_col_detected: str | None = None
+    aval_col_detected: str | None = None
+
+    def _detect_pid_aval(cols: list[str]) -> tuple[str, str]:
+        pid = args.parcel_id_col or _pick_col(
+            cols,
+            (
+                "parcel_id",
+                "PARCEL_ID",
+                "parcelid",
+                "PARCELID",
+                "parcel_number",
+                "PARCELNO",
+                "PARCEL_NO",
+                "PID",
+                "OBJECTID",
+            ),
+        )
+        if pid is None:
+            raise SystemExit(f"Cannot auto-detect parcel_id_col. Columns: {cols}")
+        aval = args.assessed_value_col or _pick_col(
+            cols,
+            (
+                "assessed_value",
+                "ASSESSED_VALUE",
+                "AssessedValue",
+                "ASSESSEDVALUE",
+                "SEV",
+                "STATE_EQUALIZED_VALUE",
+                "TOTAL_VALUE",
+                "TOTALVAL",
+                "TAXABLEVALUE",
+                "taxable_value",
+            ),
+        )
+        if aval is None:
+            raise SystemExit(f"Cannot auto-detect assessed_value_col. Columns: {cols}")
+        return str(pid), str(aval)
+
+    def _dedup_mapping(m: "Any") -> "Any":
+        # Prefer the highest assessed value if a building appears multiple times.
+        m["parcel_assessed_value"] = pd.to_numeric(m["parcel_assessed_value"], errors="coerce").fillna(0.0).clip(lower=0.0)
+        m = m.sort_values(["bldg_id", "parcel_assessed_value"], ascending=[True, False])
+        return m.drop_duplicates(subset=["bldg_id"], keep="first").copy()
+
+    if parcels_path.is_dir():
+        # Chunked GeoJSON directory (from parcels-detroit downloader)
+        geojsons = sorted(parcels_path.glob("parcels_offset*.geojson"))
+        if not geojsons:
+            raise SystemExit(f"No parcels_offset*.geojson found under: {parcels_path}")
+
+        # Build spatial index once (keep buildings as right table)
+        _ = b_gdf.sindex
+
+        mappings = []
+        pid_col: str | None = None
+        aval_col: str | None = None
+        for fpath in geojsons:
+            parcels = gpd.read_file(fpath)
+            if parcels.empty:
+                continue
+            if parcels.crs is None:
+                epsg = _guess_crs_epsg(parcels)
+                parcels = parcels.set_crs(epsg, allow_override=True)
+
+            if pid_col is None or aval_col is None:
+                pid_col, aval_col = _detect_pid_aval(list(parcels.columns))
+                pid_col_detected, aval_col_detected = pid_col, aval_col
+
+            parcels = parcels[[pid_col, aval_col, "geometry"]].copy()
+            parcels[aval_col] = pd.to_numeric(parcels[aval_col], errors="coerce").fillna(0.0).clip(lower=0.0)
+
+            parcels = parcels.to_crs(b_gdf.crs)
+            joined = gpd.sjoin(parcels, b_gdf, how="inner", predicate="contains")
+            if joined.empty:
+                parcel_chunks_used.append(str(fpath.name))
+                continue
+            m = joined.drop(columns=["geometry"]).rename(columns={pid_col: "parcel_id", aval_col: "parcel_assessed_value"})
+            mappings.append(m[["bldg_id", "parcel_id", "parcel_assessed_value"]])
+            parcel_chunks_used.append(str(fpath.name))
+
+        if pid_col is None or aval_col is None:
+            raise SystemExit(f"Failed to detect parcel_id/assessed_value columns from: {parcels_path}")
+
+        if mappings:
+            m_all = pd.concat(mappings, ignore_index=True)
+            m_all = _dedup_mapping(m_all)
+        else:
+            m_all = pd.DataFrame({"bldg_id": [], "parcel_id": [], "parcel_assessed_value": []})
+        b = b.merge(m_all, on="bldg_id", how="left")
     else:
-        parcels = gpd.read_file(parcels_path)
-    if parcels.crs is None:
-        # Some ArcGIS exports omit CRS. Use a simple heuristic; override by re-exporting with CRS if needed.
-        epsg = _guess_crs_epsg(parcels)
-        parcels = parcels.set_crs(epsg, allow_override=True)
-        print(f"[warn] parcels.crs is None; guessed EPSG:{epsg} from coordinate bounds.")
+        # Single dataset file (gpkg/shp/geojson/...)
+        if args.parcel_layer:
+            parcels = gpd.read_file(parcels_path, layer=args.parcel_layer)
+        else:
+            parcels = gpd.read_file(parcels_path)
+        if parcels.crs is None:
+            epsg = _guess_crs_epsg(parcels)
+            parcels = parcels.set_crs(epsg, allow_override=True)
+            print(f"[warn] parcels.crs is None; guessed EPSG:{epsg} from coordinate bounds.")
 
-    # Detect columns
-    pid_col = args.parcel_id_col or _pick_col(
-        list(parcels.columns),
-        ("parcel_id", "PARCEL_ID", "parcelid", "PARCELID", "PARCELNO", "PARCEL_NO", "PID", "OBJECTID"),
-    )
-    if pid_col is None:
-        raise SystemExit(f"Cannot auto-detect parcel_id_col. Columns: {list(parcels.columns)}")
+        pid_col, aval_col = _detect_pid_aval(list(parcels.columns))
+        pid_col_detected, aval_col_detected = pid_col, aval_col
 
-    aval_col = args.assessed_value_col or _pick_col(
-        list(parcels.columns),
-        (
-            "assessed_value",
-            "ASSESSED_VALUE",
-            "AssessedValue",
-            "ASSESSEDVALUE",
-            "SEV",
-            "STATE_EQUALIZED_VALUE",
-            "TOTAL_VALUE",
-            "TOTALVAL",
-            "TAXABLEVALUE",
-        ),
-    )
-    if aval_col is None:
-        raise SystemExit(f"Cannot auto-detect assessed_value_col. Columns: {list(parcels.columns)}")
+        parcels = parcels[[pid_col, aval_col, "geometry"]].copy()
+        parcels[aval_col] = pd.to_numeric(parcels[aval_col], errors="coerce").fillna(0.0).clip(lower=0.0)
+        b_gdf = b_gdf.to_crs(parcels.crs)
 
-    # CRS align and join
-    parcels = parcels[[pid_col, aval_col, "geometry"]].copy()
-    parcels[aval_col] = pd.to_numeric(parcels[aval_col], errors="coerce").fillna(0.0).clip(lower=0.0)
-    b_gdf = b_gdf.to_crs(parcels.crs)
+        joined = gpd.sjoin(b_gdf, parcels, how="left", predicate="within")
+        j = joined.drop(columns=["geometry"]).rename(columns={pid_col: "parcel_id", aval_col: "parcel_assessed_value"})
+        b = b.merge(j[["bldg_id", "parcel_id", "parcel_assessed_value"]], on="bldg_id", how="left")
 
-    joined = gpd.sjoin(b_gdf, parcels, how="left", predicate="within")
-    j = joined.drop(columns=["geometry"]).rename(columns={pid_col: "parcel_id", aval_col: "parcel_assessed_value"})
-    b = b.merge(j[["bldg_id", "parcel_id", "parcel_assessed_value"]], on="bldg_id", how="left")
     b["parcel_assessed_value"] = pd.to_numeric(b["parcel_assessed_value"], errors="coerce").fillna(0.0).clip(lower=0.0)
 
     # Allocate parcel assessed value across buildings if requested
@@ -225,8 +299,12 @@ def main() -> None:
         "buildings_csv_in": str(buildings_csv),
         "parcels_path": str(parcels_path),
         "parcel_layer": args.parcel_layer,
-        "parcel_id_col": str(pid_col),
-        "assessed_value_col": str(aval_col),
+        "parcel_id_col_detected": str(pid_col_detected or ""),
+        "assessed_value_col_detected": str(aval_col_detected or ""),
+        "parcel_id_col_arg": str(args.parcel_id_col or ""),
+        "assessed_value_col_arg": str(args.assessed_value_col or ""),
+        "parcels_chunk_dir": str(parcels_path) if parcels_path.is_dir() else None,
+        "parcels_chunks_used": parcel_chunks_used[:10] + (["..."] if len(parcel_chunks_used) > 10 else []),
         "group_for_tier": str(args.group_for_tier),
         "n_tiers": int(args.n_tiers),
         "allocate_within_parcel": str(args.allocate_within_parcel),

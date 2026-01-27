@@ -22,7 +22,9 @@ Outputs:
 """
 
 import argparse
+import datetime as _dt
 import json
+import os
 import pathlib
 import random
 import sys
@@ -40,6 +42,59 @@ def _require(pkg: str) -> Any:
         return __import__(pkg)
     except Exception as e:
         raise RuntimeError(f"Missing dependency: {pkg}. Install it in your conda env.") from e
+
+
+def _utc_now_iso() -> str:
+    return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+
+def _runs_dir(data_root_path: pathlib.Path) -> pathlib.Path:
+    p = data_root_path / "detroit" / "outputs" / "runs"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _latest_pointer_path(runs_dir: pathlib.Path) -> pathlib.Path:
+    return runs_dir / "_latest_poc_tabddpm_pums_buildingcond.json"
+
+
+def _write_latest_pointer(*, runs_dir: pathlib.Path, out_dir: pathlib.Path) -> None:
+    path = _latest_pointer_path(runs_dir)
+    path.write_text(
+        json.dumps({"out_dir": str(out_dir), "updated_utc": _utc_now_iso()}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _read_latest_pointer(*, runs_dir: pathlib.Path) -> pathlib.Path | None:
+    path = _latest_pointer_path(runs_dir)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        out_dir = payload.get("out_dir")
+        if out_dir:
+            return pathlib.Path(out_dir).expanduser().resolve()
+    except Exception:
+        return None
+    return None
+
+
+def _write_run_metadata(*, out_dir: pathlib.Path, args: argparse.Namespace, extra: dict[str, Any]) -> None:
+    meta = {
+        "created_utc": _utc_now_iso(),
+        "argv": sys.argv,
+        "script": pathlib.Path(__file__).name,
+        "mode": args.mode,
+        "data_root": str(pathlib.Path(args.data_root).expanduser().resolve()),
+        "env": {
+            "RAW_ROOT": os.environ.get("RAW_ROOT"),
+            "SYNTHCITY_DATA_ROOT": os.environ.get("SYNTHCITY_DATA_ROOT"),
+        },
+        "args": vars(args),
+        **extra,
+    }
+    (out_dir / "run.metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 def _find_first_csv_in_zip(zip_path: pathlib.Path) -> str:
@@ -282,6 +337,7 @@ def main() -> None:
     torch = _require("torch")
 
     from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
+    from src.synthpop.pipeline.detroit_v0 import make_run_id
     from src.synthpop.paths import data_root as default_data_root
 
     p = argparse.ArgumentParser(prog="poc_tabddpm_pums_buildingcond")
@@ -300,7 +356,11 @@ def main() -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--pairing", choices=["random", "quantile", "price_tier"], default="price_tier", help="How to pair PUMS persons with buildings for conditional training.")
     p.add_argument("--n_tiers", type=int, default=5, help="Number of price tiers (Q1..Qn). Used by pairing=price_tier.")
-    p.add_argument("--out_dir", default="outputs/_poc_tabddpm_pums_buildingcond")
+    p.add_argument(
+        "--out_dir",
+        default=None,
+        help="Output directory. Default: data_root/detroit/outputs/runs/<run_id> (train) or latest run (sample).",
+    )
     p.add_argument("--ckpt_path", default=None)
     p.add_argument("--encoder_path", default=None)
     p.add_argument("--log_every", type=int, default=200)
@@ -310,7 +370,20 @@ def main() -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    out_dir = pathlib.Path(args.out_dir).expanduser().resolve()
+    data_root_path = pathlib.Path(args.data_root).expanduser().resolve()
+    runs_dir = _runs_dir(data_root_path)
+
+    if args.out_dir:
+        out_dir = pathlib.Path(args.out_dir).expanduser().resolve()
+    else:
+        if args.mode in {"train", "train-sample"}:
+            out_dir = runs_dir / make_run_id(prefix="poc_tabddpm_pums_buildingcond")
+        else:
+            latest = _read_latest_pointer(runs_dir=runs_dir)
+            if latest is None:
+                raise SystemExit(f"out_dir not provided and no latest run found at: {_latest_pointer_path(runs_dir)}")
+            out_dir = latest
+
     out_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = pathlib.Path(args.ckpt_path).expanduser().resolve() if args.ckpt_path else (out_dir / "model.pt")
     encoder_path = pathlib.Path(args.encoder_path).expanduser().resolve() if args.encoder_path else (out_dir / "encoder.json")
@@ -497,6 +570,21 @@ def main() -> None:
             )
             + "\n",
             encoding="utf-8",
+        )
+
+        _write_latest_pointer(runs_dir=runs_dir, out_dir=out_dir)
+        _write_run_metadata(
+            out_dir=out_dir,
+            args=args,
+            extra={
+                "run_id": out_dir.name,
+                "run_dir": str(out_dir),
+                "ckpt_path": str(ckpt_path),
+                "encoder_path": str(encoder_path),
+                "pums_zip": str(zip_path),
+                "pums_member": member,
+                "buildings_csv": str(buildings_csv),
+            },
         )
 
     if args.mode == "train":

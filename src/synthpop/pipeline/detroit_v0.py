@@ -3,19 +3,39 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import pathlib
+import subprocess
 from typing import Any
 
 from ..detroit.constants import DEFAULT_TIGER_YEAR, STATEFP_MI
 from ..detroit.paths import detroit_root, safegraph_dir, tiger_dir
 from ..paths import ensure_dir
+from ..paths import project_root
 
 _DEFAULT_PUMS_YEAR = 2023
 _DEFAULT_PUMS_PERIOD = "5-Year"
 _DEFAULT_PUMS_STATE_POSTAL_LOWER = "mi"  # MI for Detroit v0
 
 
+def _git_sha_short() -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(project_root()),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        sha = proc.stdout.strip()
+        return sha or None
+    except Exception:
+        return None
+
+
 def make_run_id(*, prefix: str = "detroit_v0") -> str:
     ts = _dt.datetime.utcnow().replace(microsecond=0).isoformat().replace(":", "").replace("-", "")
+    sha = _git_sha_short()
+    if sha:
+        return f"{ts}_{prefix}_{sha}"
     return f"{ts}_{prefix}"
 
 
@@ -97,8 +117,10 @@ def init_dirs(*, data_root: pathlib.Path) -> dict[str, str]:
         "raw/census",
         "raw/pums",
         "raw/buildings",
+        "raw/parcels",
         "raw/poi",
         "raw/mobility",
+        "raw/transport",
         "interim",
         "processed",
         "outputs/runs",
