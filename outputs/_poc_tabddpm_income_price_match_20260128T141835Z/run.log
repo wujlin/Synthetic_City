@@ -1,0 +1,16 @@
+[train] step=200 loss=0.310760
+[train] step=400 loss=0.278469
+[train] step=600 loss=0.264048
+[train] step=800 loss=0.254777
+[train] step=1000 loss=0.257363
+[train] step=1200 loss=0.239899
+[train] step=1400 loss=0.231106
+[train] step=1600 loss=0.227982
+[train] step=1800 loss=0.232326
+[train] step=2000 loss=0.211855
+[train] step=2200 loss=0.208286
+[train] step=2400 loss=0.211115
+[train] step=2600 loss=0.199156
+[train] step=2800 loss=0.194103
+[train] step=3000 loss=0.192032
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/samples_building.csv, /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/building_portrait.csv, /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/sample_summary.json, /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/metrics/stats_metrics.json

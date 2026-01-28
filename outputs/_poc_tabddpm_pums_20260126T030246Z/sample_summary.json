@@ -1,0 +1,36 @@
+{
+  "mode": "sample",
+  "n_samples": 50000,
+  "ckpt_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_20260126T030246Z/model.pt",
+  "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_20260126T030246Z/encoder.json",
+  "decode": {
+    "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
+    "confidence": {
+      "SEX": {
+        "mean": 0.7304745061099529,
+        "p10": 0.7280542612075805,
+        "p50": 0.7305282950401306,
+        "p90": 0.732965737581253
+      },
+      "ESR": {
+        "mean": 0.3516287514841557,
+        "p10": 0.3506296396255493,
+        "p50": 0.35173073410987854,
+        "p90": 0.3525313168764114
+      }
+    }
+  },
+  "sample_freq": {
+    "SEX": {
+      "1": 0.5106,
+      "2": 0.4894
+    },
+    "ESR": {
+      "1": 0.54416,
+      "6": 0.41078,
+      "3": 0.03314,
+      "2": 0.01172,
+      "4": 0.0002
+    }
+  }
+}

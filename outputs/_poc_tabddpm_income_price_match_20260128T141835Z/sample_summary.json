@@ -1,0 +1,92 @@
+{
+  "mode": "train-sample",
+  "scheme": "B",
+  "n_samples": 50000,
+  "ckpt_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/model.pt",
+  "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/encoder.json",
+  "allocation": {
+    "method": "income_price_match",
+    "n_tiers": 5,
+    "meta": {
+      "method": "income_price_match",
+      "group_col": "puma",
+      "seed": 0,
+      "n_persons": 50000,
+      "n_buildings": 326214,
+      "n_groups_persons": 8,
+      "n_groups_buildings": 8,
+      "n_tiers": 5,
+      "n_unassigned": 0,
+      "n_assigned": 50000,
+      "tier_fallback": {
+        "fallback_assignments": 7489,
+        "fallback_rate": 0.14978,
+        "no_tier_groups": 0,
+        "no_tier_assignments": 0
+      }
+    }
+  },
+  "metrics": {
+    "stats_metrics_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/metrics/stats_metrics.json",
+    "stats_error": null,
+    "stats_metrics_acs_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_income_price_match_20260128T141835Z/metrics/stats_metrics_acs.json",
+    "stats_acs_error": null
+  },
+  "decode": {
+    "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
+    "confidence": {
+      "SEX": {
+        "mean": 0.6759865438807011,
+        "p10": 0.5319792330265045,
+        "p50": 0.6643772125244141,
+        "p90": 0.8383173882961273
+      },
+      "ESR": {
+        "mean": 0.39847251827955243,
+        "p10": 0.37192729115486145,
+        "p50": 0.40248386561870575,
+        "p90": 0.42227044701576233
+      }
+    }
+  },
+  "sample_freq": {
+    "SEX": {
+      "2": 0.51174,
+      "1": 0.48826
+    },
+    "ESR": {
+      "1": 0.47748,
+      "6": 0.47606,
+      "3": 0.0421,
+      "2": 0.00436
+    },
+    "price_tier": {
+      "5": 0.34976,
+      "2": 0.16258,
+      "4": 0.16258,
+      "3": 0.16254,
+      "1": 0.16254
+    }
+  },
+  "building_portrait": {
+    "n_buildings_hit": 20408,
+    "pop_count": {
+      "mean": 2.4500196001568013,
+      "p10": 1.0,
+      "p50": 1.0,
+      "p90": 2.0
+    },
+    "age_mean": {
+      "mean": 48.72513311678454,
+      "p10": 24.188388442993165,
+      "p50": 48.51614570617676,
+      "p90": 73.34565048217773
+    },
+    "income_p50": {
+      "mean": 27262.10738833022,
+      "p10": 0.40829799771308906,
+      "p50": 17739.30859375,
+      "p90": 64675.67226562499
+    }
+  }
+}

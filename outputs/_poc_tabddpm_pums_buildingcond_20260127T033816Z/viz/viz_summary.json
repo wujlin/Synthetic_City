@@ -1,0 +1,44 @@
+{
+  "portrait_csv": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/building_portrait.csv",
+  "n_buildings": 19035,
+  "corr": {
+    "pearson_income_p50__price_tier": 0.8099382919939642,
+    "pearson_income_p50__price_per_sqft": 0.5770054955614344,
+    "pearson_age_p50__price_tier": 0.18365441921215156
+  },
+  "income_p50_by_price_tier": {
+    "1": {
+      "count": 4152,
+      "median": 2.706604838371277,
+      "mean": 594.8854019965269
+    },
+    "2": {
+      "count": 4547,
+      "median": 8370.03369140625,
+      "mean": 8796.182761998236
+    },
+    "3": {
+      "count": 3287,
+      "median": 19087.986328125,
+      "mean": 20072.20942088685
+    },
+    "4": {
+      "count": 3180,
+      "median": 37375.34765625,
+      "mean": 39956.27942370529
+    },
+    "5": {
+      "count": 3869,
+      "median": 74928.734375,
+      "mean": 83611.14012952516
+    }
+  },
+  "artifacts": {
+    "geojson": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/viz/building_portrait_points.geojson",
+    "fig_dir": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/viz/figures"
+  },
+  "notes": {
+    "style_source_of_truth": "src/plot_style.py",
+    "no_bbox_inches_tight": true
+  }
+}

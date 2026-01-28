@@ -1,0 +1,7 @@
+/home/jinlin/projects/Synthetic_City/tools/viz_building_portrait.py:151: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
+  ax.boxplot(
+/home/jinlin/projects/Synthetic_City/tools/viz_building_portrait.py:151: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
+  ax.boxplot(
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/viz/viz_summary.json
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/viz/building_portrait_points.geojson
+[ok] wrote figures under: /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/viz/figures (png+pdf)

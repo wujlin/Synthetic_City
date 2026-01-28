@@ -1,0 +1,18 @@
+usage: poc_tabddpm_pums_buildingcond [-h] [--mode {train,sample,train-sample}]
+                                     [--data_root DATA_ROOT] --buildings_csv
+                                     BUILDINGS_CSV [--pums_year PUMS_YEAR]
+                                     [--pums_period PUMS_PERIOD]
+                                     [--statefp STATEFP] [--n_rows N_ROWS]
+                                     [--n_samples N_SAMPLES]
+                                     [--timesteps TIMESTEPS] [--epochs EPOCHS]
+                                     [--batch_size BATCH_SIZE]
+                                     [--device DEVICE] [--seed SEED]
+                                     [--train_frac TRAIN_FRAC]
+                                     [--allocation_method {random,capacity_only,income_price_match}]
+                                     [--n_tiers N_TIERS]
+                                     [--acs_marginals_long ACS_MARGINALS_LONG]
+                                     [--out_dir OUT_DIR]
+                                     [--ckpt_path CKPT_PATH]
+                                     [--encoder_path ENCODER_PATH]
+                                     [--log_every LOG_EVERY]
+poc_tabddpm_pums_buildingcond: error: unrecognized arguments: --pairing price_tier

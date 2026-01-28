@@ -1,0 +1,245 @@
+[train] step=200 loss=0.285687
+[train] step=400 loss=0.248768
+[train] step=600 loss=0.246197
+[train] step=800 loss=0.224971
+[train] step=1000 loss=0.229368
+[train] step=1200 loss=0.224067
+[train] step=1400 loss=0.228361
+[train] step=1600 loss=0.204611
+[train] step=1800 loss=0.200290
+[train] step=2000 loss=0.201368
+[train] step=2200 loss=0.187868
+[train] step=2400 loss=0.187851
+[train] step=2600 loss=0.178487
+[train] step=2800 loss=0.178349
+[train] step=3000 loss=0.174883
+[train] step=3200 loss=0.180048
+[train] step=3400 loss=0.173564
+[train] step=3600 loss=0.173738
+[train] step=3800 loss=0.166148
+[train] step=4000 loss=0.158454
+[train] step=4200 loss=0.152583
+[train] step=4400 loss=0.145685
+[train] step=4600 loss=0.146570
+[train] step=4800 loss=0.150416
+[train] step=5000 loss=0.146252
+[train] step=5200 loss=0.141687
+[train] step=5400 loss=0.142976
+[train] step=5600 loss=0.151521
+[train] step=5800 loss=0.145103
+[train] step=6000 loss=0.142679
+[train] step=6200 loss=0.145038
+[train] step=6400 loss=0.140114
+[train] step=6600 loss=0.148532
+[train] step=6800 loss=0.143228
+[train] step=7000 loss=0.140720
+[train] step=7200 loss=0.141067
+[train] step=7400 loss=0.140742
+[train] step=7600 loss=0.139404
+[train] step=7800 loss=0.137429
+[train] step=8000 loss=0.137179
+[train] step=8200 loss=0.137521
+[train] step=8400 loss=0.137938
+[train] step=8600 loss=0.141528
+[train] step=8800 loss=0.140021
+[train] step=9000 loss=0.142491
+[train] step=9200 loss=0.134923
+[train] step=9400 loss=0.135397
+[train] step=9600 loss=0.138529
+[train] step=9800 loss=0.137140
+[train] step=10000 loss=0.139736
+[train] step=10200 loss=0.136938
+[train] step=10400 loss=0.133948
+[train] step=10600 loss=0.135588
+[train] step=10800 loss=0.139066
+[train] step=11000 loss=0.136685
+[train] step=11200 loss=0.136178
+[train] step=11400 loss=0.136179
+[train] step=11600 loss=0.138245
+[train] step=11800 loss=0.135537
+[train] step=12000 loss=0.137556
+[train] step=12200 loss=0.130834
+[train] step=12400 loss=0.134906
+[train] step=12600 loss=0.139289
+[train] step=12800 loss=0.134946
+[train] step=13000 loss=0.136573
+[train] step=13200 loss=0.136611
+[train] step=13400 loss=0.138993
+[train] step=13600 loss=0.132302
+[train] step=13800 loss=0.139171
+[train] step=14000 loss=0.137600
+[train] step=14200 loss=0.143403
+[train] step=14400 loss=0.136706
+[train] step=14600 loss=0.136924
+[train] step=14800 loss=0.135593
+[train] step=15000 loss=0.132045
+[train] step=15200 loss=0.132274
+[train] step=15400 loss=0.136775
+[train] step=15600 loss=0.131735
+[train] step=15800 loss=0.132208
+[train] step=16000 loss=0.138330
+[train] step=16200 loss=0.135741
+[train] step=16400 loss=0.136397
+[train] step=16600 loss=0.137514
+[train] step=16800 loss=0.134064
+[train] step=17000 loss=0.140826
+[train] step=17200 loss=0.133383
+[train] step=17400 loss=0.129185
+[train] step=17600 loss=0.138554
+[train] step=17800 loss=0.129424
+[train] step=18000 loss=0.133114
+[train] step=18200 loss=0.133664
+[train] step=18400 loss=0.134515
+[train] step=18600 loss=0.134644
+[train] step=18800 loss=0.135357
+[train] step=19000 loss=0.134435
+[train] step=19200 loss=0.134026
+[train] step=19400 loss=0.128100
+[train] step=19600 loss=0.134222
+[train] step=19800 loss=0.135410
+[train] step=20000 loss=0.133081
+[train] step=20200 loss=0.135382
+[train] step=20400 loss=0.136544
+[train] step=20600 loss=0.133306
+[train] step=20800 loss=0.136164
+[train] step=21000 loss=0.130172
+[train] step=21200 loss=0.133430
+[train] step=21400 loss=0.132922
+[train] step=21600 loss=0.133327
+[train] step=21800 loss=0.131441
+[train] step=22000 loss=0.132968
+[train] step=22200 loss=0.140868
+[train] step=22400 loss=0.131531
+[train] step=22600 loss=0.137609
+[train] step=22800 loss=0.134400
+[train] step=23000 loss=0.134773
+[train] step=23200 loss=0.132187
+[train] step=23400 loss=0.132573
+[train] step=23600 loss=0.131298
+[train] step=23800 loss=0.132799
+[train] step=24000 loss=0.131036
+[train] step=24200 loss=0.137444
+[train] step=24400 loss=0.135705
+[train] step=24600 loss=0.135372
+[train] step=24800 loss=0.135989
+[train] step=25000 loss=0.134779
+[train] step=25200 loss=0.130550
+[train] step=25400 loss=0.136766
+[train] step=25600 loss=0.132850
+[train] step=25800 loss=0.133717
+[train] step=26000 loss=0.139371
+[train] step=26200 loss=0.137027
+[train] step=26400 loss=0.133253
+[train] step=26600 loss=0.137550
+[train] step=26800 loss=0.129263
+[train] step=27000 loss=0.128400
+[train] step=27200 loss=0.135936
+[train] step=27400 loss=0.136147
+[train] step=27600 loss=0.136595
+[train] step=27800 loss=0.134865
+[train] step=28000 loss=0.128843
+[train] step=28200 loss=0.134934
+[train] step=28400 loss=0.134414
+[train] step=28600 loss=0.134346
+[train] step=28800 loss=0.132366
+[train] step=29000 loss=0.132672
+[train] step=29200 loss=0.130823
+[train] step=29400 loss=0.132501
+[train] step=29600 loss=0.134670
+[train] step=29800 loss=0.133527
+[train] step=30000 loss=0.134732
+[train] step=30200 loss=0.137479
+[train] step=30400 loss=0.133547
+[train] step=30600 loss=0.132986
+[train] step=30800 loss=0.137749
+[train] step=31000 loss=0.137917
+[train] step=31200 loss=0.131492
+[train] step=31400 loss=0.130685
+[train] step=31600 loss=0.133466
+[train] step=31800 loss=0.134287
+[train] step=32000 loss=0.136036
+[train] step=32200 loss=0.129785
+[train] step=32400 loss=0.132650
+[train] step=32600 loss=0.130776
+[train] step=32800 loss=0.138711
+[train] step=33000 loss=0.135044
+[train] step=33200 loss=0.132440
+[train] step=33400 loss=0.129340
+[train] step=33600 loss=0.131720
+[train] step=33800 loss=0.131133
+[train] step=34000 loss=0.131579
+[train] step=34200 loss=0.132322
+[train] step=34400 loss=0.129166
+[train] step=34600 loss=0.129587
+[train] step=34800 loss=0.130950
+[train] step=35000 loss=0.133781
+[train] step=35200 loss=0.136047
+[train] step=35400 loss=0.137690
+[train] step=35600 loss=0.134089
+[train] step=35800 loss=0.130863
+[train] step=36000 loss=0.130911
+[train] step=36200 loss=0.136368
+[train] step=36400 loss=0.132906
+[train] step=36600 loss=0.131760
+[train] step=36800 loss=0.133055
+[train] step=37000 loss=0.135871
+[train] step=37200 loss=0.133390
+[train] step=37400 loss=0.137247
+[train] step=37600 loss=0.127224
+[train] step=37800 loss=0.132272
+[train] step=38000 loss=0.131885
+[train] step=38200 loss=0.131011
+[train] step=38400 loss=0.128615
+[train] step=38600 loss=0.129925
+[train] step=38800 loss=0.135476
+[train] step=39000 loss=0.135890
+[train] step=39200 loss=0.132966
+[train] step=39400 loss=0.132719
+[train] step=39600 loss=0.134554
+[train] step=39800 loss=0.132839
+[train] step=40000 loss=0.130789
+[train] step=40200 loss=0.136004
+[train] step=40400 loss=0.132321
+[train] step=40600 loss=0.131119
+[train] step=40800 loss=0.128930
+[train] step=41000 loss=0.129725
+Traceback (most recent call last):
+  File "/home/jinlin/projects/Synthetic_City/tools/poc_tabddpm_pums.py", line 374, in <module>
+    main()
+  File "/home/jinlin/projects/Synthetic_City/tools/poc_tabddpm_pums.py", line 286, in main
+    x_s = model.sample(n=int(args.n_samples), cond=cond_s, device=args.device).numpy()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/model/diffusion_tabular.py", line 275, in sample
+    eps_pred = self._net(x_t, t, cond)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/model/diffusion_tabular.py", line 90, in forward
+    return self.net(inp)
+           ^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/container.py", line 250, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1775, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1786, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/modules/activation.py", line 473, in forward
+    return F.silu(input, inplace=self.inplace)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/site-packages/torch/nn/functional.py", line 2371, in silu
+    return torch._C._nn.silu(input)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 50.00 MiB. GPU 0 has a total capacity of 47.34 GiB of which 49.62 MiB is free. Process 1466377 has 24.76 GiB memory in use. Including non-PyTorch memory, this process has 22.47 GiB memory in use. Of the allocated memory 21.61 GiB is allocated by PyTorch, and 470.89 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
