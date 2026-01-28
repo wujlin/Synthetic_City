@@ -1,0 +1,16 @@
+{
+  "train_rows": 9914,
+  "holdout_rows": 2481,
+  "train_frac": 0.8,
+  "train_metrics": {
+    "loss": 0.3000301718711853
+  },
+  "ckpt_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/model.pt",
+  "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/encoder.json",
+  "pums_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip",
+  "pums_member": "psam_p26.csv",
+  "buildings_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/buildings/buildings_detroit_features_price.csv",
+  "scheme": "B",
+  "allocation_method": "income_price_match",
+  "n_tiers": 5
+}
