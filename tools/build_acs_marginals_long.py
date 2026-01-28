@@ -20,7 +20,13 @@ import argparse
 import csv
 import json
 import pathlib
+import sys
 from typing import Any
+
+# Allow running as a plain script without installing the repo.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def _require(pkg: str) -> Any:
