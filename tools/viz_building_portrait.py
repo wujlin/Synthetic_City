@@ -4,17 +4,17 @@ from __future__ import annotations
 """
 建筑物尺度人口画像可视化（Detroit PoC）
 
-目标（KISS）：
-- 直接把 building_portrait.csv（以及其中的 price_tier/price_per_sqft）做成可 review 的图与可上 GIS 的点数据。
-- 不引入复杂 Web 前端；默认输出 PNG + GeoJSON。
+目标：
+- 直接把 building_portrait.csv 做成“可 review / 可进 GIS / 可入稿”的最小产物。
+- 对齐论文级风格规范：`docs/visual_style_guide.md` 与 `src/plot_style.py`。
 
-输入（最小）：
+输入：
 - building_portrait.csv（来自 tools/poc_tabddpm_pums_buildingcond.py）
 
-输出：
-- figures/*.png：income/age/pop_count 的建筑点图 + price_tier 分档分布图
-- building_portrait_points.geojson：便于 QGIS/Kepler 直接加载
-- viz_summary.json：核心统计（相关性、分档中位数等）
+输出（out_dir 下）：
+- figures/*.png + figures/*.pdf：地图、分档箱线图、分布直方图
+- building_portrait_points.geojson：建筑点图层（QGIS/Kepler 直接加载）
+- viz_summary.json：关键相关性与分档统计
 """
 
 import argparse
@@ -22,7 +22,13 @@ import importlib
 import json
 import math
 import pathlib
+import sys
 from typing import Any
+
+# Allow running as a plain script without installing the repo.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def _require(pkg: str) -> Any:
@@ -47,29 +53,86 @@ def _log1p_series(pd, s):
     return (s + 1.0).apply(math.log)
 
 
-def _scatter_map(*, plt, df, x: str, y: str, color: str, out_png: pathlib.Path, title: str, cmap: str) -> None:
-    fig = plt.figure(figsize=(8, 7), dpi=200)
+def _robust_vmin_vmax(pd, series, *, q_lo: float = 0.02, q_hi: float = 0.98) -> tuple[float, float]:
+    s = pd.to_numeric(series, errors="coerce").replace([math.inf, -math.inf], pd.NA).dropna()
+    if s.shape[0] == 0:
+        return (0.0, 1.0)
+    lo = float(s.quantile(q_lo))
+    hi = float(s.quantile(q_hi))
+    if not math.isfinite(lo) or not math.isfinite(hi) or hi <= lo:
+        lo = float(s.min())
+        hi = float(s.max())
+        if hi <= lo:
+            hi = lo + 1.0
+    return (lo, hi)
+
+
+def _save_both(save_figure, fig, out_base: pathlib.Path) -> None:
+    save_figure(fig, out_base.with_suffix(".png"))
+    save_figure(fig, out_base.with_suffix(".pdf"))
+
+
+def _scatter_map(
+    *,
+    plt,
+    save_figure,
+    despine,
+    figsize: tuple[float, float],
+    df,
+    x: str,
+    y: str,
+    color: str,
+    out_base: pathlib.Path,
+    title: str,
+    cmap: str,
+    colorbar_label: str,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    s: float = 1.2,
+    alpha: float = 0.55,
+) -> None:
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
 
     xs = df[x].to_numpy()
     ys = df[y].to_numpy()
     cs = df[color].to_numpy()
 
-    sc = ax.scatter(xs, ys, c=cs, s=1.5, cmap=cmap, alpha=0.6, linewidths=0)
+    sc = ax.scatter(xs, ys, c=cs, s=s, cmap=cmap, alpha=alpha, linewidths=0, vmin=vmin, vmax=vmax, rasterized=True)
     ax.set_title(title)
-    ax.set_xlabel(x)
-    ax.set_ylabel(y)
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    if xlim is not None:
+        ax.set_xlim(xlim)
+    if ylim is not None:
+        ax.set_ylim(ylim)
     ax.set_aspect("equal", adjustable="box")
     cb = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.04)
-    cb.set_label(color)
+    cb.set_label(colorbar_label)
+    despine(ax)
 
     fig.tight_layout()
-    fig.savefig(out_png)
+    _save_both(save_figure, fig, out_base)
     plt.close(fig)
 
 
-def _boxplot_by_tier(*, plt, df, tier_col: str, value_col: str, out_png: pathlib.Path, title: str) -> None:
-    fig = plt.figure(figsize=(8, 4), dpi=200)
+def _boxplot_by_tier(
+    *,
+    plt,
+    save_figure,
+    despine,
+    figsize: tuple[float, float],
+    df,
+    tier_col: str,
+    value_col: str,
+    out_base: pathlib.Path,
+    title: str,
+    y_label: str,
+    log1p: bool = False,
+) -> None:
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(111)
 
     tiers = sorted([t for t in df[tier_col].dropna().unique().tolist() if int(t) > 0])
@@ -80,15 +143,57 @@ def _boxplot_by_tier(*, plt, df, tier_col: str, value_col: str, out_png: pathlib
         sub = sub.replace([math.inf, -math.inf], float("nan")).dropna()
         if len(sub) == 0:
             continue
+        if log1p:
+            sub = sub.clip(lower=0.0).apply(lambda v: math.log1p(float(v)))
         data.append(sub.to_numpy())
         labels.append(str(int(t)))
 
-    ax.boxplot(data, labels=labels, showfliers=False)
+    ax.boxplot(
+        data,
+        labels=labels,
+        showfliers=False,
+        boxprops={"linewidth": 1.2},
+        whiskerprops={"linewidth": 1.2},
+        capprops={"linewidth": 1.2},
+        medianprops={"linewidth": 1.6, "color": "black"},
+    )
     ax.set_title(title)
-    ax.set_xlabel(f"{tier_col} (Q1..Qn)")
-    ax.set_ylabel(value_col)
+    ax.set_xlabel(f"{tier_col} (tract quantiles)")
+    ax.set_ylabel(y_label)
+    despine(ax)
+
     fig.tight_layout()
-    fig.savefig(out_png)
+    _save_both(save_figure, fig, out_base)
+    plt.close(fig)
+
+
+def _hist(
+    *,
+    plt,
+    save_figure,
+    despine,
+    figsize: tuple[float, float],
+    pd,
+    series,
+    out_base: pathlib.Path,
+    title: str,
+    x_label: str,
+    bins: int = 60,
+    color: str = "#0072B2",
+) -> None:
+    s = pd.to_numeric(series, errors="coerce").replace([math.inf, -math.inf], pd.NA).dropna()
+    if s.shape[0] == 0:
+        return
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111)
+    ax.hist(s.to_numpy(), bins=bins, color=color, alpha=0.85, linewidth=0)
+    ax.set_title(title)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel("Count")
+    despine(ax)
+    fig.tight_layout()
+    _save_both(save_figure, fig, out_base)
     plt.close(fig)
 
 
@@ -112,7 +217,6 @@ def _write_geojson_points(*, df, out_path: pathlib.Path, lon_col: str, lat_col: 
                 continue
             if isinstance(v, (int, float)) and (math.isnan(v) if isinstance(v, float) else False):
                 continue
-            # pandas scalar / numpy scalar
             try:
                 if hasattr(v, "item"):
                     v = v.item()
@@ -120,13 +224,7 @@ def _write_geojson_points(*, df, out_path: pathlib.Path, lon_col: str, lat_col: 
                 pass
             p[k] = v
 
-        feats.append(
-            {
-                "type": "Feature",
-                "properties": p,
-                "geometry": {"type": "Point", "coordinates": [lon_f, lat_f]},
-            }
-        )
+        feats.append({"type": "Feature", "properties": p, "geometry": {"type": "Point", "coordinates": [lon_f, lat_f]}})
 
     out_path.write_text(json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -140,10 +238,18 @@ def main() -> None:
     args = p.parse_args()
 
     pd = _require("pandas")
-    np = _require("numpy")
+    _require("numpy")
     mpl = _require("matplotlib")
-    mpl.use("Agg")  # headless
+    mpl.use("Agg")  # headless; must be set before pyplot
     plt = _require("matplotlib.pyplot")
+
+    plot_style = _require("src.plot_style")
+    paper_style = plot_style.paper_style
+    save_figure = plot_style.save_figure
+    despine = plot_style.despine
+    OKABE_ITO = plot_style.OKABE_ITO
+    FIGSIZE_FULL = plot_style.FIGSIZE_FULL
+    FIGSIZE_HALF = plot_style.FIGSIZE_HALF
 
     portrait_csv = pathlib.Path(args.portrait_csv).expanduser().resolve()
     out_dir = pathlib.Path(args.out_dir).expanduser().resolve()
@@ -156,17 +262,11 @@ def main() -> None:
     if missing:
         raise SystemExit(f"portrait_csv missing columns: {missing}")
 
-    df["centroid_lon"] = pd.to_numeric(df["centroid_lon"], errors="coerce")
-    df["centroid_lat"] = pd.to_numeric(df["centroid_lat"], errors="coerce")
-    df["pop_count"] = pd.to_numeric(df["pop_count"], errors="coerce")
-    df["age_p50"] = pd.to_numeric(df["age_p50"], errors="coerce")
-    df["income_p50"] = pd.to_numeric(df["income_p50"], errors="coerce")
-    df["price_tier"] = pd.to_numeric(df["price_tier"], errors="coerce")
-    df["price_per_sqft"] = pd.to_numeric(df["price_per_sqft"], errors="coerce")
-
+    for c in ["centroid_lon", "centroid_lat", "pop_count", "age_p50", "income_p50", "price_tier", "price_per_sqft"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
     df = df.dropna(subset=["centroid_lon", "centroid_lat"]).copy()
 
-    # Keep a copy for GIS export (no subsample)
+    # GeoJSON export (no subsample)
     geojson_props = [
         "bldg_id",
         "pop_count",
@@ -185,66 +285,144 @@ def main() -> None:
         props=[c for c in geojson_props if c in df.columns],
     )
 
-    # Subsample for scatter maps (optional)
+    # Subsample for maps (optional)
     if int(args.max_points) > 0 and df.shape[0] > int(args.max_points):
         df_map = df.sample(n=int(args.max_points), random_state=int(args.seed)).copy()
     else:
-        df_map = df
+        df_map = df.copy()
 
-    # Map colors (log-scale where needed)
-    df_map = df_map.copy()
     df_map["log_income_p50"] = _log1p_series(pd, df_map["income_p50"])
     df_map["log_pop_count"] = _log1p_series(pd, df_map["pop_count"])
-    df_map["age_p50_clean"] = _finite_series(pd, df_map["age_p50"])
 
-    _scatter_map(
-        plt=plt,
-        df=df_map.dropna(subset=["log_income_p50"]),
-        x="centroid_lon",
-        y="centroid_lat",
-        color="log_income_p50",
-        out_png=fig_dir / "map_income_p50_log1p.png",
-        title="Building portrait: log1p(income_p50)",
-        cmap="viridis",
-    )
-    _scatter_map(
-        plt=plt,
-        df=df_map.dropna(subset=["age_p50"]),
-        x="centroid_lon",
-        y="centroid_lat",
-        color="age_p50",
-        out_png=fig_dir / "map_age_p50.png",
-        title="Building portrait: age_p50",
-        cmap="plasma",
-    )
-    _scatter_map(
-        plt=plt,
-        df=df_map.dropna(subset=["log_pop_count"]),
-        x="centroid_lon",
-        y="centroid_lat",
-        color="log_pop_count",
-        out_png=fig_dir / "map_pop_count_log1p.png",
-        title="Building portrait: log1p(pop_count)",
-        cmap="magma",
-    )
+    xlim = (float(df_map["centroid_lon"].min()), float(df_map["centroid_lon"].max()))
+    ylim = (float(df_map["centroid_lat"].min()), float(df_map["centroid_lat"].max()))
 
-    # Tier-wise distributions
-    _boxplot_by_tier(
-        plt=plt,
-        df=df,
-        tier_col="price_tier",
-        value_col="income_p50",
-        out_png=fig_dir / "box_income_p50_by_price_tier.png",
-        title="income_p50 by price_tier (tract quantiles)",
-    )
-    _boxplot_by_tier(
-        plt=plt,
-        df=df,
-        tier_col="price_tier",
-        value_col="age_p50",
-        out_png=fig_dir / "box_age_p50_by_price_tier.png",
-        title="age_p50 by price_tier (tract quantiles)",
-    )
+    with paper_style():
+        # Maps (robust color scaling)
+        vmin_i, vmax_i = _robust_vmin_vmax(pd, df_map["log_income_p50"])
+        vmin_p, vmax_p = _robust_vmin_vmax(pd, df_map["log_pop_count"])
+        vmin_a, vmax_a = _robust_vmin_vmax(pd, df_map["age_p50"])
+
+        _scatter_map(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_FULL,
+            df=df_map.dropna(subset=["log_income_p50"]),
+            x="centroid_lon",
+            y="centroid_lat",
+            color="log_income_p50",
+            out_base=fig_dir / "map_income_p50_log1p",
+            title="Building portrait: log1p(income_p50)",
+            cmap="viridis",
+            colorbar_label="log1p(income_p50)",
+            xlim=xlim,
+            ylim=ylim,
+            vmin=vmin_i,
+            vmax=vmax_i,
+        )
+        _scatter_map(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_FULL,
+            df=df_map.dropna(subset=["age_p50"]),
+            x="centroid_lon",
+            y="centroid_lat",
+            color="age_p50",
+            out_base=fig_dir / "map_age_p50",
+            title="Building portrait: age_p50",
+            cmap="plasma",
+            colorbar_label="age_p50",
+            xlim=xlim,
+            ylim=ylim,
+            vmin=vmin_a,
+            vmax=vmax_a,
+        )
+        _scatter_map(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_FULL,
+            df=df_map.dropna(subset=["log_pop_count"]),
+            x="centroid_lon",
+            y="centroid_lat",
+            color="log_pop_count",
+            out_base=fig_dir / "map_pop_count_log1p",
+            title="Building portrait: log1p(pop_count)",
+            cmap="magma",
+            colorbar_label="log1p(pop_count)",
+            xlim=xlim,
+            ylim=ylim,
+            vmin=vmin_p,
+            vmax=vmax_p,
+        )
+
+        # Tier-wise distributions
+        _boxplot_by_tier(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_FULL,
+            df=df,
+            tier_col="price_tier",
+            value_col="income_p50",
+            out_base=fig_dir / "box_income_p50_by_price_tier",
+            title="income_p50 by price_tier (tract quantiles)",
+            y_label="log1p(income_p50)",
+            log1p=True,
+        )
+        _boxplot_by_tier(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_FULL,
+            df=df,
+            tier_col="price_tier",
+            value_col="age_p50",
+            out_base=fig_dir / "box_age_p50_by_price_tier",
+            title="age_p50 by price_tier (tract quantiles)",
+            y_label="age_p50",
+            log1p=False,
+        )
+
+        # Distribution diagnostics (building-level)
+        _hist(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_HALF,
+            pd=pd,
+            series=_log1p_series(pd, df["income_p50"]),
+            out_base=fig_dir / "hist_log_income_p50",
+            title="Distribution: log1p(income_p50) across buildings",
+            x_label="log1p(income_p50)",
+            color=OKABE_ITO["blue"],
+        )
+        _hist(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_HALF,
+            pd=pd,
+            series=_log1p_series(pd, df["pop_count"]),
+            out_base=fig_dir / "hist_log_pop_count",
+            title="Distribution: log1p(pop_count) across buildings",
+            x_label="log1p(pop_count)",
+            color=OKABE_ITO["bluish_green"],
+        )
+        _hist(
+            plt=plt,
+            save_figure=save_figure,
+            despine=despine,
+            figsize=FIGSIZE_HALF,
+            pd=pd,
+            series=_finite_series(pd, df["age_p50"]),
+            out_base=fig_dir / "hist_age_p50",
+            title="Distribution: age_p50 across buildings",
+            x_label="age_p50",
+            color=OKABE_ITO["vermillion"],
+        )
 
     # Summary
     def _pearson(a, b) -> float:
@@ -276,12 +454,17 @@ def main() -> None:
             "geojson": str(out_dir / "building_portrait_points.geojson"),
             "fig_dir": str(fig_dir),
         },
+        "notes": {
+            "style_source_of_truth": "src/plot_style.py",
+            "no_bbox_inches_tight": True,
+        },
     }
     (out_dir / "viz_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"[ok] wrote: {out_dir}/viz_summary.json")
     print(f"[ok] wrote: {out_dir}/building_portrait_points.geojson")
-    print(f"[ok] wrote figures under: {fig_dir}")
+    print(f"[ok] wrote figures under: {fig_dir} (png+pdf)")
 
 
 if __name__ == "__main__":
     main()
+

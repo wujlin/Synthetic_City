@@ -12,6 +12,7 @@
 - Detroit 数据需求清单（给检索用）：`docs/detroit_data_request.md`
 - Detroit 数据检索结果（来源证据链）：`docs/DATA_SEARCH.md`
 - 工作站运行与数据落盘口径：`docs/WORKSTATION_GUIDE.md`
+- Dewey/Veraset 采购需求（动态验证闭环）：`docs/DEWEY_VERASET_PROCUREMENT.md`
 
 ## 建议目录约定
 

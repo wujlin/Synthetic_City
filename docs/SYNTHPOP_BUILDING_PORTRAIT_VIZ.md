@@ -129,8 +129,9 @@ ls -lah "$OUT_DIR/viz/figures"
 
 产物说明：
 - `building_portrait_points.geojson`：建筑点数据（可直接拖进 QGIS/Kepler）
-- `figures/map_*`：建筑点图（income/age/pop_count）
-- `figures/box_*`：按 `price_tier` 分档的分布图
+- `figures/map_*`：建筑点图（income/age/pop_count），同时导出 `.png` 与 `.pdf`
+- `figures/box_*`：按 `price_tier` 分档的分布图（income 使用 log1p 便于跨档对比），同时导出 `.png` 与 `.pdf`
+- `figures/hist_*`：建筑尺度的分布直方图（log1p(income)、log1p(pop)、age），同时导出 `.png` 与 `.pdf`
 - `viz_summary.json`：相关性与分档统计（用于 PI 快速 review）
 
 ---
