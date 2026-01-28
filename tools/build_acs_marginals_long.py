@@ -118,6 +118,9 @@ def _tract_to_puma_map(*, tiger_tract_zip: pathlib.Path, tiger_puma_zip: pathlib
     tract_cent = tract[[tract_geoid_col]].copy()
     tract_cent = tract_cent.rename(columns={tract_geoid_col: "tract_geoid"})
     tract_cent["geometry"] = cent
+    # NOTE: selecting non-geometry columns from a GeoDataFrame returns a pandas DataFrame;
+    # we must explicitly cast back to GeoDataFrame for spatial join.
+    tract_cent = gpd.GeoDataFrame(tract_cent, geometry="geometry", crs=tract.crs)
 
     joined = gpd.sjoin(tract_cent, puma[[puma_col, "geometry"]], how="left", predicate="within")
     out = {}
