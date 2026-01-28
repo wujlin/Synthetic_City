@@ -43,6 +43,9 @@ dist/
 # Allow experiment logs under outputs/ to be versioned when needed.
 !outputs/**/*.log
 
+# Keep outputs lightweight for syncing (PDF can be regenerated from scripts).
+outputs/**/*.pdf
+
 # --------
 # OS / Editors
 # --------
