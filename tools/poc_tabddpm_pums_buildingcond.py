@@ -302,7 +302,10 @@ def main() -> None:
         with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
             df = pd.read_csv(f, nrows=int(args.n_rows), low_memory=False)
 
-        cols = ["AGEP", "SEX", "ESR", "PINCP", "PUMA"]
+        # v0 PoC (PI decision): remove ESR from the diffusion model to avoid injecting
+        # artificial rules like ESR==0 <=> AGEP<16. ESR can be reintroduced as an explicit
+        # post-processing module in a later iteration.
+        cols = ["AGEP", "SEX", "PINCP", "PUMA"]
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise SystemExit(f"Missing expected columns in PUMS person file: {missing}")
@@ -312,7 +315,6 @@ def main() -> None:
         df["PINCP"] = pd.to_numeric(df["PINCP"], errors="coerce").clip(lower=0.0)
         df["PINCP_log"] = np.log1p(df["PINCP"].to_numpy(dtype=np.float32))
         df["SEX"] = pd.to_numeric(df["SEX"], errors="coerce")
-        df["ESR"] = pd.to_numeric(df["ESR"], errors="coerce")
         df["PUMA"] = pd.to_numeric(df["PUMA"], errors="coerce")
         df = df.dropna()
 
@@ -361,11 +363,10 @@ def main() -> None:
         cont_z = ((cont - cont_mean) / cont_std).astype(np.float32)
 
         sex_oh, sex_cats = _one_hot(df_train["SEX"].astype(int).astype(str))
-        esr_oh, esr_cats = _one_hot(df_train["ESR"].astype(int).astype(str))
         puma_oh, puma_cats = _one_hot(df_train["PUMA_STR"].astype(str))
 
         # x: attributes only (no PUMA in x)
-        x_np = np.concatenate([cont_z, sex_oh, esr_oh], axis=1).astype(np.float32)
+        x_np = np.concatenate([cont_z, sex_oh], axis=1).astype(np.float32)
 
         # cond: macro PUMA one-hot only (Scheme B; no building features in training)
         cond_np = puma_oh.astype(np.float32)
@@ -376,7 +377,6 @@ def main() -> None:
             "continuous_std": cont_std.tolist(),
             "categorical": {
                 "SEX": {"categories": sex_cats},
-                "ESR": {"categories": esr_cats},
             },
             "condition": {"PUMA": {"categories": puma_cats}},
             "split": {"train_frac": train_frac, "seed": int(args.seed)},
@@ -462,7 +462,6 @@ def main() -> None:
     model.load(ckpt_path)
 
     sex_cats = list(encoder["categorical"]["SEX"]["categories"])
-    esr_cats = list(encoder["categorical"]["ESR"]["categories"])
     cont_mean = np.array(encoder["continuous_mean"], dtype=np.float32)
     cont_std = np.array(encoder["continuous_std"], dtype=np.float32)
 
@@ -498,13 +497,6 @@ def main() -> None:
     sex_prob = _softmax(sex_logits, axis=1)
     sex_conf = sex_prob.max(axis=1)
     sex_s = sex_prob.argmax(axis=1)
-    offset += sex_dim
-
-    esr_dim = len(esr_cats)
-    esr_logits = x_s[:, offset : offset + esr_dim]
-    esr_prob = _softmax(esr_logits, axis=1)
-    esr_conf = esr_prob.max(axis=1)
-    esr_s = esr_prob.argmax(axis=1)
 
     out_df = pd.DataFrame(
         {
@@ -513,7 +505,6 @@ def main() -> None:
             "AGEP": age_s.astype(np.float32),
             "PINCP": income_s.astype(np.float32),
             "SEX": [sex_cats[i] for i in sex_s.tolist()],
-            "ESR": [esr_cats[i] for i in esr_s.tolist()],
         }
     )
 
@@ -589,12 +580,11 @@ def main() -> None:
         with zipfile.ZipFile(pums_zip) as zf, zf.open(pums_member) as f:
             ref_df = pd.read_csv(f, nrows=nrows_ref, low_memory=False)
 
-        cols = ["AGEP", "SEX", "ESR", "PINCP", "PUMA"]
+        cols = ["AGEP", "SEX", "PINCP", "PUMA"]
         ref_df = ref_df[cols].copy()
         ref_df["AGEP"] = pd.to_numeric(ref_df["AGEP"], errors="coerce")
         ref_df["PINCP"] = pd.to_numeric(ref_df["PINCP"], errors="coerce").clip(lower=0.0)
         ref_df["SEX"] = pd.to_numeric(ref_df["SEX"], errors="coerce")
-        ref_df["ESR"] = pd.to_numeric(ref_df["ESR"], errors="coerce")
         ref_df["PUMA"] = pd.to_numeric(ref_df["PUMA"], errors="coerce")
         ref_df = ref_df.dropna().reset_index(drop=True)
         ref_df["puma"] = ref_df["PUMA"].astype(int).astype(str)
@@ -625,11 +615,16 @@ def main() -> None:
             raise RuntimeError("holdout reference split is empty (sample stage)")
 
         ref_holdout["SEX"] = ref_holdout["SEX"].astype(int).astype(str)
-        ref_holdout["ESR"] = ref_holdout["ESR"].astype(int).astype(str)
-        ref_holdout = ref_holdout[["puma", "AGEP", "PINCP", "SEX", "ESR"]].copy()
+        ref_holdout = ref_holdout[["puma", "AGEP", "PINCP", "SEX"]].copy()
 
-        syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX", "ESR"]].copy()
-        stats_metrics = compute_stats_metrics(synthetic=syn_for_stats, reference=ref_holdout, group_col="puma")
+        syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX"]].copy()
+        stats_metrics = compute_stats_metrics(
+            synthetic=syn_for_stats,
+            reference=ref_holdout,
+            group_col="puma",
+            continuous_cols=["AGEP", "PINCP"],
+            categorical_cols=["SEX"],
+        )
         stats_metrics_path.write_text(json.dumps(stats_metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     except Exception as e:
         stats_error = str(e)
@@ -642,11 +637,14 @@ def main() -> None:
             if not acs_path.exists():
                 raise RuntimeError(f"acs_marginals_long not found: {acs_path}")
             targets_long = pd.read_csv(acs_path, low_memory=False)
-            syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX", "ESR"]].copy()
+            syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX"]].copy()
             stats_acs = compute_stats_metrics_against_targets_long(
                 synthetic=syn_for_stats,
                 targets_long=targets_long,
                 group_col="puma",
+                continuous_cols=["AGEP", "PINCP"],
+                categorical_cols=["SEX"],
+                variables=["AGEP_bin", "SEX"],
             )
             stats_metrics_acs_path.write_text(json.dumps(stats_acs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         except Exception as e:
@@ -669,12 +667,10 @@ def main() -> None:
             "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
             "confidence": {
                 "SEX": _summary_stats(sex_conf),
-                "ESR": _summary_stats(esr_conf),
             },
         },
         "sample_freq": {
             "SEX": _freq(out_df["SEX"].astype(str)),
-            "ESR": _freq(out_df["ESR"].astype(str)),
         },
         "building_portrait": {
             "n_buildings_hit": int(portrait.shape[0]),

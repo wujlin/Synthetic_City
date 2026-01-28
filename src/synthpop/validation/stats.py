@@ -180,24 +180,28 @@ def compute_stats_metrics(
         }
 
     # --- hard rule violations (minimal) ---
-    def _child_labor_violations(df: "Any") -> tuple[int, float]:
+    def _child_labor_violations(df: "Any") -> tuple[int | None, float | None, bool]:
+        # If ESR is not modeled, this rule is not evaluable.
+        if "AGEP" not in df.columns or "ESR" not in df.columns:
+            return None, None, True
         age = pd.to_numeric(df.get("AGEP"), errors="coerce")
         esr = df.get("ESR")
         if age is None or esr is None:
-            return 0, 0.0
+            return None, None, True
         esr_s = esr.astype(str)
         mask = (age < 16) & esr_s.isin({"1", "2", "3"})
         count = int(mask.sum())
         n = int(df.shape[0])
         rate = float(count / n) if n > 0 else 0.0
-        return count, rate
+        return count, rate, False
 
-    child_count, child_rate = _child_labor_violations(syn)
+    child_count, child_rate, child_skipped = _child_labor_violations(syn)
     hard_rule_violations = {
         "child_labor": {
             "rule": "AGEP<16 and ESR in (1,2,3)",
             "count": child_count,
             "rate": child_rate,
+            "skipped": child_skipped,
         }
     }
 
@@ -301,11 +305,17 @@ def compute_stats_metrics_against_targets_long(
         q = np.asarray(q, dtype=float)
         return 0.5 * float(np.abs(p - q).sum())
 
+    # Determine which variables to evaluate.
+    if variables is None:
+        variables = sorted(set(tgt[variable_col].unique().tolist()))
+    else:
+        variables = [str(v) for v in variables]
+
     # --- derived variables (for ACS tables that don't match PUMS categories 1:1) ---
-    target_vars = set(tgt[variable_col].unique().tolist())
-    if "ESR_16p" in target_vars and "ESR_16p" not in syn.columns:
+    # Only derive when it is actually requested for evaluation.
+    if "ESR_16p" in variables and "ESR_16p" not in syn.columns:
         if "AGEP" not in syn.columns or "ESR" not in syn.columns:
-            raise ValueError('targets_long requests "ESR_16p" but synthetic lacks AGEP/ESR.')
+            raise ValueError('variables include "ESR_16p" but synthetic lacks AGEP/ESR.')
 
         age = pd.to_numeric(syn.get("AGEP"), errors="coerce")
         esr = syn.get("ESR").astype(str)
@@ -317,12 +327,6 @@ def compute_stats_metrics_against_targets_long(
         out.loc[mask16 & esr.isin({"3"})] = "unemployed"
         out.loc[mask16 & esr.isin({"4", "5"})] = "armed_forces"
         syn["ESR_16p"] = out.astype(object)
-
-    # Determine which variables to evaluate.
-    if variables is None:
-        variables = sorted(set(tgt[variable_col].unique().tolist()))
-    else:
-        variables = [str(v) for v in variables]
 
     available_vars = set(syn.columns.tolist())
     used_vars: list[str] = []
@@ -380,24 +384,27 @@ def compute_stats_metrics_against_targets_long(
         marginal_tvd[v] = _tvd_by_group_for_var(v)
 
     # Hard rule violations (same minimal check)
-    def _child_labor_violations(df: "Any") -> tuple[int, float]:
+    def _child_labor_violations(df: "Any") -> tuple[int | None, float | None, bool]:
+        if "AGEP" not in df.columns or "ESR" not in df.columns:
+            return None, None, True
         age = pd.to_numeric(df.get("AGEP"), errors="coerce")
         esr = df.get("ESR")
         if age is None or esr is None:
-            return 0, 0.0
+            return None, None, True
         esr_s = esr.astype(str)
         mask = (age < 16) & esr_s.isin({"1", "2", "3"})
         count = int(mask.sum())
         n = int(df.shape[0])
         rate = float(count / n) if n > 0 else 0.0
-        return count, rate
+        return count, rate, False
 
-    child_count, child_rate = _child_labor_violations(syn)
+    child_count, child_rate, child_skipped = _child_labor_violations(syn)
     hard_rule_violations = {
         "child_labor": {
             "rule": "AGEP<16 and ESR in (1,2,3)",
             "count": child_count,
             "rate": child_rate,
+            "skipped": child_skipped,
         }
     }
 

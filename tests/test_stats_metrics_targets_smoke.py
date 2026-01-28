@@ -16,11 +16,12 @@ class TestStatsMetricsTargetsSmoke(unittest.TestCase):
                 "AGEP": [10, 30, 40, 12],
                 "PINCP": [0, 20000, 50000, 1000],
                 "SEX": ["1", "2", "1", "2"],
-                "ESR": ["1", "6", "2", "3"],
             }
         )
 
         # Build a targets_long table from the synthetic itself (so TVD should be 0).
+        # Include an extra ESR_16p variable in targets_long to ensure the function does not
+        # require ESR unless ESR_16p is explicitly requested for evaluation.
         edges_age = [0.0, 5.0, 18.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 1000.0]
         synthetic["AGEP_bin"] = pd.cut(synthetic["AGEP"], bins=edges_age, include_lowest=True, right=False).astype(str)
 
@@ -30,9 +31,17 @@ class TestStatsMetricsTargetsSmoke(unittest.TestCase):
                 counts = g[var].astype(str).value_counts(dropna=False)
                 for cat, cnt in counts.items():
                     rows.append({"puma": str(puma), "variable": var, "category": str(cat), "target": int(cnt)})
+            # Dummy ESR_16p target rows (should be skipped).
+            rows.append({"puma": str(puma), "variable": "ESR_16p", "category": "employed", "target": 1})
         targets_long = pd.DataFrame(rows)
 
-        metrics = compute_stats_metrics_against_targets_long(synthetic=synthetic, targets_long=targets_long, group_col="puma")
+        metrics = compute_stats_metrics_against_targets_long(
+            synthetic=synthetic,
+            targets_long=targets_long,
+            group_col="puma",
+            categorical_cols=["SEX"],
+            variables=["AGEP_bin", "SEX"],
+        )
         self.assertIn("marginal_tvd", metrics)
         self.assertIn("meta", metrics)
         self.assertIn("SEX", metrics["marginal_tvd"])
@@ -44,4 +53,3 @@ class TestStatsMetricsTargetsSmoke(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
