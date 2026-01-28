@@ -1,0 +1,50 @@
+{
+  "data_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+  "detroit_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit",
+  "raw": {
+    "tiger_dir": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023",
+    "tiger_expected": {
+      "place": {
+        "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_place.zip",
+        "exists": true
+      },
+      "tract": {
+        "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip",
+        "exists": true
+      },
+      "bg": {
+        "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_bg.zip",
+        "exists": true
+      },
+      "puma20": {
+        "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip",
+        "exists": true
+      }
+    },
+    "pums": {
+      "default_person_zips": {
+        "psam": {
+          "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip",
+          "exists": true
+        },
+        "csv": {
+          "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/csv_pmi.zip",
+          "exists": true
+        }
+      },
+      "found_zips": [
+        "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/csv_pmi.zip",
+        "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip"
+      ]
+    },
+    "safegraph_dir": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/poi/safegraph",
+    "safegraph_unzip": {
+      "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/poi/safegraph/safegraph_unzip",
+      "exists": true
+    },
+    "safegraph_meta": {
+      "path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/poi/safegraph/safegraph.metadata.json",
+      "exists": true
+    }
+  }
+}

@@ -2,7 +2,6 @@
 # Data / Outputs (usually large or private)
 # --------
 data/
-outputs/
 _sync/
 
 # --------
@@ -40,6 +39,9 @@ dist/
 # Logs
 # --------
 *.log
+
+# Allow experiment logs under outputs/ to be versioned when needed.
+!outputs/**/*.log
 
 # --------
 # OS / Editors
