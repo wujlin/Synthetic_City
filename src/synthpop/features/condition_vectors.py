@@ -9,11 +9,11 @@ Design intent:
 
 v0 (Detroit) encoding policy (PI review aligned):
 - Do NOT treat `building_id` as a categorical variable in the diffusion model (too many categories).
-- Building must NOT be a pure post-processing assignment; spatial anchoring should be part of generation.
-  Practically, this means: sample with building context, i.e. generate
-  P(attrs | macro_condition, building_feature) and carry `bldg_id` with the sample.
-- If an approximate staged implementation is needed, it must keep feedback (resample/reweight)
-  and be described as an approximation rather than the core innovation.
+- Scheme B (current PI decision): separate attribute generation and spatial allocation.
+  - The diffusion model learns attribute structure under macro geography:
+    P(attrs | PUMA/tract_context) from PUMS-only (no synthetic person-building pairing in training).
+  - Spatial anchoring is handled by an explicit, reviewable allocator (post-processing):
+    f(attrs, group) -> building, supporting multiple strategies for ablation/sensitivity.
 """
 
 import pathlib
