@@ -20,7 +20,7 @@
 |---|---|---|
 | 高维联合分布重建 | `src/synthpop/model/`（扩散生成模型 API） | 学到“关联结构”，而不是只拟合边际 |
 | 多层次级联（区域→建筑→家庭/个体→时间） | `src/synthpop/pipeline/`（stage 编排） + `src/synthpop/features/`（条件构建） | 把“高维难题”拆成可控的分步生成 |
-| 条件注入（普查边际/建筑与POI/时段信息） | `src/synthpop/features/condition_vectors.py` + `processed/features/` | 让数据在生成过程中持续“指路” |
+| 条件与锚定（宏观条件 + 空间分配特征） | `src/synthpop/features/` + `src/synthpop/spatial/building_allocation.py` | 让生成条件与空间落位逻辑都可审查、可复现 |
 | 软约束引导（宏观统计拉回） | `src/synthpop/constraints/soft_guidance.py` | 让生成总体贴近目标统计口径 |
 | 硬约束渐进校正（结构性零/逻辑可行性） | `src/synthpop/constraints/hard_rules.py` + `src/synthpop/constraints/projection.py` | 保证可行域内采样，减少拒绝采样与事后修补 |
 | 三层验证（统计/空间/时间） | `src/synthpop/validation/` + `outputs/runs/<run_id>/metrics/` | 把“真实性”写成可检验指标，并能反向定位偏差来源 |
@@ -33,7 +33,7 @@ PI review 指出的最大技术风险在于“混合类型表格扩散不是 tri
 
 - **扩散形式**：Gaussian DDPM（在连续向量空间做加噪/去噪）
 - **混合类型处理（v0）**：连续变量标准化后直接进入扩散；离散变量先 one-hot（或低维嵌入）映射到连续空间，与连续变量拼接后进入同一去噪网络联合建模；采样后对离散片段做 `argmax` 解码
-- **条件化（v0 PoC）**：先在 PUMS 子集上验证“混合变量扩散 + 条件化（例如按 PUMA）”可训练、可采样；后续再把条件迁移到 tract/BG 与建筑条件
+- **条件化（v0 PoC）**：先在 PUMS 子集上验证“混合变量扩散 + 宏观条件化（按 PUMA）”可训练、可采样；后续把宏观单元升级到 tract/BG，并将建筑特征用于显式分配（或作为可选条件做对照实验）
 
 为什么 v0 选 TabDDPM 而不是 STaSy/D3PM：
 - **可控性与成本**：TabDDPM 路线可以先用统一的连续扩散把 PoC 跑通；STaSy 的离散 score 估计与 D3PM 的纯离散状态空间会显著增加实现复杂度
@@ -94,36 +94,39 @@ PI review 指出的最大技术风险在于“混合类型表格扩散不是 tri
 **输出**：`processed/features/*`（可复用的条件向量/索引）
 
 两类条件向量（建议）：
-- **区域条件**（tract/BG）：宏观边际摘要 + built environment summary
-- **建筑条件**（building）：footprint/height/landuse/POI 邻域特征（可稀疏）
+- **区域条件**（tract/BG/PUMA）：宏观边际摘要 + 环境摘要（作为扩散模型的条件输入）
+- **建筑特征**（building）：footprint/height/capacity/price tier/POI 邻域等（作为空间分配模块的输入；v0 不进入训练条件）
 
-> 原则：条件向量是“生成时喂给模型的信号”，必须可复现并写入磁盘；不要临时在 notebook 里算完就丢。
+> 原则：条件/特征是“生成/分配时喂给模型/分配器的信号”，必须可复现并写入磁盘；不要临时在 notebook 里算完就丢。
 
 ### Stage C：训练（学习联合结构）
 
-**输入**：种子样本（PUMS）+ 条件向量（可选先不加 building 条件）  
+**输入**：种子样本（PUMS）+ 宏观条件向量（v0 PoC：PUMA one-hot）  
 **输出**：`outputs/runs/<run_id>/checkpoints/`（模型与配置快照）
 
 训练期做两件事：
 - v0：学到 person-level 的联合结构（混合类型属性耦合）
-- v0 PoC：验证条件化训练可行（先按 PUMA/粗区域；后续迁移到 tract/BG 与建筑条件）
+- v0 PoC：验证宏观条件化训练可行（先按 PUMA；后续升级到 tract/BG；建筑特征用于显式空间分配并做消融）
 
 ### Stage D：采样（受控生成：软约束引导 + 硬约束渐进校正）
 
 **输入**：`marginals_long.parquet`（宏观目标）+ `buildings.parquet`（空间锚定）+ `rules.yaml`（可行域）  
 **输出**：`synthetic/*.parquet`
 
-空间锚定的关键口径：**建筑不是事后分配，而是生成过程中的条件注入**。  
-为避免把 `building_id` 当作超大类别变量直接进扩散模型，v0 用“建筑特征向量”表达空间条件，并把 `bldg_id` 作为采样时的上下文变量随样本一同输出：
+空间锚定的关键口径（Scheme B）：**扩散模型负责学“宏观地理单元内的属性联合结构”，建筑落位由显式分配模块完成**。  
+动机：PUMS 不提供可训练的人-建筑配对；训练期人为配对会引入虚假关联，且难以向评审解释“学到了什么”。相反，把空间分配显式化可审查、可参数化，也便于做消融与敏感性分析。
 
-1) **宏观条件**：从 tract/BG/PUMA 等控制量层级抽样/引导，确定该样本的宏观约束上下文  
-2) **建筑条件**：在对应空间单元内按容量/功能先验抽取 `bldg_id`，并取 `building_feature`（如 footprint/height/capacity_proxy/dist_to_cbd…）  
-   - **经济条件（核心）**：Wayne County parcel assessment → `price_per_sqft` → tract 内分位数 `price_tier(Q1..Q5)`，作为建筑级收入代理  
-3) **条件化生成**：扩散模型生成属性  
+v0 两阶段（先跑通闭环，再逐步细化到 tract/BG）：
+
+1) **属性生成**：在 tract/BG/PUMA 等宏观条件下采样  
    \[
-   x \sim P(\text{attrs}\mid \text{macro\_cond}, \text{building\_feature})
+   x \sim P(\text{attrs}\mid \text{macro\_cond})
    \]
-   输出样本携带 `bldg_id`，从而得到可采样的联合结构 \(P(\text{attrs}, \text{bldg}\mid \cdot)\)，而非“先生成再落点”的后处理
+2) **建筑分配**：在同一空间单元内，把已生成的人口分配到建筑  
+   \[
+   \text{bldg\_id} \leftarrow f(\text{attrs}, \{\text{buildings in group}\}; \text{method})
+   \]
+   - **经济条件（可选但强）**：Wayne County parcel assessment → `price_per_sqft` → 分位数 `price_tier(Q1..Q5)`，用于 `income_price_match` 分配策略
 
 采样时的“两个力”：
 - **软约束引导**：把生成总体的统计偏差写成可优化的目标，并在采样过程中持续把生成分布拉回目标统计附近（实现上留接口，v0 可先用“分批采样→评估→调强度”的简化版本）。

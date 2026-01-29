@@ -2,23 +2,25 @@
 from __future__ import annotations
 
 """
-PoC (v0.1): TabDDPM-style conditional diffusion with *building features* injected as spatial conditions.
+PoC (v0.1, Scheme B): TabDDPM-style conditional diffusion on PUMS + explicit building allocation.
 
-Core intent (PI-aligned):
-- Do NOT "generate then assign buildings" as a pure post-processing step.
-- Instead: treat buildings as part of the generation context and sample
-  P(attrs | macro_condition, building_feature).
+Core intent (PI review aligned, Scheme B):
+- The diffusion model learns attribute joint structure from PUMS only:
+  P(attrs | macro_geo_context) (macro context = PUMA for this PoC).
+- Spatial anchoring is implemented as an explicit, parameterizable allocator:
+  f(attrs, group) -> building, enabling clean ablations and reviewable assumptions.
 
 This PoC is a mechanism probe:
 - Macro condition: PUMA one-hot (already validated in earlier PoC).
-- Meso condition: building features (continuous) concatenated into condition vector.
-- Micro constraints (hard rules) are not enforced here; handled in later stages.
+- Meso anchoring: explicit building allocation within the same PUMA (not trained).
+- Micro constraints: minimal rule checks are reported in metrics (no projection in this PoC).
 
 Outputs:
 - model.pt / encoder.json / train_summary.json
 - samples_building.csv: per-person samples with bldg_id
 - building_portrait.csv: building-level aggregates (pop_count, age/income stats)
 - sample_summary.json
+- metrics/stats_metrics.json: marginal TVD + key associations + rule violations
 """
 
 import argparse
@@ -193,147 +195,6 @@ def _load_pums_zip(
     )
 
 
-def _assign_buildings_to_persons(
-    *,
-    persons: "Any",
-    buildings: "Any",
-    pairing: str,
-    seed: int,
-    n_tiers: int = 5,
-    puma_col_person: str = "PUMA",
-    puma_col_bldg: str = "puma",
-    weight_col: str = "cap_proxy",
-    income_col: str = "PINCP_log",
-) -> "Any":
-    pd = _require("pandas")
-    np = _require("numpy")
-
-    persons = persons.copy()
-    # Important: persons may carry a non-contiguous index (e.g., after filtering rows).
-    # We use numpy arrays for assignment below, so we must align indices to 0..N-1 positions.
-    persons = persons.reset_index(drop=True)
-    buildings = buildings.copy()
-    buildings[puma_col_bldg] = buildings[puma_col_bldg].map(_normalize_puma)
-    persons[puma_col_person] = persons[puma_col_person].map(_normalize_puma)
-
-    pairing = str(pairing)
-    n_tiers = int(n_tiers)
-    if n_tiers <= 0:
-        raise ValueError(f"n_tiers must be positive, got: {n_tiers}")
-
-    # Prepare building index per PUMA
-    bldg_by_puma: dict[str, "Any"] = {}
-    for puma, g in buildings.groupby(puma_col_bldg, sort=False):
-        g = g.copy()
-        g[weight_col] = pd.to_numeric(g[weight_col], errors="coerce").fillna(0.0).clip(lower=0.0)
-        if pairing == "price_tier":
-            if "price_tier" not in g.columns:
-                raise ValueError('pairing="price_tier" requires buildings to have column "price_tier".')
-            g["price_tier"] = pd.to_numeric(g["price_tier"], errors="coerce").fillna(0.0).astype(int)
-        elif pairing == "quantile":
-            g = g.sort_values(weight_col, ascending=True)
-        bldg_by_puma[str(puma)] = g
-
-    rng = np.random.default_rng(int(seed))
-    assigned_bldg_id = np.empty((int(persons.shape[0]),), dtype=object)
-    assigned_bldg_idx = np.full((int(persons.shape[0]),), -1, dtype=int)
-
-    for puma, g_person in persons.groupby(puma_col_person, sort=False):
-        puma = str(puma)
-        if puma not in bldg_by_puma:
-            # No buildings for this PUMA in the city subset; mark as missing.
-            assigned_bldg_id[g_person.index.to_numpy(dtype=int)] = None
-            assigned_bldg_idx[g_person.index.to_numpy(dtype=int)] = -1
-            continue
-
-        b = bldg_by_puma[puma]
-        if b.shape[0] == 0:
-            assigned_bldg_id[g_person.index.to_numpy(dtype=int)] = None
-            assigned_bldg_idx[g_person.index.to_numpy(dtype=int)] = -1
-            continue
-
-        weights = b[weight_col].to_numpy(dtype=float)
-        s = float(weights.sum())
-        if s > 0:
-            weights = weights / s
-        else:
-            weights = None
-
-        b_ids = b["bldg_id"].astype(str).tolist()
-        b_index = b.index.to_numpy(dtype=int)
-
-        if pairing == "random":
-            idx = rng.choice(len(b_ids), size=int(g_person.shape[0]), replace=True, p=weights)
-            person_pos = g_person.index.to_numpy(dtype=int)
-            assigned_bldg_id[person_pos] = [b_ids[int(j)] for j in idx.tolist()]
-            assigned_bldg_idx[person_pos] = [int(b_index[int(j)]) for j in idx.tolist()]
-        elif pairing == "quantile":
-            # Sort persons by income, map to building cumulative capacity distribution.
-            gp = g_person.sort_values(income_col, ascending=True)
-            n = int(gp.shape[0])
-            q = (np.arange(n) + 0.5) / max(n, 1)
-            if weights is None:
-                cum = np.linspace(1.0 / len(b_ids), 1.0, num=len(b_ids))
-            else:
-                cum = np.cumsum(weights)
-            j_idx = np.searchsorted(cum, q, side="left").clip(0, len(b_ids) - 1)
-            person_pos_sorted = gp.index.to_numpy(dtype=int)
-            assigned_bldg_id[person_pos_sorted] = [b_ids[int(j)] for j in j_idx.tolist()]
-            assigned_bldg_idx[person_pos_sorted] = [int(b_index[int(j)]) for j in j_idx.tolist()]
-        elif pairing == "price_tier":
-            # Affordability-aligned pairing:
-            #   quantile(income)  <->  building price_tier (Q1..Qn)
-            # within each tier: sample buildings weighted by capacity proxy
-            tiers_b = pd.to_numeric(b["price_tier"], errors="coerce").fillna(0.0).astype(int).to_numpy(dtype=int)
-            avail = np.array(sorted({int(t) for t in tiers_b.tolist() if int(t) > 0}), dtype=int)
-            if avail.size == 0:
-                # fallback: no tiers (should not happen); behave like random
-                idx = rng.choice(len(b_ids), size=int(g_person.shape[0]), replace=True, p=weights)
-                person_pos = g_person.index.to_numpy(dtype=int)
-                assigned_bldg_id[person_pos] = [b_ids[int(j)] for j in idx.tolist()]
-                assigned_bldg_idx[person_pos] = [int(b_index[int(j)]) for j in idx.tolist()]
-            else:
-                pools: dict[int, tuple["Any", "Any"]] = {}
-                for t in avail.tolist():
-                    pool_pos = np.where(tiers_b == int(t))[0]
-                    if pool_pos.size == 0:
-                        continue
-                    w = None
-                    if weights is not None:
-                        w = weights[pool_pos].astype(float)
-                        s2 = float(w.sum())
-                        if s2 > 0:
-                            w = w / s2
-                        else:
-                            w = None
-                    pools[int(t)] = (pool_pos, w)
-
-                gp = g_person.sort_values(income_col, ascending=True)
-                n = int(gp.shape[0])
-                q = (np.arange(n) + 0.5) / max(n, 1)
-                desired = np.ceil(q * float(n_tiers)).astype(int)
-                desired = np.clip(desired, 1, int(n_tiers))
-
-                chosen_pos: list[int] = []
-                for d in desired.tolist():
-                    # Map to nearest available tier within this PUMA
-                    nearest = int(avail[np.argmin(np.abs(avail - int(d)))])
-                    pool_pos, w = pools.get(nearest, (np.arange(len(b_ids)), None))
-                    j = int(rng.choice(pool_pos, p=w))
-                    chosen_pos.append(j)
-
-                person_pos_sorted = gp.index.to_numpy(dtype=int)
-                assigned_bldg_id[person_pos_sorted] = [b_ids[int(j)] for j in chosen_pos]
-                assigned_bldg_idx[person_pos_sorted] = [int(b_index[int(j)]) for j in chosen_pos]
-        else:
-            raise ValueError(f"unknown pairing: {pairing}")
-
-    persons = persons.copy()
-    persons["bldg_id"] = assigned_bldg_id.tolist()
-    persons["_bldg_rowidx"] = assigned_bldg_idx.tolist()
-    return persons
-
-
 def main() -> None:
     pd = _require("pandas")
     np = _require("numpy")
@@ -357,8 +218,20 @@ def main() -> None:
     p.add_argument("--batch_size", type=int, default=2048)
     p.add_argument("--device", default=None)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--pairing", choices=["random", "quantile", "price_tier"], default="price_tier", help="How to pair PUMS persons with buildings for conditional training.")
-    p.add_argument("--n_tiers", type=int, default=5, help="Number of price tiers (Q1..Qn). Used by pairing=price_tier.")
+    p.add_argument("--train_frac", type=float, default=0.8, help="Train split fraction within each PUMA (rest used as holdout reference).")
+    p.add_argument(
+        "--allocation_method",
+        choices=["random", "capacity_only", "income_price_match"],
+        default="income_price_match",
+        help="Explicit spatial allocation method (Scheme B).",
+    )
+    p.add_argument("--n_tiers", type=int, default=5, help="Number of tiers for income_price_match (default: 5).")
+    p.add_argument(
+        "--acs_marginals_long",
+        default=None,
+        help="Optional: path to ACS-derived targets_long CSV (see tools/build_acs_marginals_long.py). "
+        "If provided, writes metrics/stats_metrics_acs.json.",
+    )
     p.add_argument(
         "--out_dir",
         default=None,
@@ -406,40 +279,16 @@ def main() -> None:
         "dist_cbd_km",
         "centroid_lon",
         "centroid_lat",
-        "price_per_sqft",
-        "price_tier",
     ]
     missing_b = [c for c in required_bcols if c not in buildings.columns]
     if missing_b:
         raise SystemExit(f"buildings_csv missing columns: {missing_b}")
     buildings["puma"] = buildings["puma"].map(_normalize_puma)
-
-    # Prepare building feature matrix (continuous)
-    feat_cols = ["footprint_area_m2", "height_m", "cap_proxy", "dist_cbd_km", "price_tier", "price_per_sqft"]
-    feat = buildings[feat_cols].copy()
-    feat["footprint_area_m2"] = pd.to_numeric(feat["footprint_area_m2"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["height_m"] = pd.to_numeric(feat["height_m"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["cap_proxy"] = pd.to_numeric(feat["cap_proxy"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["dist_cbd_km"] = pd.to_numeric(feat["dist_cbd_km"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["price_tier"] = pd.to_numeric(feat["price_tier"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["price_per_sqft"] = pd.to_numeric(feat["price_per_sqft"], errors="coerce").fillna(0.0).clip(lower=0.0)
-
-    # log-transform scale-sensitive features
-    feat_transformed = np.stack(
-        [
-            np.log1p(feat["footprint_area_m2"].to_numpy(dtype=np.float32)),
-            feat["height_m"].to_numpy(dtype=np.float32),
-            np.log1p(feat["cap_proxy"].to_numpy(dtype=np.float32)),
-            feat["dist_cbd_km"].to_numpy(dtype=np.float32),
-            feat["price_tier"].to_numpy(dtype=np.float32),
-            np.log1p(feat["price_per_sqft"].to_numpy(dtype=np.float32)),
-        ],
-        axis=1,
-    )
-    bfeat_mean = feat_transformed.mean(axis=0)
-    bfeat_std = feat_transformed.std(axis=0)
-    bfeat_std = np.where(bfeat_std <= 1e-6, 1.0, bfeat_std)
-    bfeat_z_all = ((feat_transformed - bfeat_mean) / bfeat_std).astype(np.float32)
+    if str(args.allocation_method) == "income_price_match" and "price_tier" not in buildings.columns:
+        raise SystemExit(
+            'allocation_method="income_price_match" requires buildings_csv to include "price_tier". '
+            "Hint: run tools/join_detroit_buildings_parcel_assessment.py to derive price_tier."
+        )
 
     if args.mode in {"train", "train-sample"}:
         data_root_path = pathlib.Path(args.data_root).expanduser().resolve()
@@ -453,7 +302,10 @@ def main() -> None:
         with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
             df = pd.read_csv(f, nrows=int(args.n_rows), low_memory=False)
 
-        cols = ["AGEP", "SEX", "ESR", "PINCP", "PUMA"]
+        # v0 PoC (PI decision): remove ESR from the diffusion model to avoid injecting
+        # artificial rules like ESR==0 <=> AGEP<16. ESR can be reintroduced as an explicit
+        # post-processing module in a later iteration.
+        cols = ["AGEP", "SEX", "PINCP", "PUMA"]
         missing = [c for c in cols if c not in df.columns]
         if missing:
             raise SystemExit(f"Missing expected columns in PUMS person file: {missing}")
@@ -463,11 +315,10 @@ def main() -> None:
         df["PINCP"] = pd.to_numeric(df["PINCP"], errors="coerce").clip(lower=0.0)
         df["PINCP_log"] = np.log1p(df["PINCP"].to_numpy(dtype=np.float32))
         df["SEX"] = pd.to_numeric(df["SEX"], errors="coerce")
-        df["ESR"] = pd.to_numeric(df["ESR"], errors="coerce")
         df["PUMA"] = pd.to_numeric(df["PUMA"], errors="coerce")
         df = df.dropna()
 
-        # Detroit building-conditioned PoC: only keep PUMAs that exist in the Detroit building subset.
+        # Detroit Scheme B PoC: only keep PUMAs that exist in the Detroit building subset.
         valid_pumas = set(buildings["puma"].dropna().astype(str).unique().tolist())
         df["PUMA_STR"] = df["PUMA"].astype(int).astype(str)
         df = df[df["PUMA_STR"].isin(valid_pumas)].copy()
@@ -477,8 +328,33 @@ def main() -> None:
                 "Check that buildings_csv has correct puma codes and the city boundary/clip is correct."
             )
 
-        age = df["AGEP"].to_numpy(dtype=np.float32)
-        income_log = df["PINCP_log"].to_numpy(dtype=np.float32)
+        df = df.reset_index(drop=True)
+        train_frac = float(args.train_frac)
+        if not (0.0 < train_frac < 1.0):
+            raise SystemExit(f"--train_frac must be in (0,1), got: {train_frac}")
+
+        rng = np.random.default_rng(int(args.seed))
+        is_train = np.zeros((int(df.shape[0]),), dtype=bool)
+        for _puma, pos in df.groupby("PUMA_STR", sort=False).indices.items():
+            pos = np.array(list(pos), dtype=int)
+            perm = rng.permutation(pos)
+            n = int(perm.size)
+            if n <= 0:
+                continue
+            n_train = int(np.floor(train_frac * n))
+            if n >= 2:
+                n_train = max(1, min(n_train, n - 1))
+            else:
+                n_train = n
+            is_train[perm[:n_train]] = True
+
+        df_train = df[is_train].copy()
+        df_ref = df[~is_train].copy()  # PUMS holdout reference
+        if df_ref.empty:
+            raise SystemExit("Holdout reference split is empty. Lower --train_frac or increase --n_rows.")
+
+        age = df_train["AGEP"].to_numpy(dtype=np.float32)
+        income_log = df_train["PINCP_log"].to_numpy(dtype=np.float32)
 
         cont = np.stack([age, income_log], axis=1)
         cont_mean = cont.mean(axis=0)
@@ -486,55 +362,34 @@ def main() -> None:
         cont_std = np.where(cont_std <= 1e-6, 1.0, cont_std)
         cont_z = ((cont - cont_mean) / cont_std).astype(np.float32)
 
-        sex_oh, sex_cats = _one_hot(df["SEX"].astype(int).astype(str))
-        esr_oh, esr_cats = _one_hot(df["ESR"].astype(int).astype(str))
-        puma_oh, puma_cats = _one_hot(df["PUMA_STR"].astype(str))
+        sex_oh, sex_cats = _one_hot(df_train["SEX"].astype(int).astype(str))
+        puma_oh, puma_cats = _one_hot(df_train["PUMA_STR"].astype(str))
 
         # x: attributes only (no PUMA in x)
-        x_np = np.concatenate([cont_z, sex_oh, esr_oh], axis=1).astype(np.float32)
+        x_np = np.concatenate([cont_z, sex_oh], axis=1).astype(np.float32)
 
-        # Pair PUMS persons with Detroit buildings in the same PUMA (mechanism probe).
-        persons_for_pair = df[["PUMA", "PINCP_log"]].copy()
-        persons_for_pair["PUMA"] = df["PUMA_STR"].astype(str).to_numpy()
-        buildings_sub = buildings[buildings["puma"].isin(set(puma_cats))].copy()
-        paired = _assign_buildings_to_persons(
-            persons=persons_for_pair.rename(columns={"PUMA": "PUMA"}),
-            buildings=buildings_sub,
-            pairing=str(args.pairing),
-            seed=int(args.seed),
-            n_tiers=int(args.n_tiers),
-            puma_col_person="PUMA",
-            puma_col_bldg="puma",
-            weight_col="cap_proxy",
-            income_col="PINCP_log",
-        )
-
-        b_idx = paired["_bldg_rowidx"].to_numpy(dtype=int)
-        if (b_idx < 0).any():
-            raise SystemExit("Some persons could not be paired with buildings (missing PUMA coverage).")
-        bfeat_z = bfeat_z_all[b_idx]
-
-        # cond: macro PUMA one-hot + building feature vector
-        cond_np = np.concatenate([puma_oh, bfeat_z], axis=1).astype(np.float32)
+        # cond: macro PUMA one-hot only (Scheme B; no building features in training)
+        cond_np = puma_oh.astype(np.float32)
 
         encoder = {
+            "format": "poc.tabddpm_pums_schemeb.v0",
             "continuous_mean": cont_mean.tolist(),
             "continuous_std": cont_std.tolist(),
             "categorical": {
                 "SEX": {"categories": sex_cats},
-                "ESR": {"categories": esr_cats},
             },
-            "condition": {
-                "PUMA": {"categories": puma_cats},
-                "building_features": {
-                    "columns": ["log1p_area", "height_m", "log1p_cap", "dist_cbd_km", "price_tier", "log1p_price_per_sqft"],
-                    "mean": bfeat_mean.tolist(),
-                    "std": bfeat_std.tolist(),
-                },
-                "pairing": str(args.pairing),
-                "n_tiers": int(args.n_tiers),
+            "condition": {"PUMA": {"categories": puma_cats}},
+            "split": {"train_frac": train_frac, "seed": int(args.seed)},
+            "reference": {
+                "source": "pums",
+                "pums_zip": str(zip_path),
+                "pums_member": member,
+                "n_rows": int(args.n_rows),
+                "pums_year": int(args.pums_year),
+                "pums_period": str(args.pums_period),
+                "statefp": str(args.statefp),
             },
-            "puma_prob": {str(k): float(v) for k, v in df["PUMA_STR"].astype(str).value_counts(normalize=True).items()},
+            "puma_prob": {str(k): float(v) for k, v in df_train["PUMA_STR"].astype(str).value_counts(normalize=True).items()},
             "buildings_csv": str(buildings_csv),
         }
         encoder_path.write_text(json.dumps(encoder, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -558,14 +413,17 @@ def main() -> None:
         (out_dir / "train_summary.json").write_text(
             json.dumps(
                 {
-                    "train_rows": int(df.shape[0]),
+                    "train_rows": int(df_train.shape[0]),
+                    "holdout_rows": int(df_ref.shape[0]),
+                    "train_frac": float(args.train_frac),
                     "train_metrics": train_metrics,
                     "ckpt_path": str(ckpt_path),
                     "encoder_path": str(encoder_path),
                     "pums_zip": str(zip_path),
                     "pums_member": member,
                     "buildings_csv": str(buildings_csv),
-                    "pairing": str(args.pairing),
+                    "scheme": "B",
+                    "allocation_method": str(args.allocation_method),
                     "n_tiers": int(args.n_tiers),
                 },
                 ensure_ascii=False,
@@ -604,7 +462,6 @@ def main() -> None:
     model.load(ckpt_path)
 
     sex_cats = list(encoder["categorical"]["SEX"]["categories"])
-    esr_cats = list(encoder["categorical"]["ESR"]["categories"])
     cont_mean = np.array(encoder["continuous_mean"], dtype=np.float32)
     cont_std = np.array(encoder["continuous_std"], dtype=np.float32)
 
@@ -616,72 +473,18 @@ def main() -> None:
     else:
         puma_probs = None
 
-    bfeat_mean = np.array(encoder["condition"]["building_features"]["mean"], dtype=np.float32)
-    bfeat_std = np.array(encoder["condition"]["building_features"]["std"], dtype=np.float32)
-    n_tiers = int(encoder["condition"].get("n_tiers", 5))
-
-    # Reload buildings and build per-PUMA sampling pools
-    buildings = pd.read_csv(buildings_csv, low_memory=False)
-    buildings["puma"] = buildings["puma"].map(_normalize_puma)
+    # Keep only buildings that match the model's PUMA categories.
     buildings = buildings[buildings["puma"].isin(set(puma_cats))].copy()
     if buildings.empty:
         raise SystemExit("No buildings match PUMA categories. Check buildings_csv / Detroit subset.")
-
-    feat = buildings[feat_cols].copy()
-    feat["footprint_area_m2"] = pd.to_numeric(feat["footprint_area_m2"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["height_m"] = pd.to_numeric(feat["height_m"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["cap_proxy"] = pd.to_numeric(feat["cap_proxy"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["dist_cbd_km"] = pd.to_numeric(feat["dist_cbd_km"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["price_tier"] = pd.to_numeric(feat["price_tier"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat["price_per_sqft"] = pd.to_numeric(feat["price_per_sqft"], errors="coerce").fillna(0.0).clip(lower=0.0)
-    feat_transformed = np.stack(
-        [
-            np.log1p(feat["footprint_area_m2"].to_numpy(dtype=np.float32)),
-            feat["height_m"].to_numpy(dtype=np.float32),
-            np.log1p(feat["cap_proxy"].to_numpy(dtype=np.float32)),
-            feat["dist_cbd_km"].to_numpy(dtype=np.float32),
-            feat["price_tier"].to_numpy(dtype=np.float32),
-            np.log1p(feat["price_per_sqft"].to_numpy(dtype=np.float32)),
-        ],
-        axis=1,
-    )
-    bfeat_z_all = ((feat_transformed - bfeat_mean) / bfeat_std).astype(np.float32)
-
-    bldg_ids = buildings["bldg_id"].astype(str).to_numpy()
-    bldg_puma = buildings["puma"].astype(str).to_numpy()
-    bldg_weight = pd.to_numeric(buildings["cap_proxy"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(dtype=float)
-    bldg_price_tier = pd.to_numeric(buildings["price_tier"], errors="coerce").fillna(0.0).astype(int).to_numpy(dtype=int)
 
     rng = np.random.default_rng(int(args.seed))
     puma_idx = rng.choice(len(puma_cats), size=int(args.n_samples), replace=True, p=puma_probs)
     puma_s = np.array([puma_cats[i] for i in puma_idx.tolist()], dtype=object)
     cond_puma_oh = np.eye(len(puma_cats), dtype=np.float32)[puma_idx]
+    cond_s = torch.from_numpy(cond_puma_oh.astype(np.float32))
 
-    # For each PUMA, sample buildings weighted by capacity proxy
-    chosen_bldg_row = np.full((int(args.n_samples),), -1, dtype=int)
-    for i, puma_code in enumerate(puma_cats):
-        mask = puma_s == puma_code
-        if not bool(mask.any()):
-            continue
-        pool_idx = np.where(bldg_puma == puma_code)[0]
-        if pool_idx.size == 0:
-            continue
-        w = bldg_weight[pool_idx].astype(float)
-        s = float(w.sum())
-        if s > 0:
-            w = w / s
-        else:
-            w = None
-        chosen = rng.choice(pool_idx, size=int(mask.sum()), replace=True, p=w)
-        chosen_bldg_row[np.where(mask)[0]] = chosen
-
-    if (chosen_bldg_row < 0).any():
-        raise SystemExit("Some samples could not find a building in the chosen PUMA. Check PUMA coverage in buildings.")
-
-    cond_bfeat = bfeat_z_all[chosen_bldg_row]
-    cond_s_np = np.concatenate([cond_puma_oh, cond_bfeat], axis=1).astype(np.float32)
-    cond_s = torch.from_numpy(cond_s_np)
-
+    # Step 1: sample attributes (Scheme B; building not used as a training condition)
     x_s = model.sample(n=int(args.n_samples), cond=cond_s, device=args.device).numpy()
 
     cont_s = x_s[:, :2] * cont_std + cont_mean
@@ -694,25 +497,34 @@ def main() -> None:
     sex_prob = _softmax(sex_logits, axis=1)
     sex_conf = sex_prob.max(axis=1)
     sex_s = sex_prob.argmax(axis=1)
-    offset += sex_dim
-
-    esr_dim = len(esr_cats)
-    esr_logits = x_s[:, offset : offset + esr_dim]
-    esr_prob = _softmax(esr_logits, axis=1)
-    esr_conf = esr_prob.max(axis=1)
-    esr_s = esr_prob.argmax(axis=1)
 
     out_df = pd.DataFrame(
         {
-            "bldg_id": bldg_ids[chosen_bldg_row].tolist(),
-            "PUMA": puma_s.tolist(),
+            "person_id": np.arange(int(args.n_samples), dtype=int).tolist(),
+            "puma": puma_s.tolist(),
             "AGEP": age_s.astype(np.float32),
             "PINCP": income_s.astype(np.float32),
             "SEX": [sex_cats[i] for i in sex_s.tolist()],
-            "ESR": [esr_cats[i] for i in esr_s.tolist()],
-            "price_tier": bldg_price_tier[chosen_bldg_row].tolist(),
         }
     )
+
+    # Step 2: explicit building allocation (reviewable, parameterizable)
+    from src.synthpop.spatial.building_allocation import allocate_to_buildings
+
+    out_df, alloc_meta = allocate_to_buildings(
+        persons=out_df,
+        buildings=buildings,
+        group_col="puma",
+        method=str(args.allocation_method),
+        income_col="PINCP",
+        price_col="price_tier",
+        capacity_col="cap_proxy",
+        n_tiers=int(args.n_tiers),
+        seed=int(args.seed),
+        return_meta=True,
+    )
+    if "price_tier" in buildings.columns:
+        out_df = out_df.merge(buildings[["bldg_id", "price_tier"]].copy(), on="bldg_id", how="left")
     out_df.to_csv(out_dir / "samples_building.csv", index=False)
 
     # Building-level portrait aggregates
@@ -732,7 +544,9 @@ def main() -> None:
         )
         .reset_index()
     )
-    keep_cols = ["bldg_id", "centroid_lon", "centroid_lat", "footprint_area_m2", "height_m", "cap_proxy", "dist_cbd_km", "puma", "price_per_sqft", "price_tier"]
+    base_cols = ["bldg_id", "centroid_lon", "centroid_lat", "footprint_area_m2", "height_m", "cap_proxy", "dist_cbd_km", "puma"]
+    opt_cols = [c for c in ["price_per_sqft", "price_tier"] if c in buildings.columns]
+    keep_cols = base_cols + opt_cols
     b_meta = buildings[keep_cols].copy()
     b_meta["bldg_id"] = b_meta["bldg_id"].astype(str)
     portrait = portrait.merge(b_meta, on="bldg_id", how="left")
@@ -742,23 +556,121 @@ def main() -> None:
         counts = series.value_counts(normalize=True)
         return {str(k): float(v) for k, v in counts.items()}
 
+    # Stats metrics (P0): synthetic vs PUMS holdout (split recreated from encoder).
+    metrics_dir = out_dir / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    stats_metrics_path = metrics_dir / "stats_metrics.json"
+    stats_metrics_acs_path = metrics_dir / "stats_metrics_acs.json"
+    stats_error = None
+    stats_acs_error = None
+    try:
+        from src.synthpop.validation.stats import compute_stats_metrics
+
+        ref_info = dict(encoder.get("reference", {}))
+        split_info = dict(encoder.get("split", {}))
+        if str(ref_info.get("source", "")) != "pums":
+            raise RuntimeError(f"unsupported reference source: {ref_info.get('source')}")
+
+        pums_zip = pathlib.Path(str(ref_info["pums_zip"])).expanduser().resolve()
+        pums_member = str(ref_info["pums_member"])
+        nrows_ref = int(ref_info.get("n_rows", 0))
+        if nrows_ref <= 0:
+            nrows_ref = None  # type: ignore[assignment]
+
+        with zipfile.ZipFile(pums_zip) as zf, zf.open(pums_member) as f:
+            ref_df = pd.read_csv(f, nrows=nrows_ref, low_memory=False)
+
+        cols = ["AGEP", "SEX", "PINCP", "PUMA"]
+        ref_df = ref_df[cols].copy()
+        ref_df["AGEP"] = pd.to_numeric(ref_df["AGEP"], errors="coerce")
+        ref_df["PINCP"] = pd.to_numeric(ref_df["PINCP"], errors="coerce").clip(lower=0.0)
+        ref_df["SEX"] = pd.to_numeric(ref_df["SEX"], errors="coerce")
+        ref_df["PUMA"] = pd.to_numeric(ref_df["PUMA"], errors="coerce")
+        ref_df = ref_df.dropna().reset_index(drop=True)
+        ref_df["puma"] = ref_df["PUMA"].astype(int).astype(str)
+
+        valid_pumas = set(buildings["puma"].dropna().astype(str).unique().tolist())
+        ref_df = ref_df[ref_df["puma"].isin(valid_pumas)].copy().reset_index(drop=True)
+        if ref_df.empty:
+            raise RuntimeError("reference became empty after filtering to building PUMAs")
+
+        train_frac = float(split_info.get("train_frac", 0.8))
+        split_seed = int(split_info.get("seed", 0))
+        rng_ref = np.random.default_rng(split_seed)
+        is_train = np.zeros((int(ref_df.shape[0]),), dtype=bool)
+        for _puma, pos in ref_df.groupby("puma", sort=False).indices.items():
+            pos = np.array(list(pos), dtype=int)
+            perm = rng_ref.permutation(pos)
+            n = int(perm.size)
+            if n <= 0:
+                continue
+            n_train = int(np.floor(train_frac * n))
+            if n >= 2:
+                n_train = max(1, min(n_train, n - 1))
+            else:
+                n_train = n
+            is_train[perm[:n_train]] = True
+        ref_holdout = ref_df[~is_train].copy()
+        if ref_holdout.empty:
+            raise RuntimeError("holdout reference split is empty (sample stage)")
+
+        ref_holdout["SEX"] = ref_holdout["SEX"].astype(int).astype(str)
+        ref_holdout = ref_holdout[["puma", "AGEP", "PINCP", "SEX"]].copy()
+
+        syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX"]].copy()
+        stats_metrics = compute_stats_metrics(
+            synthetic=syn_for_stats,
+            reference=ref_holdout,
+            group_col="puma",
+            continuous_cols=["AGEP", "PINCP"],
+            categorical_cols=["SEX"],
+        )
+        stats_metrics_path.write_text(json.dumps(stats_metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except Exception as e:
+        stats_error = str(e)
+
+    if args.acs_marginals_long:
+        try:
+            from src.synthpop.validation.stats import compute_stats_metrics_against_targets_long
+
+            acs_path = pathlib.Path(args.acs_marginals_long).expanduser().resolve()
+            if not acs_path.exists():
+                raise RuntimeError(f"acs_marginals_long not found: {acs_path}")
+            targets_long = pd.read_csv(acs_path, low_memory=False)
+            syn_for_stats = out_df[["puma", "AGEP", "PINCP", "SEX"]].copy()
+            stats_acs = compute_stats_metrics_against_targets_long(
+                synthetic=syn_for_stats,
+                targets_long=targets_long,
+                group_col="puma",
+                continuous_cols=["AGEP", "PINCP"],
+                categorical_cols=["SEX"],
+                variables=["AGEP_bin", "SEX"],
+            )
+            stats_metrics_acs_path.write_text(json.dumps(stats_acs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception as e:
+            stats_acs_error = str(e)
+
     sample_summary = {
         "mode": "sample" if args.mode == "sample" else "train-sample",
+        "scheme": "B",
         "n_samples": int(args.n_samples),
         "ckpt_path": str(ckpt_path),
         "encoder_path": str(encoder_path),
-        "condition": {"n_tiers": int(n_tiers)},
+        "allocation": {"method": str(args.allocation_method), "n_tiers": int(args.n_tiers), "meta": alloc_meta},
+        "metrics": {
+            "stats_metrics_path": str(stats_metrics_path),
+            "stats_error": stats_error,
+            "stats_metrics_acs_path": (str(stats_metrics_acs_path) if args.acs_marginals_long else None),
+            "stats_acs_error": stats_acs_error,
+        },
         "decode": {
             "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
             "confidence": {
                 "SEX": _summary_stats(sex_conf),
-                "ESR": _summary_stats(esr_conf),
             },
         },
         "sample_freq": {
             "SEX": _freq(out_df["SEX"].astype(str)),
-            "ESR": _freq(out_df["ESR"].astype(str)),
-            "price_tier": _freq(out_df["price_tier"].astype(str)),
         },
         "building_portrait": {
             "n_buildings_hit": int(portrait.shape[0]),
@@ -767,8 +679,13 @@ def main() -> None:
             "income_p50": _summary_stats(portrait["income_p50"].to_numpy()),
         },
     }
+    if "price_tier" in out_df.columns:
+        sample_summary["sample_freq"]["price_tier"] = _freq(out_df["price_tier"].astype(str))
     (out_dir / "sample_summary.json").write_text(json.dumps(sample_summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[ok] wrote: {out_dir}/samples_building.csv, {out_dir}/building_portrait.csv, {out_dir}/sample_summary.json")
+    print(
+        f"[ok] wrote: {out_dir}/samples_building.csv, {out_dir}/building_portrait.csv, "
+        f"{out_dir}/sample_summary.json, {stats_metrics_path}"
+    )
 
 
 if __name__ == "__main__":

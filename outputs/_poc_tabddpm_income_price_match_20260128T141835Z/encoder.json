@@ -1,0 +1,66 @@
+{
+  "format": "poc.tabddpm_pums_schemeb.v0",
+  "continuous_mean": [
+    48.722206115722656,
+    8.624194145202637
+  ],
+  "continuous_std": [
+    19.59811782836914,
+    3.6592586040496826
+  ],
+  "categorical": {
+    "SEX": {
+      "categories": [
+        "1",
+        "2"
+      ]
+    },
+    "ESR": {
+      "categories": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "6"
+      ]
+    }
+  },
+  "condition": {
+    "PUMA": {
+      "categories": [
+        "3202",
+        "3203",
+        "3208",
+        "3209",
+        "3210",
+        "3211",
+        "3212",
+        "3213"
+      ]
+    }
+  },
+  "split": {
+    "train_frac": 0.8,
+    "seed": 0
+  },
+  "reference": {
+    "source": "pums",
+    "pums_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip",
+    "pums_member": "psam_p26.csv",
+    "n_rows": 200000,
+    "pums_year": 2023,
+    "pums_period": "5-Year",
+    "statefp": "26"
+  },
+  "puma_prob": {
+    "3202": 0.18707169888513858,
+    "3203": 0.15505778868773654,
+    "3211": 0.13030581978111896,
+    "3213": 0.12641914697760048,
+    "3208": 0.11772527360130919,
+    "3209": 0.09665541577170911,
+    "3210": 0.09634857318195765,
+    "3212": 0.09041628311342947
+  },
+  "buildings_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/buildings/buildings_detroit_features_price.csv"
+}

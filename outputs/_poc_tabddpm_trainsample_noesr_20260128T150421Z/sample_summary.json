@@ -1,0 +1,80 @@
+{
+  "mode": "train-sample",
+  "scheme": "B",
+  "n_samples": 50000,
+  "ckpt_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/model.pt",
+  "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/encoder.json",
+  "allocation": {
+    "method": "income_price_match",
+    "n_tiers": 5,
+    "meta": {
+      "method": "income_price_match",
+      "group_col": "puma",
+      "seed": 0,
+      "n_persons": 50000,
+      "n_buildings": 326214,
+      "n_groups_persons": 8,
+      "n_groups_buildings": 8,
+      "n_tiers": 5,
+      "n_unassigned": 0,
+      "n_assigned": 50000,
+      "tier_fallback": {
+        "fallback_assignments": 7518,
+        "fallback_rate": 0.15036,
+        "no_tier_groups": 0,
+        "no_tier_assignments": 0
+      }
+    }
+  },
+  "metrics": {
+    "stats_metrics_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/metrics/stats_metrics.json",
+    "stats_error": null,
+    "stats_metrics_acs_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_trainsample_noesr_20260128T150421Z/metrics/stats_metrics_acs.json",
+    "stats_acs_error": null
+  },
+  "decode": {
+    "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
+    "confidence": {
+      "SEX": {
+        "mean": 0.7311053363656997,
+        "p10": 0.7207592904567719,
+        "p50": 0.731889545917511,
+        "p90": 0.742242819070816
+      }
+    }
+  },
+  "sample_freq": {
+    "SEX": {
+      "2": 0.50104,
+      "1": 0.49896
+    },
+    "price_tier": {
+      "5": 0.35034,
+      "2": 0.16244,
+      "4": 0.16244,
+      "3": 0.1624,
+      "1": 0.16238
+    }
+  },
+  "building_portrait": {
+    "n_buildings_hit": 20405,
+    "pop_count": {
+      "mean": 2.450379808870375,
+      "p10": 1.0,
+      "p50": 1.0,
+      "p90": 2.0
+    },
+    "age_mean": {
+      "mean": 49.20393844885851,
+      "p10": 23.808153533935545,
+      "p50": 49.516475677490234,
+      "p90": 73.91421813964845
+    },
+    "income_p50": {
+      "mean": 34381.99163775237,
+      "p10": 59.49668502807644,
+      "p50": 23066.60546875,
+      "p90": 78950.121875
+    }
+  }
+}

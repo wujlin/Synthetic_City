@@ -580,9 +580,50 @@ def _cmd_safegraph(args: argparse.Namespace) -> None:
             "source_dir": str(safegraph_dir),
             "n_shards_like_Global_Places_POI_Data": len(shards),
             "download_utc": _utc_now_iso(),
-            "license": "UNKNOWN (must be filled in metadata.md according to Deway terms).",
+            "license": "SEE metadata.md (fill in based on Deway/SafeGraph terms).",
+            "license_file": "metadata.md",
         },
     )
+
+    md_path = out_dir / "metadata.md"
+    if not md_path.exists():
+        md_path.write_text(
+            "# SafeGraph Places：许可与使用声明（需人工填写）\n"
+            "\n"
+            "> 本目录通过 symlink 引用 SafeGraph 原始数据。请务必根据 Deway/供应方合同条款填写并确认。\n"
+            "> 默认原则：**不公开发布原始数据**，对外仅发布经过聚合/脱敏的派生结果，并在论文/报告中按要求致谢与标注。\n"
+            "\n"
+            "## 1. 数据来源\n"
+            "\n"
+            "- 数据集：SafeGraph Places\n"
+            "- 获取渠道：Deway 平台（或内部共享）\n"
+            "- 原始数据路径（本机）：`safegraph_unzip/`\n"
+            "- 覆盖范围：________\n"
+            "- 版本/日期：________\n"
+            "\n"
+            "## 2. 许可条款（请粘贴关键条款/链接）\n"
+            "\n"
+            "- 条款链接/文件：________\n"
+            "- 是否允许论文发表：________（是/否/需审批）\n"
+            "- 是否允许公开发布派生结果：________（是/否/需审批）\n"
+            "- 是否允许共享给第三方：________（是/否/需审批）\n"
+            "- 必要的引用/致谢格式：________\n"
+            "\n"
+            "## 3. 风险与合规说明\n"
+            "\n"
+            "- 是否包含敏感字段：________\n"
+            "- 脱敏/聚合策略（如有）：________\n"
+            "- 仅在受控环境使用的限制：________\n"
+            "\n"
+            "## 4. 确认记录\n"
+            "\n"
+            "- 最后确认日期：________\n"
+            "- 确认人：________\n"
+            "- 备注：________\n"
+            ,
+            encoding="utf-8",
+        )
+        print(f"[ok] wrote template: {md_path}", file=sys.stderr)
 
     print(f"[info] shards matched: {len(shards)}", file=sys.stderr)
     if shards:

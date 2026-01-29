@@ -1,0 +1,15 @@
+encoder_path not found: /home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums/encoder.json (run --mode train first)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/__main__.py", line 5, in <module>
+    main()
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/cli.py", line 269, in main
+    args.func(args)
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/cli.py", line 163, in _cmd_detroit_poc_sample
+    _run_poc_tabddpm_pums(mode="sample", args=args)
+  File "/home/jinlin/projects/Synthetic_City/src/synthpop/cli.py", line 155, in _run_poc_tabddpm_pums
+    subprocess.run(cmd, check=True, cwd=repo_root, env=env)
+  File "/home/jinlin/miniconda3/envs/dpl/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['/home/jinlin/miniconda3/envs/dpl/bin/python', '/home/jinlin/projects/Synthetic_City/tools/poc_tabddpm_pums.py', '--mode', 'sample', '--data_root', '/home/jinlin/data/geoexplicit_data/synthetic_city/data', '--pums_year', '2023', '--pums_period', '5-Year', '--statefp', '26', '--n_rows', '200000', '--n_samples', '10000', '--timesteps', '200', '--epochs', '5', '--batch_size', '2048', '--seed', '0', '--out_dir', 'outputs/_poc_tabddpm_pums', '--log_every', '200', '--device', 'cuda']' returned non-zero exit status 1.

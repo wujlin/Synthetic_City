@@ -1,0 +1,66 @@
+{
+  "mode": "train-sample",
+  "n_samples": 50000,
+  "ckpt_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/model.pt",
+  "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_poc_tabddpm_pums_buildingcond_20260127T033816Z/encoder.json",
+  "condition": {
+    "n_tiers": 5
+  },
+  "decode": {
+    "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
+    "confidence": {
+      "SEX": {
+        "mean": 0.677624266256094,
+        "p10": 0.537417733669281,
+        "p50": 0.6779991984367371,
+        "p90": 0.8125167727470398
+      },
+      "ESR": {
+        "mean": 0.3969467455810308,
+        "p10": 0.3671663224697113,
+        "p50": 0.40011128783226013,
+        "p90": 0.41653556525707247
+      }
+    }
+  },
+  "sample_freq": {
+    "SEX": {
+      "2": 0.6066,
+      "1": 0.3934
+    },
+    "ESR": {
+      "6": 0.5317,
+      "1": 0.43918,
+      "3": 0.02536,
+      "2": 0.00376
+    },
+    "price_tier": {
+      "5": 0.31822,
+      "1": 0.21422,
+      "2": 0.20884,
+      "3": 0.15804,
+      "4": 0.10068
+    }
+  },
+  "building_portrait": {
+    "n_buildings_hit": 19035,
+    "pop_count": {
+      "mean": 2.6267402153926978,
+      "p10": 1.0,
+      "p50": 1.0,
+      "p90": 2.0
+    },
+    "age_mean": {
+      "mean": 49.08760573580286,
+      "p10": 25.899130630493165,
+      "p50": 48.38911437988281,
+      "p90": 73.21787567138674
+    },
+    "income_p50": {
+      "mean": 29366.74700829347,
+      "p10": 1.5771650075912478,
+      "p50": 16164.65625,
+      "p90": 76848.86562500002
+    }
+  }
+}
