@@ -33,6 +33,7 @@ data/        # optional symlink to an external data root (NOT committed)
 
 - `P(attrs | macro_geo)` where `macro_geo = PUMA` for the PoC
 - `attrs = {AGEP, PINCP, SEX}` (ESR is removed in PoC to avoid semantic conflicts for minors)
+- PUMS data note: for `AGEP < 16`, `PINCP` can be missing (not in universe); the PoC imputes missing child `PINCP = 0.0` to avoid dropping all children during cleaning.
 
 2) **Spatial anchoring (explicit post-processing)** assigns each generated person to a building within the same macro group:
 

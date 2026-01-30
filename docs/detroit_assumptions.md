@@ -99,3 +99,14 @@
 
 说明：
 - 这是一套 **PoC 级**的稳定默认值（避免过细导致稀疏），后续接入 ACS Summary 时应按表口径/分组需求调整或直接使用 ACS 自带分箱。
+
+---
+
+## 9. PUMS 儿童 PINCP 缺失值处理（避免 dropna 丢弃儿童）
+
+- **现象**：PUMS 中 `AGEP < 16` 的样本，`PINCP` 可能出现缺失（not in universe），若直接 `df.dropna()` 会把儿童全部过滤掉。
+- **当前口径（Scheme B PoC）**：对 `AGEP < 16` 且 `PINCP` 缺失的样本，填充 `PINCP = 0.0`，再进入 `PINCP_log = log1p(PINCP)` 与后续训练/验证。
+- **代码位置**：`tools/poc_tabddpm_pums_buildingcond.py`
+- **影响**：
+  - 避免年龄分布被系统性右移（儿童被删会显著抬高平均年龄）
+  - ACS 外部验证（`AGEP_bin`）不再被“预处理 bug”主导

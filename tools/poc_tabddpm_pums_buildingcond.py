@@ -312,7 +312,13 @@ def main() -> None:
         df = df[cols].copy()
 
         df["AGEP"] = pd.to_numeric(df["AGEP"], errors="coerce")
-        df["PINCP"] = pd.to_numeric(df["PINCP"], errors="coerce").clip(lower=0.0)
+        # PUMS note: for minors (AGEP < 16), PINCP can be missing (not in universe),
+        # and a naive dropna() would remove all children and heavily bias the age distribution.
+        # For Scheme B PoC we impute missing child PINCP to 0.0 (KISS, reviewable assumption).
+        df["PINCP"] = pd.to_numeric(df["PINCP"], errors="coerce")
+        is_child = df["AGEP"] < 16
+        df.loc[is_child, "PINCP"] = df.loc[is_child, "PINCP"].fillna(0.0)
+        df["PINCP"] = df["PINCP"].clip(lower=0.0)
         df["PINCP_log"] = np.log1p(df["PINCP"].to_numpy(dtype=np.float32))
         df["SEX"] = pd.to_numeric(df["SEX"], errors="coerce")
         df["PUMA"] = pd.to_numeric(df["PUMA"], errors="coerce")
@@ -583,7 +589,11 @@ def main() -> None:
         cols = ["AGEP", "SEX", "PINCP", "PUMA"]
         ref_df = ref_df[cols].copy()
         ref_df["AGEP"] = pd.to_numeric(ref_df["AGEP"], errors="coerce")
-        ref_df["PINCP"] = pd.to_numeric(ref_df["PINCP"], errors="coerce").clip(lower=0.0)
+        # Keep children in the reference split as well (same PINCP handling as training stage).
+        ref_df["PINCP"] = pd.to_numeric(ref_df["PINCP"], errors="coerce")
+        is_child = ref_df["AGEP"] < 16
+        ref_df.loc[is_child, "PINCP"] = ref_df.loc[is_child, "PINCP"].fillna(0.0)
+        ref_df["PINCP"] = ref_df["PINCP"].clip(lower=0.0)
         ref_df["SEX"] = pd.to_numeric(ref_df["SEX"], errors="coerce")
         ref_df["PUMA"] = pd.to_numeric(ref_df["PUMA"], errors="coerce")
         ref_df = ref_df.dropna().reset_index(drop=True)
