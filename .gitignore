@@ -5,6 +5,34 @@
 /_sync/
 
 # --------
+# Experiment artifacts (keep small metrics in git; avoid large weights/samples)
+# --------
+# Model checkpoints / weights
+outputs/**/*.pt
+outputs/**/*.pth
+outputs/**/*.ckpt
+outputs/**/*.safetensors
+outputs/**/*.onnx
+outputs/**/checkpoints/
+outputs/**/ckpts/
+outputs/**/wandb/
+outputs/**/tensorboard/
+outputs/**/events.out.tfevents*
+
+# Large intermediate formats (prefer regenerate / keep outside git)
+outputs/**/*.parquet
+outputs/**/*.feather
+outputs/**/*.pkl
+outputs/**/*.pickle
+outputs/**/*.h5
+outputs/**/*.hdf5
+
+# Sample-level exports (often huge); keep aggregated portraits/metrics instead
+outputs/**/samples*.csv
+outputs/**/samples*.csv.gz
+outputs/**/samples*.npz
+
+# --------
 # Python / Jupyter
 # --------
 __pycache__/
