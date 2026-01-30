@@ -1,8 +1,8 @@
 # --------
 # Data / Outputs (usually large or private)
 # --------
-data/
-_sync/
+/data/
+/_sync/
 
 # --------
 # Python / Jupyter
