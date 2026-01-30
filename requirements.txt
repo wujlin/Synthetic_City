@@ -1,11 +1,33 @@
+# --------
+# Core
+# --------
 numpy
 pandas
+
+# --------
+# Visualization (optional but used by viz scripts)
+# --------
 matplotlib
-# PyTorch wheels depend on CUDA / Python version. If pip install fails, install via conda or follow
-# https://pytorch.org/get-started/locally/ for the correct command.
+
+# --------
+# ML / Diffusion
+# --------
+# PyTorch wheels depend on CUDA / Python version. If pip install fails, install via conda or follow:
+# https://pytorch.org/get-started/locally/
 torch
 
-# Geo stack (only needed for building/parcels scripts).
+# --------
+# Optional utilities
+# --------
+# YAML config support (src/synthpop/config.py)
+pyyaml
+
+# Parquet IO support (recommended; used when reading/writing *.parquet)
+pyarrow
+
+# --------
+# Geo stack (only needed for building/parcels/ACS spatial join scripts)
+# --------
 geopandas
 pyproj
 shapely
