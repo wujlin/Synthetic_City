@@ -79,3 +79,80 @@ def assign_buildings_within_bg(
     out[building_id_col] = assigned_bldg
     return out
 
+
+def assign_buildings_latent_nn(
+    *,
+    persons: Any,
+    z_person: Any,
+    buildings: Any,
+    z_buildings: Any,
+    person_id_col: str = "person_id",
+    group_col: str = "tract_geoid",
+    building_id_col: str = "bldg_id",
+) -> Any:
+    """
+    Scheme C-v2 (planned): latent-space NN building assignment.
+
+    Minimal v0 behavior:
+    - Within each group (default: tract), assign each person to the nearest building in latent space.
+    - No capacity constraint is enforced in this v0 helper (kept KISS); later we can add
+      capacity-aware matching if needed.
+
+    Inputs:
+    - persons/buildings: pandas.DataFrame
+    - z_person: np.ndarray (n_persons, d)
+    - z_buildings: np.ndarray (n_buildings, d)
+
+    Returns:
+    - DataFrame with [person_id_col, group_col, building_id_col]
+    """
+    try:
+        import numpy as np  # type: ignore
+        import pandas as pd  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError("assign_buildings_latent_nn requires pandas and numpy.") from e
+
+    if not isinstance(persons, pd.DataFrame) or not isinstance(buildings, pd.DataFrame):
+        raise TypeError("persons/buildings must be pandas DataFrame")
+    for col in [person_id_col, group_col]:
+        if col not in persons.columns:
+            raise ValueError(f"persons missing column: {col}")
+    for col in [building_id_col, group_col]:
+        if col not in buildings.columns:
+            raise ValueError(f"buildings missing column: {col}")
+
+    z_person_np = np.asarray(z_person)
+    z_build_np = np.asarray(z_buildings)
+    if z_person_np.ndim != 2:
+        raise ValueError("z_person must be 2D array (n_persons, d)")
+    if z_build_np.ndim != 2:
+        raise ValueError("z_buildings must be 2D array (n_buildings, d)")
+    if len(persons) != z_person_np.shape[0]:
+        raise ValueError("len(persons) must match z_person.shape[0]")
+    if len(buildings) != z_build_np.shape[0]:
+        raise ValueError("len(buildings) must match z_buildings.shape[0]")
+    if z_person_np.shape[1] != z_build_np.shape[1]:
+        raise ValueError("z_person and z_buildings must have same latent dim")
+
+    # Build per-group indices into the buildings table.
+    bldg_groups: dict[str, np.ndarray] = {}
+    for g, idx in buildings.groupby(group_col, sort=False).indices.items():
+        bldg_groups[str(g)] = np.asarray(list(idx), dtype=int)
+
+    assigned: list[Any] = []
+    for i, g in enumerate(persons[group_col].astype(str).tolist()):
+        idxs = bldg_groups.get(str(g))
+        if idxs is None or len(idxs) == 0:
+            assigned.append(None)
+            continue
+
+        zp = z_person_np[i]
+        zb = z_build_np[idxs]
+        # Squared Euclidean distance.
+        d2 = ((zb - zp) ** 2).sum(axis=1)
+        j = int(idxs[int(d2.argmin())])
+        assigned.append(buildings.iloc[j][building_id_col])
+
+    out = persons[[person_id_col, group_col]].copy()
+    out[building_id_col] = assigned
+    return out

@@ -105,3 +105,127 @@ def apply_soft_guidance_v0(
     idx = rng.choice(len(s), size=len(s), replace=True, p=p)
     out = s.iloc[idx].reset_index(drop=True)
     return out.drop(columns=["_cat"])
+
+
+def _require_torch() -> Any:
+    try:
+        import torch  # type: ignore
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError("Distribution guidance requires PyTorch.") from e
+    return torch
+
+
+def soft_histogram(*, x: Any, bins: Any, sigma: float = 1.0, eps: float = 1e-12) -> Any:
+    """
+    Differentiable histogram via Gaussian kernels around bin centers.
+
+    Args:
+      x: (n,) or (n,1) tensor
+      bins: (k,) tensor of bin centers
+    Returns:
+      probs: (k,) tensor summing to 1
+    """
+    torch = _require_torch()
+    if sigma <= 0:
+        raise ValueError("sigma must be > 0")
+
+    x = x.reshape(-1, 1).float()
+    bins = bins.reshape(1, -1).float().to(x.device)
+    w = torch.exp(-((x - bins) ** 2) / (2.0 * float(sigma) * float(sigma)))
+    hist = w.sum(dim=0)
+    return hist / (hist.sum() + float(eps))
+
+
+def tvd(*, current: Any, target: Any) -> Any:
+    """Total variation distance between two distributions."""
+    torch = _require_torch()
+    current = current.float()
+    target = target.float().to(current.device)
+    return 0.5 * torch.abs(current - target).sum()
+
+
+def distribution_guidance_step(
+    *,
+    x_t: Any,
+    x_0_pred: Any,
+    target_marginals: dict[str, Any],
+    guidance_scale: float,
+    t: int,
+) -> Any:
+    """
+    Single-step Distribution Guidance (Scheme C-v2 draft).
+
+    This is a minimal, generic implementation that supports two spec types:
+
+    1) Categorical one-hot group:
+      target_marginals[name] = {
+        "type": "categorical_onehot",
+        "indices": [int, ...],      # columns in x_0_pred belonging to the categorical group
+        "target": [float, ...],     # target probs (same length as indices)
+      }
+
+    2) Continuous scalar histogram:
+      target_marginals[name] = {
+        "type": "continuous_hist",
+        "index": int,              # scalar dimension in x_0_pred
+        "bins": [float, ...],      # bin centers
+        "target": [float, ...],    # target probs
+        "sigma": float,            # optional, defaults to 1.0
+      }
+
+    Returns:
+      guided_x_t: tensor shaped like x_t
+
+    Notes:
+    - This function does not decide *which* marginals to guide; the caller provides the spec dict.
+    - For now we compute guidance from x_0_pred and apply it directly on x_t.
+    """
+    torch = _require_torch()
+    if guidance_scale < 0:
+        raise ValueError("guidance_scale must be >= 0")
+    _ = int(t)  # keep signature stable; schedule-aware scaling can be added later.
+
+    if not isinstance(target_marginals, dict) or not target_marginals:
+        return x_t
+
+    x = x_0_pred.detach().clone().requires_grad_(True)
+    loss = torch.tensor(0.0, device=x.device)
+
+    for name, spec in target_marginals.items():
+        if not isinstance(spec, dict):
+            raise TypeError(f"target_marginals['{name}'] must be a dict spec")
+        typ = spec.get("type")
+        if typ == "categorical_onehot":
+            idx = spec.get("indices")
+            tgt = spec.get("target")
+            if not isinstance(idx, (list, tuple)) or len(idx) == 0:
+                raise ValueError(f"{name}: indices must be a non-empty list")
+            if tgt is None:
+                raise ValueError(f"{name}: target is required")
+            logits = x[:, list(idx)]
+            p = torch.softmax(logits, dim=1).mean(dim=0)
+            target = torch.tensor(tgt, device=x.device, dtype=p.dtype)
+            target = target / (target.sum() + 1e-12)
+            loss = loss + tvd(current=p, target=target)
+        elif typ == "continuous_hist":
+            idx = spec.get("index")
+            bins = spec.get("bins")
+            tgt = spec.get("target")
+            sigma = float(spec.get("sigma", 1.0))
+            if idx is None:
+                raise ValueError(f"{name}: index is required")
+            if bins is None or tgt is None:
+                raise ValueError(f"{name}: bins/target are required")
+            values = x[:, int(idx)]
+            probs = soft_histogram(x=values, bins=torch.tensor(bins, device=x.device), sigma=sigma)
+            target = torch.tensor(tgt, device=x.device, dtype=probs.dtype)
+            target = target / (target.sum() + 1e-12)
+            loss = loss + tvd(current=probs, target=target)
+        else:
+            raise ValueError(f"{name}: unsupported spec type: {typ}")
+
+    if float(guidance_scale) == 0.0:
+        return x_t
+
+    (grad,) = torch.autograd.grad(loss, x, retain_graph=False, create_graph=False)
+    return x_t - float(guidance_scale) * grad
