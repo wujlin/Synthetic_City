@@ -193,6 +193,14 @@ python tools/diagnose_tract_validation.py \
   --acs_targets_long_tract "$ACS_LONG_TRACT"
 ```
 
+Optional analysis: check whether building features are clustered by tract (necessary for any tract-aware conditioning idea):
+
+```bash
+python tools/analyze_building_feature_clustering.py \
+  --buildings_csv "$BLDG_CSV" \
+  --group_col tract_geoid
+```
+
 ## Results syncing strategy
 
 - Large artifacts (model checkpoints, large CSV/parquet) are ignored via `.gitignore`.
