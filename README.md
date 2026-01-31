@@ -92,10 +92,24 @@ python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthe
 
 ## Build ACS targets_long (optional external validation)
 
-This produces an **ACS-derived long table**: `(group, variable, category, target)`, optionally aggregated from tract -> PUMA.
+This produces an **ACS-derived long table**: `(group, variable, category, target)`.
+
+You can generate:
+- **tract-level** targets: `group_col=tract_geoid` (recommended for spatial consistency checks)
+- **PUMA-level** targets: `group_col=puma` (coarser, but more stable)
 
 ```bash
 export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+
+# (A) tract-level targets_long (group_col=tract_geoid)
+python tools/build_acs_marginals_long.py \
+  --out_root "$DATA_ROOT" \
+  --acs_year 2023 \
+  --tables "B01001,B19001,B23025" \
+  --geo_level tract \
+  --aggregate_to none
+
+# (B) PUMA-level targets_long (tract -> puma aggregation)
 python tools/build_acs_marginals_long.py \
   --out_root "$DATA_ROOT" \
   --acs_year 2023 \
@@ -107,6 +121,7 @@ python tools/build_acs_marginals_long.py \
 Expected output (example for Wayne County, MI):
 
 - `data/detroit/processed/marginals/acs5_2023_marginals_long_puma_state26_county163.csv`
+- `data/detroit/processed/marginals/acs5_2023_marginals_long_tract_geoid_state26_county163.csv`
 
 ## Prepare building features (required for Scheme B allocation)
 
@@ -118,6 +133,7 @@ python tools/prepare_detroit_buildings_gba.py \
   --tiger_place_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_place.zip" \
   --tiger_puma_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip" \
   --tiger_tract_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip" \
+  --tiger_bg_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_bg.zip" \
   --out_csv "$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features.csv"
 ```
 
@@ -137,6 +153,7 @@ python tools/join_detroit_buildings_parcel_assessment.py \
 export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
 export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
 export ACS_LONG="$DATA_ROOT/detroit/processed/marginals/acs5_2023_marginals_long_puma_state26_county163.csv"
+export ACS_LONG_TRACT="$DATA_ROOT/detroit/processed/marginals/acs5_2023_marginals_long_tract_geoid_state26_county163.csv"
 export OUT_DIR="$DATA_ROOT/detroit/outputs/runs/_poc_tabddpm_income_price_match_$(date -u +%Y%m%dT%H%M%SZ)"
 
 PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_pums_buildingcond.py \
@@ -146,6 +163,7 @@ PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_pums_buildingcond.py \
   --allocation_method income_price_match \
   --n_tiers 5 \
   --acs_marginals_long "$ACS_LONG" \
+  --acs_marginals_long_tract "$ACS_LONG_TRACT" \
   --n_rows 200000 \
   --epochs 1000 \
   --batch_size 4096 \

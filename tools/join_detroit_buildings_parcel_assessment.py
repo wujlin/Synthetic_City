@@ -286,7 +286,16 @@ def main() -> None:
     # Keep output compact and deterministic column order
     cols_out = list(b.columns)
     front = ["bldg_id"]
-    for c in ["tract_geoid", "puma", "parcel_id", "parcel_assessed_value", "assessed_value_alloc", "price_per_sqft", "price_tier"]:
+    for c in [
+        "tract_geoid",
+        "bg_geoid",
+        "puma",
+        "parcel_id",
+        "parcel_assessed_value",
+        "assessed_value_alloc",
+        "price_per_sqft",
+        "price_tier",
+    ]:
         if c in cols_out and c not in front:
             front.append(c)
     rest = [c for c in cols_out if c not in front]

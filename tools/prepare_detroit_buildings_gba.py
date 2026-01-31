@@ -9,7 +9,8 @@ Goal (KISS):
 - Avoid heavy "validation"; only do the minimum geometry operations needed for features.
 
 Outputs (CSV + metadata JSON):
-- bldg_id, puma, tract_geoid (optional), footprint_area_m2, height_m, cap_proxy, dist_cbd_km, centroid_lon, centroid_lat
+- bldg_id, puma, tract_geoid (optional), bg_geoid (optional),
+  footprint_area_m2, height_m, cap_proxy, dist_cbd_km, centroid_lon, centroid_lat
 
 Notes:
 - GBA LoD1 GeoJSON tiles may not carry CRS. Empirically, coordinates look like EPSG:3857.
@@ -74,6 +75,11 @@ def main() -> None:
         default=None,
         help="Optional: TIGER tract zip (tl_2023_26_tract.zip). If provided, outputs tract_geoid.",
     )
+    p.add_argument(
+        "--tiger_bg_zip",
+        default=None,
+        help="Optional: TIGER block group zip (tl_2023_26_bg.zip). If provided, outputs bg_geoid.",
+    )
     p.add_argument("--city_name", default="Detroit", help='Place name in TIGER (default: "Detroit").')
     p.add_argument("--out_csv", required=True, help="Output CSV path (recommended under processed/buildings/).")
     p.add_argument("--max_buildings", type=int, default=0, help="Optional cap for PoC (0 = no cap).")
@@ -85,6 +91,7 @@ def main() -> None:
     tiger_place_zip = pathlib.Path(args.tiger_place_zip).expanduser().resolve()
     tiger_puma_zip = pathlib.Path(args.tiger_puma_zip).expanduser().resolve()
     tiger_tract_zip = pathlib.Path(args.tiger_tract_zip).expanduser().resolve() if args.tiger_tract_zip else None
+    tiger_bg_zip = pathlib.Path(args.tiger_bg_zip).expanduser().resolve() if args.tiger_bg_zip else None
     out_csv = pathlib.Path(args.out_csv).expanduser().resolve()
     out_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -174,9 +181,24 @@ def main() -> None:
         tract_geoid = tract_joined[geoid_col].astype(str)
         b["tract_geoid"] = tract_geoid
 
+    bg_geoid = None
+    if tiger_bg_zip is not None:
+        bg = gpd.read_file(f"zip://{tiger_bg_zip}")
+        if bg.crs is None:
+            bg = bg.set_crs(4269, allow_override=True)
+        bg = bg.to_crs(3857)
+        bg_geoid_col = _pick_col(list(bg.columns), ("GEOID", "GEOID20", "GEOID10"))
+        if bg_geoid_col is None:
+            raise SystemExit(f"Cannot find block group GEOID column. Columns: {list(bg.columns)}")
+        bg_joined = gpd.sjoin(cent_gdf, bg[[bg_geoid_col, "geometry"]], how="left", predicate="within")
+        bg_geoid = bg_joined[bg_geoid_col].astype(str)
+        b["bg_geoid"] = bg_geoid
+
     cols = [id_col, "puma"]
     if tract_geoid is not None:
         cols.append("tract_geoid")
+    if bg_geoid is not None:
+        cols.append("bg_geoid")
     cols += ["footprint_area_m2", "height_m", "cap_proxy", "dist_cbd_km", "centroid_lon", "centroid_lat"]
     out = b[cols].copy()
     out = out.rename(columns={id_col: "bldg_id"})
@@ -184,6 +206,8 @@ def main() -> None:
     required = ["puma", "height_m", "footprint_area_m2"]
     if tract_geoid is not None:
         required.append("tract_geoid")
+    if bg_geoid is not None:
+        required.append("bg_geoid")
     out = out.dropna(subset=required).copy()
 
     if int(args.max_buildings) > 0 and out.shape[0] > int(args.max_buildings):
@@ -198,11 +222,13 @@ def main() -> None:
         "tiger_place_zip": str(tiger_place_zip),
         "tiger_puma_zip": str(tiger_puma_zip),
         "tiger_tract_zip": str(tiger_tract_zip) if tiger_tract_zip is not None else None,
+        "tiger_bg_zip": str(tiger_bg_zip) if tiger_bg_zip is not None else None,
         "city_name": args.city_name,
         "out_csv": str(out_csv),
         "n_buildings": int(out.shape[0]),
         "features": ["footprint_area_m2", "height_m", "cap_proxy", "dist_cbd_km", "centroid_lon", "centroid_lat", "puma"]
-        + (["tract_geoid"] if tiger_tract_zip is not None else []),
+        + (["tract_geoid"] if tiger_tract_zip is not None else [])
+        + (["bg_geoid"] if tiger_bg_zip is not None else []),
         "crs_assumption": "GBA guessed CRS; processing in EPSG:3857; centroid exported in EPSG:4326.",
         "cbd_lonlat": [float(args.cbd_lon), float(args.cbd_lat)],
     }

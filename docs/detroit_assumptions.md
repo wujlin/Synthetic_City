@@ -69,6 +69,7 @@
 - **采样**：两阶段
   1) 生成属性（不含 building 特征）
   2) 显式分配到建筑（后处理模块，便于审查与消融）
+- **空间归属**：通过 `bldg_id` 回连建筑表获取 `tract_geoid`（以及可选的 `bg_geoid`），用于 tract/BG 级别的外部验证与诊断
 - **空间分配策略**（`src/synthpop/spatial/building_allocation.py`）：
   - `random`：组内均匀随机
   - `capacity_only`：组内按 `cap_proxy` 加权

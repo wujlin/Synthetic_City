@@ -233,6 +233,12 @@ def main() -> None:
         "If provided, writes metrics/stats_metrics_acs.json.",
     )
     p.add_argument(
+        "--acs_marginals_long_tract",
+        default=None,
+        help="Optional: tract-level ACS-derived targets_long CSV (group_col=tract_geoid). "
+        "Requires buildings_csv to include tract_geoid; writes metrics/stats_metrics_acs_tract.json.",
+    )
+    p.add_argument(
         "--out_dir",
         default=None,
         help="Output directory. Default: data_root/detroit/outputs/runs/<run_id> (train) or latest run (sample).",
@@ -529,8 +535,14 @@ def main() -> None:
         seed=int(args.seed),
         return_meta=True,
     )
-    if "price_tier" in buildings.columns:
-        out_df = out_df.merge(buildings[["bldg_id", "price_tier"]].copy(), on="bldg_id", how="left")
+
+    # Enrich samples with building-side geo/tier attributes (for diagnostics / tract validation).
+    enrich_cols = ["bldg_id"]
+    for c in ["price_tier", "tract_geoid", "bg_geoid"]:
+        if c in buildings.columns:
+            enrich_cols.append(c)
+    if len(enrich_cols) > 1:
+        out_df = out_df.merge(buildings[enrich_cols].copy(), on="bldg_id", how="left")
     out_df.to_csv(out_dir / "samples_building.csv", index=False)
 
     # Building-level portrait aggregates
@@ -567,8 +579,10 @@ def main() -> None:
     metrics_dir.mkdir(parents=True, exist_ok=True)
     stats_metrics_path = metrics_dir / "stats_metrics.json"
     stats_metrics_acs_path = metrics_dir / "stats_metrics_acs.json"
+    stats_metrics_acs_tract_path = metrics_dir / "stats_metrics_acs_tract.json"
     stats_error = None
     stats_acs_error = None
+    stats_acs_tract_error = None
     try:
         from src.synthpop.validation.stats import compute_stats_metrics
 
@@ -660,6 +674,34 @@ def main() -> None:
         except Exception as e:
             stats_acs_error = str(e)
 
+    if args.acs_marginals_long_tract:
+        try:
+            from src.synthpop.validation.stats import compute_stats_metrics_against_targets_long
+
+            acs_path = pathlib.Path(args.acs_marginals_long_tract).expanduser().resolve()
+            if not acs_path.exists():
+                raise RuntimeError(f"acs_marginals_long_tract not found: {acs_path}")
+            if "tract_geoid" not in out_df.columns:
+                raise RuntimeError(
+                    'tract_geoid not found in samples. Rebuild buildings_csv with --tiger_tract_zip, '
+                    "and ensure it is preserved through join_detroit_buildings_parcel_assessment.py."
+                )
+            targets_long = pd.read_csv(acs_path, low_memory=False)
+            syn_for_stats = out_df[["tract_geoid", "AGEP", "PINCP", "SEX"]].copy()
+            stats_acs = compute_stats_metrics_against_targets_long(
+                synthetic=syn_for_stats,
+                targets_long=targets_long,
+                group_col="tract_geoid",
+                continuous_cols=["AGEP", "PINCP"],
+                categorical_cols=["SEX"],
+                variables=["AGEP_bin", "SEX"],
+            )
+            stats_metrics_acs_tract_path.write_text(
+                json.dumps(stats_acs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+        except Exception as e:
+            stats_acs_tract_error = str(e)
+
     sample_summary = {
         "mode": "sample" if args.mode == "sample" else "train-sample",
         "scheme": "B",
@@ -672,6 +714,8 @@ def main() -> None:
             "stats_error": stats_error,
             "stats_metrics_acs_path": (str(stats_metrics_acs_path) if args.acs_marginals_long else None),
             "stats_acs_error": stats_acs_error,
+            "stats_metrics_acs_tract_path": (str(stats_metrics_acs_tract_path) if args.acs_marginals_long_tract else None),
+            "stats_acs_tract_error": stats_acs_tract_error,
         },
         "decode": {
             "note": "Known simplification: Gaussian DDPM outputs unconstrained logits; decoding uses argmax after softmax.",
