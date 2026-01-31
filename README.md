@@ -182,6 +182,16 @@ Outputs (in `OUT_DIR`):
 - `sample_summary.json`
 - `metrics/stats_metrics.json` (PUMS holdout reference)
 - `metrics/stats_metrics_acs.json` (ACS targets_long reference, if provided)
+- `metrics/stats_metrics_acs_tract.json` (ACS tract-level targets_long reference, if provided)
+
+Optional diagnosis helper (workstation-only; uses large `samples_building.csv`):
+
+```bash
+python tools/diagnose_tract_validation.py \
+  --run_dir "$OUT_DIR" \
+  --buildings_csv "$BLDG_CSV" \
+  --acs_targets_long_tract "$ACS_LONG_TRACT"
+```
 
 ## Results syncing strategy
 
