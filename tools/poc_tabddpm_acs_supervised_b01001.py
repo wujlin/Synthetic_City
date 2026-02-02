@@ -260,9 +260,18 @@ def _build_built_context(buildings: Any, *, n_tiers: int) -> Any:
             props.columns = [f"price_tier_p{k}" for k in range(1, int(n_tiers) + 1)]
             props = props.reset_index()
             props["tract_geoid"] = props["tract_geoid"].astype(str)
-            out = out.merge(props, on="tract_geoid", how="left")
+            # Use explicit suffix to avoid pandas' default _x/_y, then prefer the right-side props.
+            out = out.merge(props, on="tract_geoid", how="left", suffixes=("", "_tier"))
             for k in range(1, int(n_tiers) + 1):
-                out[f"price_tier_p{k}"] = pd.to_numeric(out.get(f"price_tier_p{k}", 0.0), errors="coerce").fillna(0.0).astype(float)
+                col = f"price_tier_p{k}"
+                col_tier = f"{col}_tier"
+                if col_tier in out.columns:
+                    out[col] = pd.to_numeric(out[col_tier], errors="coerce").fillna(0.0).astype(float)
+                else:
+                    out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0).astype(float)
+            drop_cols = [f"price_tier_p{k}_tier" for k in range(1, int(n_tiers) + 1) if f"price_tier_p{k}_tier" in out.columns]
+            if drop_cols:
+                out = out.drop(columns=drop_cols)
     return out
 
 
