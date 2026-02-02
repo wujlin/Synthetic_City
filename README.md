@@ -52,6 +52,22 @@ Code entrypoints:
 - Building allocation: `src/synthpop/spatial/building_allocation.py`
 - Metrics: `src/synthpop/validation/stats.py`
 
+### ACS-supervised diffusion (PoC, runnable)
+
+**Goal:** test whether **tract-level context (geo + built)** carries learnable signal for **age×sex** distributions, using **ACS B01001** as training supervision and **PUMS** as an external validation source (never used in training).
+
+Core idea:
+
+- Train on **pseudo-individuals sampled from ACS tract distributions**.
+- Conditions are **tract_context** (ablations: `none`, `geo-only`, `built-only`, `geo+built`).
+- Evaluation:
+  - internal: tract-level TVD vs ACS on held-out tracts
+  - external: aggregate tract predictions to PUMA and compare vs PUMS (plus an ACS→PUMA baseline gap)
+
+Code entrypoint:
+
+- `tools/poc_tabddpm_acs_supervised_b01001.py`
+
 ### Scheme C-v2 (WIP)
 
 Shared latent encoders + alignment losses + joint diffusion guidance (skeleton + smoke tests exist, but not the default Detroit PoC yet). See `PI_Opinion.md` and `src/synthpop/model/joint_diffusion.py`.
@@ -200,6 +216,40 @@ python tools/analyze_building_feature_clustering.py \
   --buildings_csv "$BLDG_CSV" \
   --group_col tract_geoid
 ```
+
+## Run ACS-supervised PoC (tract_context ablation + 4-fold PUMA-block CV)
+
+```bash
+export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+export ACS_B01001="$DATA_ROOT/detroit/raw/census/acs/acs5_2023/acs5_2023_B01001_tract_state26_county163.csv.gz"
+export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
+export TIGER_TRACT="$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip"
+export TIGER_PUMA="$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip"
+export OUT_DIR="$DATA_ROOT/detroit/outputs/runs/_poc_acs_supervised_b01001_$(date -u +%Y%m%dT%H%M%SZ)"
+
+PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b01001.py \
+  --acs_b01001_csv_gz "$ACS_B01001" \
+  --buildings_csv "$BLDG_CSV" \
+  --tiger_tract_zip "$TIGER_TRACT" \
+  --tiger_puma_zip "$TIGER_PUMA" \
+  --data_root "$DATA_ROOT" \
+  --conditions "none,geo-only,built-only,geo+built" \
+  --epochs 1000 \
+  --batch_size 4096 \
+  --timesteps 200 \
+  --n_eval_per_tract 2000 \
+  --device cuda \
+  --out_dir "$OUT_DIR" \
+  |& tee "$OUT_DIR/run.log"
+```
+
+Key outputs (small, commit-friendly):
+
+- `run_summary.json`
+- `metrics/acs_pums_baseline_gap.json`
+- `metrics/ablation_summary.json` (mean±std across folds)
+- `fold_*/**/metrics/internal_acs_holdout.json`
+- `fold_*/**/metrics/external_pums_by_puma.json` (if `--data_root` provided)
 
 ## Results syncing strategy
 
