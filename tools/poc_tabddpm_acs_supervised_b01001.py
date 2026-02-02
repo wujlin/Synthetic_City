@@ -550,6 +550,26 @@ def _build_puma_blocks(*, tiger_puma_zip: pathlib.Path, pumas: list[str]) -> lis
     return blocks
 
 
+def _parse_puma_blocks(spec: str) -> list[list[str]]:
+    """
+    Parse a user-specified PUMA block split, e.g.:
+      "3202,3203;3208,3209;3210,3211;3212,3213"
+    Returns a list of blocks (each a list of 2+ PUMA codes as strings).
+    """
+    blocks: list[list[str]] = []
+    for part in str(spec).split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        items = [s.strip() for s in part.split(",") if s.strip()]
+        if len(items) < 2:
+            raise ValueError(f"Each block must contain >=2 PUMAs; got: {part!r}")
+        blocks.append([str(_normalize_puma(x) or x) for x in items])
+    if not blocks:
+        raise ValueError("Empty --puma_blocks spec.")
+    return blocks
+
+
 def main() -> None:
     np = _require("numpy")
     pd = _require("pandas")
@@ -583,6 +603,11 @@ def main() -> None:
     p.add_argument("--device", default=None)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--log_every", type=int, default=200)
+    p.add_argument(
+        "--puma_blocks",
+        default=None,
+        help='Optional explicit PUMA blocks (overrides adjacency-based pairing). Example: "3202,3203;3208,3209;3210,3211;3212,3213".',
+    )
 
     p.add_argument(
         "--conditions",
@@ -630,7 +655,17 @@ def main() -> None:
     ctx = ctx.dropna(subset=["puma"]).copy()
 
     # PUMA blocks for spatial holdout.
-    blocks = _build_puma_blocks(tiger_puma_zip=tiger_puma_zip, pumas=study_pumas)
+    if args.puma_blocks:
+        blocks = _parse_puma_blocks(str(args.puma_blocks))
+        # Filter to study pumas and validate coverage.
+        blocks = [[p for p in b if str(p) in set(study_pumas)] for b in blocks]
+        blocks = [b for b in blocks if len(b) >= 2]
+        seen = sorted({p for b in blocks for p in b})
+        missing = sorted(set(study_pumas) - set(seen))
+        if missing:
+            raise SystemExit(f"--puma_blocks does not cover all study PUMAs: missing={missing}")
+    else:
+        blocks = _build_puma_blocks(tiger_puma_zip=tiger_puma_zip, pumas=study_pumas)
     blocks = [sorted(list(map(str, b))) for b in blocks]
     blocks = sorted(blocks, key=lambda b: ",".join(b))
     if len(blocks) < 2:
@@ -749,6 +784,8 @@ def main() -> None:
     # Collect fold-level summaries for ablation report.
     ablation_internal: dict[str, dict[int, Any]] = {c: {} for c in cond_list}
     ablation_external: dict[str, dict[int, Any]] = {c: {} for c in cond_list}
+    # Collect per-tract TVDs (across folds) for simple global summaries + plots.
+    per_tract_tvd: dict[str, dict[str, list[float]]] = {c: {"tvd_joint": [], "tvd_age": [], "tvd_sex": []} for c in cond_list}
 
     # Main loop.
     for fold_idx in fold_indices:
@@ -888,6 +925,9 @@ def main() -> None:
             }
             _write_json(fold_dir / "metrics" / "internal_acs_holdout.json", internal)
             ablation_internal[condition][int(fold_idx)] = dict(internal.get("summary", {}))
+            per_tract_tvd[condition]["tvd_joint"].extend([float(v["tvd_joint"]) for v in internal_by_tract.values()])
+            per_tract_tvd[condition]["tvd_age"].extend([float(v["tvd_age"]) for v in internal_by_tract.values()])
+            per_tract_tvd[condition]["tvd_sex"].extend([float(v["tvd_sex"]) for v in internal_by_tract.values()])
 
             # Worst tracts diagnosis (top 10 by joint TVD).
             worst = sorted(internal_by_tract.items(), key=lambda kv: kv[1]["tvd_joint"], reverse=True)[:10]
@@ -986,6 +1026,60 @@ def main() -> None:
         "baseline_gap": baseline_gap,
     }
     _write_json(out_root / "metrics" / "ablation_summary.json", ablation_summary)
+
+    # --- Write "spec-friendly" internal/external summaries (single files) ---
+    def _global_summary(values: list[float]) -> dict[str, float] | None:
+        if not values:
+            return None
+        arr = np.asarray(values, dtype=float)
+        return {
+            "mean": float(arr.mean()),
+            "p90": float(np.quantile(arr, 0.90)),
+            "max": float(arr.max()),
+            "n": int(arr.size),
+        }
+
+    internal_by_condition: dict[str, Any] = {}
+    for c in cond_list:
+        internal_by_condition[c] = {
+            "tvd_joint": _global_summary(per_tract_tvd[c]["tvd_joint"]),
+            "tvd_age": _global_summary(per_tract_tvd[c]["tvd_age"]),
+            "tvd_sex": _global_summary(per_tract_tvd[c]["tvd_sex"]),
+        }
+    _write_json(
+        out_root / "metrics" / "internal_acs_holdout.json",
+        {
+            "by_condition": internal_by_condition,
+            "by_fold": {c: {str(k): v for k, v in sorted(ablation_internal.get(c, {}).items())} for c in cond_list},
+        },
+    )
+    if pums_puma_dist is not None:
+        _write_json(
+            out_root / "metrics" / "external_pums_by_puma.json",
+            {
+                "by_condition": {c: _summarize_across_folds(ablation_external.get(c, {})) for c in cond_list},
+                "baseline_gap": baseline_gap,
+            },
+        )
+
+    # --- Simple figure: tract-level TVD boxplot by condition ---
+    try:
+        import matplotlib.pyplot as plt  # type: ignore
+
+        fig_dir = out_root / "figures"
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        order = [c for c in ["none", "geo-only", "built-only", "geo+built"] if c in cond_list]
+        data = [per_tract_tvd[c]["tvd_joint"] for c in order]
+        if any(len(x) > 0 for x in data):
+            plt.figure(figsize=(10, 4))
+            plt.boxplot(data, labels=order, showfliers=False)
+            plt.ylabel("TVD (joint age×sex) on held-out tracts")
+            plt.title("ACS-supervised tract conditional diffusion (4-fold CV)")
+            plt.tight_layout()
+            plt.savefig(fig_dir / "tvd_by_condition.png", dpi=200)
+            plt.close()
+    except Exception:
+        pass
 
     print(f"[ok] wrote: {out_root}")
 

@@ -234,6 +234,7 @@ PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b01001.py \
   --tiger_puma_zip "$TIGER_PUMA" \
   --data_root "$DATA_ROOT" \
   --conditions "none,geo-only,built-only,geo+built" \
+  --puma_blocks "3202,3203;3208,3209;3210,3211;3212,3213" \
   --epochs 1000 \
   --batch_size 4096 \
   --timesteps 200 \
@@ -241,6 +242,12 @@ PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b01001.py \
   --device cuda \
   --out_dir "$OUT_DIR" \
   |& tee "$OUT_DIR/run.log"
+```
+
+Alias entrypoint (same CLI):
+
+```bash
+PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_tract.py --help
 ```
 
 Key outputs (small, commit-friendly):
