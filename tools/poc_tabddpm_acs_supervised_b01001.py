@@ -843,6 +843,7 @@ def main() -> None:
     torch = _require("torch")
 
     from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
+    from src.synthpop.model.diffusion_categorical import CategoricalDiffusionConfig, CategoricalDiffusionModel
     from src.synthpop.pipeline.detroit_v0 import make_run_id
 
     p = argparse.ArgumentParser(prog="poc_tabddpm_acs_supervised_b01001")
@@ -872,15 +873,18 @@ def main() -> None:
     p.add_argument(
         "--x_model",
         default="tabddpm_scalar",
-        choices=["tabddpm_scalar", "tabddpm_onehot", "cat_mlp"],
+        choices=["tabddpm_scalar", "tabddpm_onehot", "cat_mlp", "cat_diffusion_concat", "cat_diffusion_xattn"],
         help=(
             "Generative model / encoding for discrete age×sex. "
             "tabddpm_scalar: current (age_u,sex_u) in R^2. "
             "tabddpm_onehot: one-hot age(23)+sex(2) with Gaussian DDPM. "
-            "cat_mlp: categorical MLP over 46 joint states (KISS discrete baseline)."
+            "cat_mlp: categorical MLP over 46 joint states (KISS discrete baseline). "
+            "cat_diffusion_concat: multinomial diffusion over 46 joint states (concat conditioning). "
+            "cat_diffusion_xattn: multinomial diffusion over 46 joint states (cross-attn conditioning)."
         ),
     )
     p.add_argument("--cat_mlp_lr", type=float, default=1e-3)
+    p.add_argument("--cat_diffusion_lr", type=float, default=1e-3)
 
     p.add_argument("--timesteps", type=int, default=200)
     p.add_argument("--epochs", type=int, default=5)
@@ -1066,6 +1070,7 @@ def main() -> None:
         "conditions": cond_list,
         "x_model": str(args.x_model),
         "cat_mlp_lr": float(args.cat_mlp_lr),
+        "cat_diffusion_lr": float(args.cat_diffusion_lr),
         "n_pseudo_base": int(args.n_pseudo_base),
         "n_eval_per_tract": int(args.n_eval_per_tract),
         "timesteps": int(args.timesteps),
@@ -1268,6 +1273,15 @@ def main() -> None:
                 elif x_model == "cat_mlp":
                     model = _CategoricalMLPModel(cond_dim=int(cond_dim), seed=int(args.seed))
                     model.load(ckpt)
+                elif x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
+                    if x_model == "cat_diffusion_xattn" and int(cond_dim) <= 0:
+                        raise SystemExit("x_model=cat_diffusion_xattn requires cond_dim>0 (pick a non-'none' condition).")
+                    fusion = "cross_attn" if x_model == "cat_diffusion_xattn" else "concat"
+                    cfg = CategoricalDiffusionConfig(timesteps=int(args.timesteps), lr=float(args.cat_diffusion_lr))
+                    model = CategoricalDiffusionModel(n_classes=46, cond_dim=int(cond_dim), cond_fusion=fusion, seed=int(args.seed), config=cfg)
+                    model.load(ckpt)
+                    if int(getattr(model, "cond_dim", cond_dim)) != int(cond_dim):
+                        raise SystemExit(f"Checkpoint cond_dim mismatch in {ckpt}: saved={getattr(model, 'cond_dim', None)} vs expected={cond_dim}")
                 else:
                     raise SystemExit(f"Unknown x_model: {x_model}")
             else:
@@ -1301,7 +1315,7 @@ def main() -> None:
                         xs.append(x_u)
                     elif x_model == "tabddpm_onehot":
                         xs.append(_encode_onehot(age_idx=age_idx, sex01=sex01).astype(np.float32))
-                    elif x_model == "cat_mlp":
+                    elif x_model in {"cat_mlp", "cat_diffusion_concat", "cat_diffusion_xattn"}:
                         y = (sex01.astype(int) * 23 + age_idx.astype(int)).astype(np.int64)
                         ys.append(y)
                     else:
@@ -1353,22 +1367,42 @@ def main() -> None:
                         raise SystemExit(f"No training samples constructed for fold={fold_idx}, condition={condition}.")
                     y_all = np.concatenate(ys, axis=0).astype(np.int64)
                     y_t = torch.from_numpy(y_all)
-                    if cond_all is None:
-                        cond_t = torch.zeros((int(y_t.shape[0]), 0), dtype=torch.float32)
+                    if x_model == "cat_mlp":
+                        if cond_all is None:
+                            cond_t = torch.zeros((int(y_t.shape[0]), 0), dtype=torch.float32)
+                        else:
+                            cond_t = torch.from_numpy(cond_all)
+                        model = _CategoricalMLPModel(cond_dim=int(cond_dim), seed=int(args.seed))
+                        train_metrics = model.fit(
+                            y=y_t,
+                            cond=cond_t,
+                            epochs=int(args.epochs),
+                            batch_size=int(args.batch_size),
+                            device=args.device,
+                            lr=float(args.cat_mlp_lr),
+                            log_every=int(args.log_every),
+                        )
+                        model.save(ckpt)
+                        n_train_samples = int(y_t.shape[0])
+                    elif x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
+                        if x_model == "cat_diffusion_xattn" and int(cond_dim) <= 0:
+                            raise SystemExit("x_model=cat_diffusion_xattn requires cond_dim>0 (pick a non-'none' condition).")
+                        fusion = "cross_attn" if x_model == "cat_diffusion_xattn" else "concat"
+                        cfg = CategoricalDiffusionConfig(timesteps=int(args.timesteps), lr=float(args.cat_diffusion_lr))
+                        model = CategoricalDiffusionModel(n_classes=46, cond_dim=int(cond_dim), cond_fusion=fusion, seed=int(args.seed), config=cfg)
+                        cond_t = torch.from_numpy(cond_all) if cond_all is not None else None
+                        train_metrics = model.fit(
+                            x0=y_t,
+                            cond=cond_t,
+                            epochs=int(args.epochs),
+                            batch_size=int(args.batch_size),
+                            device=args.device,
+                            log_every=int(args.log_every),
+                        )
+                        model.save(ckpt)
+                        n_train_samples = int(y_t.shape[0])
                     else:
-                        cond_t = torch.from_numpy(cond_all)
-                    model = _CategoricalMLPModel(cond_dim=int(cond_dim), seed=int(args.seed))
-                    train_metrics = model.fit(
-                        y=y_t,
-                        cond=cond_t,
-                        epochs=int(args.epochs),
-                        batch_size=int(args.batch_size),
-                        device=args.device,
-                        lr=float(args.cat_mlp_lr),
-                        log_every=int(args.log_every),
-                    )
-                    model.save(ckpt)
-                    n_train_samples = int(y_t.shape[0])
+                        raise SystemExit(f"Unknown x_model: {x_model}")
 
                 train_summary = {
                     "fold": int(fold_idx),
@@ -1387,6 +1421,11 @@ def main() -> None:
                 if x_mean is not None and x_std is not None:
                     train_summary["x_mean"] = [float(v) for v in np.asarray(x_mean).tolist()]
                     train_summary["x_std"] = [float(v) for v in np.asarray(x_std).tolist()]
+                if x_model == "cat_mlp":
+                    train_summary["cat_mlp_lr"] = float(args.cat_mlp_lr)
+                if x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
+                    train_summary["cat_diffusion_lr"] = float(args.cat_diffusion_lr)
+                    train_summary["timesteps"] = int(args.timesteps)
                 _write_json(train_summary_path, train_summary)
 
             # --- Internal evaluation vs ACS on held-out tracts ---
@@ -1430,6 +1469,10 @@ def main() -> None:
                     else:
                         age_idx, sex01 = _decode_onehot(x_u)
                 elif x_model == "cat_mlp":
+                    y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
+                    sex01 = (y // 23).astype(int)
+                    age_idx = (y % 23).astype(int)
+                elif x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
                     y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
                     sex01 = (y // 23).astype(int)
                     age_idx = (y % 23).astype(int)
@@ -1520,6 +1563,10 @@ def main() -> None:
                         else:
                             age_idx, sex01 = _decode_onehot(x_u)
                     elif x_model == "cat_mlp":
+                        y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
+                        sex01 = (y // 23).astype(int)
+                        age_idx = (y % 23).astype(int)
+                    elif x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
                         y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
                         sex01 = (y // 23).astype(int)
                         age_idx = (y % 23).astype(int)
