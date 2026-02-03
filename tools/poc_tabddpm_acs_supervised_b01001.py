@@ -363,6 +363,96 @@ def _marginals_from_joint(p_joint: Any) -> tuple[Any, Any]:
     return p_age, p_sex
 
 
+def _joint_from_marginals(*, p_age: Any, p_sex: Any) -> Any:
+    """
+    Build a 46-dim joint (male-then-female, each 23 age bins) assuming independence:
+      p(age,sex) = p(age) * p(sex)
+    """
+    np = _require("numpy")
+    a = np.asarray(p_age, dtype=float).reshape(-1)
+    s = np.asarray(p_sex, dtype=float).reshape(-1)
+    if a.size != 23:
+        raise ValueError(f"p_age must have length 23, got {a.size}")
+    if s.size != 2:
+        raise ValueError(f"p_sex must have length 2, got {s.size}")
+    a = np.clip(a, 0.0, None)
+    s = np.clip(s, 0.0, None)
+    a = a / (float(a.sum()) if float(a.sum()) > 0 else 1.0)
+    s = s / (float(s.sum()) if float(s.sum()) > 0 else 1.0)
+    male = a * float(s[0])
+    female = a * float(s[1])
+    out = np.concatenate([male, female], axis=0).astype(float)
+    out = out / (float(out.sum()) if float(out.sum()) > 0 else 1.0)
+    return out
+
+
+def _ipf_age23_sex2(
+    *,
+    seed_joint: Any,
+    target_p_age: Any,
+    target_p_sex: Any,
+    max_iter: int = 500,
+    tol: float = 1e-8,
+) -> Any:
+    """
+    IPF (raking) baseline for a 23x2 table:
+    - Seed from training tracts' average joint (train-only).
+    - Fit to target marginals (p_age, p_sex) for a test tract.
+
+    Returns a 46-dim joint distribution (male then female).
+    """
+    np = _require("numpy")
+
+    seed = np.asarray(seed_joint, dtype=float).reshape(-1)
+    if seed.size != 46:
+        raise ValueError(f"seed_joint must have length 46, got {seed.size}")
+    seed = np.clip(seed, 0.0, None)
+    seed = seed / (float(seed.sum()) if float(seed.sum()) > 0 else 1.0)
+
+    r = np.asarray(target_p_age, dtype=float).reshape(-1)
+    c = np.asarray(target_p_sex, dtype=float).reshape(-1)
+    if r.size != 23:
+        raise ValueError(f"target_p_age must have length 23, got {r.size}")
+    if c.size != 2:
+        raise ValueError(f"target_p_sex must have length 2, got {c.size}")
+    r = np.clip(r, 0.0, None)
+    c = np.clip(c, 0.0, None)
+    r = r / (float(r.sum()) if float(r.sum()) > 0 else 1.0)
+    c = c / (float(c.sum()) if float(c.sum()) > 0 else 1.0)
+
+    table = np.stack([seed[:23], seed[23:]], axis=1).astype(float)  # (23,2)
+    table = table + 1e-12  # avoid exact zeros in the seed
+    table = table / float(table.sum())
+
+    for _ in range(int(max_iter)):
+        # Row scaling.
+        row_sum = table.sum(axis=1)
+        row_factor = np.zeros_like(row_sum)
+        m = row_sum > 0
+        row_factor[m] = r[m] / row_sum[m]
+        table = table * row_factor.reshape(-1, 1)
+        if bool((r <= 0).any()):
+            table[r <= 0, :] = 0.0
+
+        # Column scaling.
+        col_sum = table.sum(axis=0)
+        col_factor = np.zeros_like(col_sum)
+        m = col_sum > 0
+        col_factor[m] = c[m] / col_sum[m]
+        table = table * col_factor.reshape(1, -1)
+        if bool((c <= 0).any()):
+            table[:, c <= 0] = 0.0
+
+        # Convergence check.
+        if float(np.max(np.abs(table.sum(axis=1) - r))) < float(tol) and float(np.max(np.abs(table.sum(axis=0) - c))) < float(tol):
+            break
+
+    out = np.concatenate([table[:, 0], table[:, 1]], axis=0).astype(float)
+    out = np.clip(out, 0.0, None)
+    out = out / (float(out.sum()) if float(out.sum()) > 0 else 1.0)
+    return out
+
+
 def _sample_pseudo(
     *,
     rng: Any,
@@ -631,7 +721,7 @@ def main() -> None:
     p.add_argument(
         "--conditions",
         default="none,geo-only,built-only,geo+built",
-        help='Comma-separated conditions: "none", "geo-only", "built-only", "geo+built".',
+        help='Comma-separated conditions: "none", "marginal", "geo-only", "built-only", "geo+built". Default keeps the original ablations; use --conditions "none,marginal" for the ecological-inference setting.',
     )
     p.add_argument("--fold", type=int, default=-1, help="Run a single fold index (0..3). -1 = run all folds.")
     p.add_argument("--out_dir", default=None, help="Output directory (default: outputs/<run_id>).")
@@ -736,7 +826,7 @@ def main() -> None:
         pums_puma_dist = _pums_puma_distributions(df_pums)
 
     cond_list = [c.strip() for c in str(args.conditions).split(",") if c.strip()]
-    valid_cond = {"none", "geo-only", "built-only", "geo+built"}
+    valid_cond = {"none", "marginal", "geo-only", "built-only", "geo+built"}
     for c in cond_list:
         if c not in valid_cond:
             raise SystemExit(f"Unknown condition: {c}. Valid: {sorted(valid_cond)}")
@@ -816,6 +906,19 @@ def main() -> None:
     def _cond_for_fold(condition: str, train_tracts: set[str]) -> tuple[dict[str, Any], dict[str, Any]]:
         if condition == "none":
             return {}, {"cond_dim": 0, "cols": []}
+        if condition == "marginal":
+            cols = [f"p_age_{lab}" for (_lo, _hi, lab) in _age23_bins()] + ["p_sex_male", "p_sex_female"]
+            out_map: dict[str, Any] = {}
+            all_tracts = set(ctx["tract_geoid"].astype(str).tolist())
+            for tg, t in targets_by_tract.items():
+                if str(tg) not in all_tracts:
+                    continue
+                p_age = np.asarray(t["p_age"], dtype=np.float32).reshape(-1)
+                p_sex = np.asarray(t["p_sex"], dtype=np.float32).reshape(-1)
+                if p_age.size != 23 or p_sex.size != 2:
+                    continue
+                out_map[str(tg)] = np.concatenate([p_age, p_sex], axis=0).astype(np.float32)
+            return out_map, {"cond_dim": 25, "cols": cols}
         if condition == "geo-only":
             cols = geo_cols
         elif condition == "built-only":
@@ -834,6 +937,7 @@ def main() -> None:
     # Collect fold-level summaries for ablation report.
     ablation_internal: dict[str, dict[int, Any]] = {c: {} for c in cond_list}
     ablation_external: dict[str, dict[int, Any]] = {c: {} for c in cond_list}
+    ablation_baselines: dict[str, dict[int, Any]] = {"independence": {}, "ipf_train_seed": {}}
     # Collect per-tract TVDs (across folds) for simple global summaries + plots.
     per_tract_tvd: dict[str, dict[str, list[float]]] = {c: {"tvd_joint": [], "tvd_age": [], "tvd_sex": []} for c in cond_list}
 
@@ -845,6 +949,87 @@ def main() -> None:
         test_tracts = set(ctx[ctx["puma"].astype(str).isin(sorted(test_pumas))]["tract_geoid"].astype(str).tolist())
         if not train_tracts or not test_tracts:
             raise SystemExit(f"Empty train/test tracts in fold={fold_idx}. train={len(train_tracts)} test={len(test_tracts)}")
+
+        # --- Baselines (fold-level, condition-agnostic): independence and IPF(train-seed) ---
+        fold_root = out_root / f"fold_{fold_idx}"
+        baseline_internal_path = fold_root / "metrics" / "baselines_internal.json"
+        if args.resume and baseline_internal_path.exists():
+            try:
+                baselines = json.loads(baseline_internal_path.read_text(encoding="utf-8"))
+                if isinstance(baselines, dict):
+                    by_base = baselines.get("by_baseline", {})
+                    if isinstance(by_base, dict):
+                        for name in ["independence", "ipf_train_seed"]:
+                            blk = by_base.get(name, {})
+                            if isinstance(blk, dict) and isinstance(blk.get("summary"), dict):
+                                ablation_baselines[name][int(fold_idx)] = dict(blk["summary"])
+            except Exception:
+                pass
+        else:
+            # Seed joint from TRAIN tracts only (ACS counts_joint).
+            seed_counts = np.zeros((46,), dtype=float)
+            for tg in sorted(train_tracts):
+                t = targets_by_tract.get(str(tg))
+                if t is None:
+                    continue
+                seed_counts += np.asarray(t["counts_joint"], dtype=float).reshape(-1)
+            seed_p = seed_counts / (float(seed_counts.sum()) if float(seed_counts.sum()) > 0 else 1.0)
+
+            def _summarize_by_tract(by_tract: dict[str, Any]) -> dict[str, Any]:
+                vals_joint = [float(v["tvd_joint"]) for v in by_tract.values() if isinstance(v, dict) and "tvd_joint" in v]
+                vals_age = [float(v["tvd_age"]) for v in by_tract.values() if isinstance(v, dict) and "tvd_age" in v]
+                vals_sex = [float(v["tvd_sex"]) for v in by_tract.values() if isinstance(v, dict) and "tvd_sex" in v]
+                return {
+                    "by_tract": by_tract,
+                    "summary": {
+                        "tvd_joint": {"mean": float(np.mean(vals_joint)), "max": float(np.max(vals_joint)), "p90": float(np.quantile(vals_joint, 0.9))} if vals_joint else None,
+                        "tvd_age": {"mean": float(np.mean(vals_age)), "max": float(np.max(vals_age)), "p90": float(np.quantile(vals_age, 0.9))} if vals_age else None,
+                        "tvd_sex": {"mean": float(np.mean(vals_sex)), "max": float(np.max(vals_sex)), "p90": float(np.quantile(vals_sex, 0.9))} if vals_sex else None,
+                    },
+                }
+
+            ind_by_tract: dict[str, Any] = {}
+            ipf_by_tract: dict[str, Any] = {}
+            for tg in sorted(test_tracts):
+                t = targets_by_tract.get(str(tg))
+                if t is None:
+                    continue
+                p_age = np.asarray(t["p_age"], dtype=float)
+                p_sex = np.asarray(t["p_sex"], dtype=float)
+                p_true = np.asarray(t["p_joint"], dtype=float)
+
+                p_ind = _joint_from_marginals(p_age=p_age, p_sex=p_sex)
+                p_ipf = _ipf_age23_sex2(seed_joint=seed_p, target_p_age=p_age, target_p_sex=p_sex)
+
+                ind_age, ind_sex = _marginals_from_joint(p_ind)
+                ipf_age, ipf_sex = _marginals_from_joint(p_ipf)
+
+                ind_by_tract[str(tg)] = {
+                    "tvd_joint": float(_tvd(p_ind, p_true)),
+                    "tvd_age": float(_tvd(ind_age, p_age)),
+                    "tvd_sex": float(_tvd(ind_sex, p_sex)),
+                }
+                ipf_by_tract[str(tg)] = {
+                    "tvd_joint": float(_tvd(p_ipf, p_true)),
+                    "tvd_age": float(_tvd(ipf_age, p_age)),
+                    "tvd_sex": float(_tvd(ipf_sex, p_sex)),
+                }
+
+            baselines_out = {
+                "fold": int(fold_idx),
+                "train_pumas": sorted(train_pumas),
+                "test_pumas": sorted(test_pumas),
+                "seed_joint": {"source": "train_tracts_acs_counts_joint", "p_joint": [float(x) for x in seed_p.tolist()]},
+                "by_baseline": {
+                    "independence": _summarize_by_tract(ind_by_tract),
+                    "ipf_train_seed": _summarize_by_tract(ipf_by_tract),
+                },
+            }
+            _write_json(baseline_internal_path, baselines_out)
+            for name in ["independence", "ipf_train_seed"]:
+                blk = baselines_out["by_baseline"].get(name, {})
+                if isinstance(blk, dict) and isinstance(blk.get("summary"), dict):
+                    ablation_baselines[name][int(fold_idx)] = dict(blk["summary"])
 
         for condition in cond_list:
             fold_dir = out_root / f"fold_{fold_idx}" / condition
@@ -1116,9 +1301,17 @@ def main() -> None:
         "conditions": cond_list,
         "internal_acs": {c: _summarize_across_folds(ablation_internal.get(c, {})) for c in cond_list},
         "external_pums": {c: _summarize_across_folds(ablation_external.get(c, {})) for c in cond_list},
+        "baselines_internal": {b: _summarize_across_folds(ablation_baselines.get(b, {})) for b in sorted(ablation_baselines)},
         "baseline_gap": baseline_gap,
     }
     _write_json(out_root / "metrics" / "ablation_summary.json", ablation_summary)
+    _write_json(
+        out_root / "metrics" / "baselines_internal.json",
+        {
+            "by_baseline": {b: _summarize_across_folds(ablation_baselines.get(b, {})) for b in sorted(ablation_baselines)},
+            "by_fold": {b: {str(k): v for k, v in sorted(ablation_baselines.get(b, {}).items())} for b in sorted(ablation_baselines)},
+        },
+    )
 
     # --- Write "spec-friendly" internal/external summaries (single files) ---
     def _global_summary(values: list[float]) -> dict[str, float] | None:
@@ -1161,7 +1354,7 @@ def main() -> None:
 
         fig_dir = out_root / "figures"
         fig_dir.mkdir(parents=True, exist_ok=True)
-        order = [c for c in ["none", "geo-only", "built-only", "geo+built"] if c in cond_list]
+        order = [c for c in ["none", "marginal", "geo-only", "built-only", "geo+built"] if c in cond_list]
         data = [per_tract_tvd[c]["tvd_joint"] for c in order]
         if any(len(x) > 0 for x in data):
             plt.figure(figsize=(10, 4))
