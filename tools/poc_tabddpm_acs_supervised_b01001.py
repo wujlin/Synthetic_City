@@ -600,6 +600,11 @@ def main() -> None:
     p.add_argument("--n_tiers", type=int, default=5)
     p.add_argument("--cbd_lon", type=float, default=-83.0458)
     p.add_argument("--cbd_lat", type=float, default=42.3314)
+    p.add_argument(
+        "--exclude_pumas",
+        default="",
+        help='Optional comma-separated PUMA codes to exclude (e.g. "3202,3203"). Useful to bypass known ACS coverage issues while debugging.',
+    )
 
     p.add_argument("--n_pseudo_base", type=int, default=500, help="Base pseudo-individuals per tract (scaled by sqrt(pop)).")
     p.add_argument("--n_pseudo_min", type=int, default=100)
@@ -648,14 +653,43 @@ def main() -> None:
 
     buildings = _load_buildings(buildings_csv, n_tiers=int(args.n_tiers))
     tract_to_puma = _tract_to_puma_from_buildings(buildings)
-    study_tracts = set(tract_to_puma.keys())
-    study_pumas = sorted(set(tract_to_puma.values()))
+    exclude_pumas = {str(_normalize_puma(x) or x) for x in str(args.exclude_pumas).split(",") if str(x).strip()}
+    exclude_pumas = {p for p in exclude_pumas if p and p.lower() not in {"nan", "none"}}
+
+    study_tracts = {tg for tg, p in tract_to_puma.items() if str(p) not in exclude_pumas}
+    study_pumas = sorted({str(p) for tg, p in tract_to_puma.items() if tg in study_tracts})
     if len(study_pumas) < 2:
         raise SystemExit(f"Too few study PUMAs inferred from buildings_csv: {study_pumas}")
 
     # Targets from ACS.
     b01001 = _read_acs_b01001(acs_path)
     targets_by_tract = _b01001_targets_by_tract(b01001, tracts=study_tracts)
+
+    # --- Coverage check (fail-fast): ACS must cover all study PUMAs ---
+    cov_by_puma: dict[str, Any] = {}
+    bad_pumas: list[str] = []
+    for puma in study_pumas:
+        tracts = sorted([tg for tg, p in tract_to_puma.items() if str(p) == str(puma) and tg in study_tracts])
+        in_targets = [tg for tg in tracts if tg in targets_by_tract]
+        pop_sum = float(sum(float(targets_by_tract[tg]["total_pop"]) for tg in in_targets))
+        cov_by_puma[str(puma)] = {
+            "n_tracts_study": int(len(tracts)),
+            "n_tracts_in_acs": int(len(in_targets)),
+            "total_pop_sum": pop_sum,
+        }
+        if len(in_targets) == 0 or not (pop_sum > 0):
+            bad_pumas.append(str(puma))
+
+    _write_json(out_root / "metrics" / "acs_b01001_coverage.json", {"by_puma": cov_by_puma, "bad_pumas": sorted(set(bad_pumas))})
+    if bad_pumas:
+        hint = (
+            "ACS B01001 coverage is incomplete for some study PUMAs. "
+            "This will silently produce TVD=0.5 artifacts. "
+            f"Bad PUMAs: {sorted(set(bad_pumas))}. "
+            "Inspect outputs/<run_id>/metrics/acs_b01001_coverage.json and run tools/diagnose_acs_b01001_coverage.py on the workstation. "
+            'Workaround: re-run with --exclude_pumas "3202,3203" (or fix ACS download scope / tract_geoid mapping).'
+        )
+        raise SystemExit(hint)
 
     # Context features.
     geo_ctx = _build_geo_context(tiger_tract_zip=tiger_tract_zip, tracts=study_tracts, cbd_lon=float(args.cbd_lon), cbd_lat=float(args.cbd_lat))
@@ -667,6 +701,8 @@ def main() -> None:
         ctx[c] = pd.to_numeric(ctx[c], errors="coerce").fillna(0.0).astype(float)
     ctx["puma"] = ctx["tract_geoid"].map(lambda tg: tract_to_puma.get(str(tg)))
     ctx = ctx.dropna(subset=["puma"]).copy()
+    if exclude_pumas:
+        ctx = ctx[~ctx["puma"].astype(str).isin(sorted(exclude_pumas))].copy()
 
     # PUMA blocks for spatial holdout.
     if args.puma_blocks:
