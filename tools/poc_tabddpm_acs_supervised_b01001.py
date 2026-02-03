@@ -46,6 +46,139 @@ def _require(pkg: str) -> Any:
         ) from e
 
 
+class _CategoricalMLPModel:
+    """
+    Minimal categorical model for discrete x0 (K classes) conditioned on a vector c.
+
+    This is a KISS alternative to Gaussian DDPM when the target is purely discrete.
+    """
+
+    def __init__(self, *, cond_dim: int, n_classes: int = 46, hidden_dims: tuple[int, ...] = (256, 256), seed: int = 0) -> None:
+        self.cond_dim = int(cond_dim)
+        self.n_classes = int(n_classes)
+        self.hidden_dims = tuple(int(x) for x in hidden_dims)
+        self.seed = int(seed)
+        self._net = None
+
+    def _init_model(self, *, device: str) -> None:
+        torch = _require("torch")
+        if self._net is not None:
+            return
+
+        class Net(torch.nn.Module):
+            def __init__(self, *, cond_dim: int, n_classes: int, hidden_dims: tuple[int, ...]) -> None:
+                super().__init__()
+                layers: list[torch.nn.Module] = []
+                in_dim = int(cond_dim)
+                for h in hidden_dims:
+                    layers.append(torch.nn.Linear(in_dim, int(h)))
+                    layers.append(torch.nn.ReLU())
+                    in_dim = int(h)
+                layers.append(torch.nn.Linear(in_dim, int(n_classes)))
+                self.net = torch.nn.Sequential(*layers)
+
+            def forward(self, c: Any) -> Any:
+                return self.net(c)
+
+        torch.manual_seed(int(self.seed))
+        self._net = Net(cond_dim=self.cond_dim, n_classes=self.n_classes, hidden_dims=self.hidden_dims).to(device=device)
+
+    def save(self, path: pathlib.Path) -> None:
+        torch = _require("torch")
+        if self._net is None:
+            raise RuntimeError("Model is not initialized. Train (fit) or load a checkpoint first.")
+        p = pathlib.Path(path).expanduser().resolve()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "format": "synthpop.catmlp.v0",
+            "cond_dim": self.cond_dim,
+            "n_classes": self.n_classes,
+            "hidden_dims": list(self.hidden_dims),
+            "seed": self.seed,
+            "state_dict": self._net.state_dict(),
+        }
+        torch.save(payload, p)
+
+    def load(self, path: pathlib.Path) -> None:
+        torch = _require("torch")
+        p = pathlib.Path(path).expanduser().resolve()
+        payload = torch.load(p, map_location="cpu")
+        if not isinstance(payload, dict) or payload.get("format") != "synthpop.catmlp.v0":
+            raise ValueError(f"Unsupported checkpoint format: {p}")
+        self.cond_dim = int(payload.get("cond_dim", 0))
+        self.n_classes = int(payload.get("n_classes", 46))
+        self.hidden_dims = tuple(int(x) for x in payload.get("hidden_dims", [256, 256]))
+        self.seed = int(payload.get("seed", 0))
+        self._net = None
+        self._init_model(device="cpu")
+        assert self._net is not None
+        self._net.load_state_dict(payload["state_dict"])
+
+    def fit(
+        self,
+        *,
+        y: Any,
+        cond: Any,
+        epochs: int,
+        batch_size: int,
+        device: str | None,
+        lr: float = 1e-3,
+        log_every: int = 200,
+    ) -> dict[str, float]:
+        torch = _require("torch")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._init_model(device=device)
+        assert self._net is not None
+        self._net.train()
+
+        y = y.to(device=device, dtype=torch.long)
+        cond = cond.to(device=device, dtype=torch.float32)
+        if y.ndim != 1:
+            raise ValueError(f"y must be (N,), got {tuple(y.shape)}")
+        if cond.ndim != 2 or cond.shape[0] != y.shape[0] or cond.shape[1] != int(self.cond_dim):
+            raise ValueError(f"cond must be (N,{self.cond_dim}), got {tuple(cond.shape)}")
+
+        optim = torch.optim.Adam(self._net.parameters(), lr=float(lr))
+        loss_fn = torch.nn.CrossEntropyLoss()
+
+        n = int(y.shape[0])
+        num_steps = 0
+        last_loss = float("nan")
+        for _ in range(int(epochs)):
+            idx = torch.randperm(n, device=device)
+            for start in range(0, n, int(batch_size)):
+                batch = idx[start : start + int(batch_size)]
+                logits = self._net(cond[batch])
+                loss = loss_fn(logits, y[batch])
+                optim.zero_grad(set_to_none=True)
+                loss.backward()
+                optim.step()
+                last_loss = float(loss.detach().cpu().item())
+                num_steps += 1
+                if log_every > 0 and num_steps % int(log_every) == 0:
+                    print(f"[train] step={num_steps} loss={last_loss:.6f}")
+        return {"loss": float(last_loss)}
+
+    def sample(self, *, n: int, cond: Any, device: str | None = None) -> Any:
+        torch = _require("torch")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._init_model(device=device)
+        assert self._net is not None
+        self._net.eval()
+
+        cond = cond.to(device=device, dtype=torch.float32)
+        if cond.ndim != 2 or cond.shape[0] != int(n) or cond.shape[1] != int(self.cond_dim):
+            raise ValueError(f"cond must be (N,{self.cond_dim}) where N==n, got {tuple(cond.shape)}")
+
+        with torch.inference_mode():
+            logits = self._net(cond)
+            probs = torch.softmax(logits, dim=1)
+            y = torch.multinomial(probs, num_samples=1).reshape(-1)
+            return y.detach().cpu()
+
+
 def _write_json(path: pathlib.Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -496,6 +629,41 @@ def _decode_samples(samples: Any) -> tuple[Any, Any]:
     return age_idx, sex01
 
 
+def _encode_onehot(*, age_idx: Any, sex01: Any) -> Any:
+    """
+    One-hot encoding:
+      - age: 23 dims
+      - sex: 2 dims (0=male,1=female)
+    Returns x_u: (N,25)
+    """
+    np = _require("numpy")
+    a = np.asarray(age_idx, dtype=int).reshape(-1)
+    s = np.asarray(sex01, dtype=int).reshape(-1)
+    if a.shape[0] != s.shape[0]:
+        raise ValueError("age_idx and sex01 must have the same length")
+    n = int(a.shape[0])
+    age_oh = np.eye(23, dtype=np.float32)[np.clip(a, 0, 22)]
+    sex_oh = np.eye(2, dtype=np.float32)[np.clip(s, 0, 1)]
+    out = np.concatenate([age_oh, sex_oh], axis=1).reshape(n, 25)
+    return out
+
+
+def _decode_onehot(samples: Any) -> tuple[Any, Any]:
+    """
+    Decode one-hot-like continuous vectors into discrete bins via argmax.
+    samples: (N,25)
+    """
+    np = _require("numpy")
+    x = np.asarray(samples, dtype=float)
+    if x.ndim != 2 or x.shape[1] != 25:
+        raise ValueError(f"samples must be (N,25), got {x.shape}")
+    age_logits = x[:, :23]
+    sex_logits = x[:, 23:]
+    age_idx = np.argmax(age_logits, axis=1).astype(int)
+    sex01 = np.argmax(sex_logits, axis=1).astype(int)
+    return age_idx, sex01
+
+
 def _p_from_samples(*, age_idx: Any, sex01: Any) -> dict[str, Any]:
     np = _require("numpy")
     n = int(len(age_idx))
@@ -701,6 +869,19 @@ def main() -> None:
     p.add_argument("--n_pseudo_max", type=int, default=1500)
     p.add_argument("--n_eval_per_tract", type=int, default=2000)
 
+    p.add_argument(
+        "--x_model",
+        default="tabddpm_scalar",
+        choices=["tabddpm_scalar", "tabddpm_onehot", "cat_mlp"],
+        help=(
+            "Generative model / encoding for discrete age×sex. "
+            "tabddpm_scalar: current (age_u,sex_u) in R^2. "
+            "tabddpm_onehot: one-hot age(23)+sex(2) with Gaussian DDPM. "
+            "cat_mlp: categorical MLP over 46 joint states (KISS discrete baseline)."
+        ),
+    )
+    p.add_argument("--cat_mlp_lr", type=float, default=1e-3)
+
     p.add_argument("--timesteps", type=int, default=200)
     p.add_argument("--epochs", type=int, default=5)
     p.add_argument("--batch_size", type=int, default=4096)
@@ -883,6 +1064,8 @@ def main() -> None:
         "n_tracts": int(len(set(ctx["tract_geoid"].astype(str).tolist()))),
         "puma_blocks": blocks,
         "conditions": cond_list,
+        "x_model": str(args.x_model),
+        "cat_mlp_lr": float(args.cat_mlp_lr),
         "n_pseudo_base": int(args.n_pseudo_base),
         "n_eval_per_tract": int(args.n_eval_per_tract),
         "timesteps": int(args.timesteps),
@@ -1066,21 +1249,32 @@ def main() -> None:
             tract_cond, scaler = _cond_for_fold(condition, train_tracts=train_tracts)
             cond_dim = int(scaler["cond_dim"])
 
-            model = None
-            x_mean = None
-            x_std = None
+            x_model = str(args.x_model)
+            model: Any = None
+            x_mean: Any = None
+            x_std: Any = None
 
             if args.resume and ckpt.exists() and train_summary_path.exists():
                 train_summary = json.loads(train_summary_path.read_text(encoding="utf-8"))
-                x_mean = np.asarray(train_summary.get("x_mean", [0.0, 0.0]), dtype=np.float32)
-                x_std = np.asarray(train_summary.get("x_std", [1.0, 1.0]), dtype=np.float32)
-                cfg = TabDDPMConfig(timesteps=int(args.timesteps))
-                model = DiffusionTabularModel(input_dim=2, cond_dim=int(cond_dim), seed=int(args.seed), config=cfg)
-                model.load(ckpt)
+                saved_x_model = str(train_summary.get("x_model", "tabddpm_scalar"))
+                if saved_x_model != x_model:
+                    raise SystemExit(f"Checkpoint x_model mismatch in {train_summary_path}: saved={saved_x_model} vs args={x_model}")
+                if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                    x_mean = np.asarray(train_summary.get("x_mean"), dtype=np.float32)
+                    x_std = np.asarray(train_summary.get("x_std"), dtype=np.float32)
+                    cfg = TabDDPMConfig(timesteps=int(args.timesteps))
+                    model = DiffusionTabularModel(input_dim=int(x_mean.shape[0]), cond_dim=int(cond_dim), seed=int(args.seed), config=cfg)
+                    model.load(ckpt)
+                elif x_model == "cat_mlp":
+                    model = _CategoricalMLPModel(cond_dim=int(cond_dim), seed=int(args.seed))
+                    model.load(ckpt)
+                else:
+                    raise SystemExit(f"Unknown x_model: {x_model}")
             else:
                 # Build training dataset (pseudo individuals).
-                xs = []
-                cs = []
+                xs: list[Any] = []
+                ys: list[Any] = []
+                cs: list[Any] = []
                 weights = []
                 for tg in sorted(train_tracts):
                     t = targets_by_tract.get(str(tg))
@@ -1100,10 +1294,18 @@ def main() -> None:
                     n_i = max(int(args.n_pseudo_min), min(int(args.n_pseudo_max), n_i))
                     age_idx, sex01 = _sample_pseudo(rng=rng, p_joint=t["p_joint"], n=n_i)
 
-                    # Encode to [0,1] floats.
-                    age_u = age_idx.astype(float) / 22.0
-                    sex_u = sex01.astype(float)
-                    x_u = np.stack([age_u, sex_u], axis=1).astype(np.float32)
+                    if x_model == "tabddpm_scalar":
+                        age_u = age_idx.astype(float) / 22.0
+                        sex_u = sex01.astype(float)
+                        x_u = np.stack([age_u, sex_u], axis=1).astype(np.float32)
+                        xs.append(x_u)
+                    elif x_model == "tabddpm_onehot":
+                        xs.append(_encode_onehot(age_idx=age_idx, sex01=sex01).astype(np.float32))
+                    elif x_model == "cat_mlp":
+                        y = (sex01.astype(int) * 23 + age_idx.astype(int)).astype(np.int64)
+                        ys.append(y)
+                    else:
+                        raise SystemExit(f"Unknown x_model: {x_model}")
 
                     if cond_dim > 0:
                         c = tract_cond.get(str(tg))
@@ -1112,61 +1314,90 @@ def main() -> None:
                         c = np.asarray(c, dtype=np.float32)
                         c_rep = np.repeat(c.reshape(1, -1), repeats=int(n_i), axis=0)
                         cs.append(c_rep)
-                    xs.append(x_u)
 
-                if not xs:
-                    raise SystemExit(f"No training samples constructed for fold={fold_idx}, condition={condition}.")
-                x_u_all = np.concatenate(xs, axis=0).astype(np.float32)
                 cond_all = np.concatenate(cs, axis=0).astype(np.float32) if cond_dim > 0 else None
 
-                # Standardize x_u (train-only).
-                x_mean = x_u_all.mean(axis=0).astype(np.float32)
-                x_std = x_u_all.std(axis=0).astype(np.float32)
-                x_std = np.where(x_std <= 1e-6, 1.0, x_std).astype(np.float32)
-                x_z = ((x_u_all - x_mean) / x_std).astype(np.float32)
+                if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                    if not xs:
+                        raise SystemExit(f"No training samples constructed for fold={fold_idx}, condition={condition}.")
+                    x_u_all = np.concatenate(xs, axis=0).astype(np.float32)
 
-                x = torch.from_numpy(x_z)
-                cond = torch.from_numpy(cond_all) if cond_all is not None else None
+                    # Standardize x_u (train-only).
+                    x_mean = x_u_all.mean(axis=0).astype(np.float32)
+                    x_std = x_u_all.std(axis=0).astype(np.float32)
+                    x_std = np.where(x_std <= 1e-6, 1.0, x_std).astype(np.float32)
+                    x_z = ((x_u_all - x_mean) / x_std).astype(np.float32)
 
-                cfg = TabDDPMConfig(timesteps=int(args.timesteps))
-                model = DiffusionTabularModel(
-                    input_dim=int(x.shape[1]),
-                    cond_dim=int(cond.shape[1]) if cond is not None else 0,
-                    seed=int(args.seed),
-                    config=cfg,
-                )
-                train_metrics = model.fit(
-                    x=x,
-                    cond=cond,
-                    epochs=int(args.epochs),
-                    batch_size=int(args.batch_size),
-                    device=args.device,
-                    log_every=int(args.log_every),
-                )
-                model.save(ckpt)
+                    x = torch.from_numpy(x_z)
+                    cond = torch.from_numpy(cond_all) if cond_all is not None else None
+
+                    cfg = TabDDPMConfig(timesteps=int(args.timesteps))
+                    model = DiffusionTabularModel(
+                        input_dim=int(x.shape[1]),
+                        cond_dim=int(cond.shape[1]) if cond is not None else 0,
+                        seed=int(args.seed),
+                        config=cfg,
+                    )
+                    train_metrics = model.fit(
+                        x=x,
+                        cond=cond,
+                        epochs=int(args.epochs),
+                        batch_size=int(args.batch_size),
+                        device=args.device,
+                        log_every=int(args.log_every),
+                    )
+                    model.save(ckpt)
+                    n_train_samples = int(x.shape[0])
+                else:
+                    if not ys:
+                        raise SystemExit(f"No training samples constructed for fold={fold_idx}, condition={condition}.")
+                    y_all = np.concatenate(ys, axis=0).astype(np.int64)
+                    y_t = torch.from_numpy(y_all)
+                    if cond_all is None:
+                        cond_t = torch.zeros((int(y_t.shape[0]), 0), dtype=torch.float32)
+                    else:
+                        cond_t = torch.from_numpy(cond_all)
+                    model = _CategoricalMLPModel(cond_dim=int(cond_dim), seed=int(args.seed))
+                    train_metrics = model.fit(
+                        y=y_t,
+                        cond=cond_t,
+                        epochs=int(args.epochs),
+                        batch_size=int(args.batch_size),
+                        device=args.device,
+                        lr=float(args.cat_mlp_lr),
+                        log_every=int(args.log_every),
+                    )
+                    model.save(ckpt)
+                    n_train_samples = int(y_t.shape[0])
 
                 train_summary = {
                     "fold": int(fold_idx),
                     "condition": condition,
+                    "x_model": x_model,
                     "train_pumas": sorted(train_pumas),
                     "test_pumas": sorted(test_pumas),
                     "n_train_tracts": int(len(train_tracts)),
                     "n_test_tracts": int(len(test_tracts)),
-                    "n_train_samples": int(x.shape[0]),
+                    "n_train_samples": int(n_train_samples),
                     "cond_dim": cond_dim,
                     "cond_cols": scaler.get("cols", []),
-                    "x_mean": [float(v) for v in x_mean.tolist()],
-                    "x_std": [float(v) for v in x_std.tolist()],
                     "train_metrics": train_metrics,
                     "ckpt": str(ckpt),
                 }
+                if x_mean is not None and x_std is not None:
+                    train_summary["x_mean"] = [float(v) for v in np.asarray(x_mean).tolist()]
+                    train_summary["x_std"] = [float(v) for v in np.asarray(x_std).tolist()]
                 _write_json(train_summary_path, train_summary)
-
-            if model is None or x_mean is None or x_std is None:
-                raise RuntimeError("Internal error: model/x_mean/x_std not initialized.")
 
             # --- Internal evaluation vs ACS on held-out tracts ---
             internal_by_tract: dict[str, Any] = {}
+            diag_age_pred = np.zeros((23,), dtype=float)
+            diag_sex_pred = np.zeros((2,), dtype=float)
+            diag_age_tgt = np.zeros((23,), dtype=float)
+            diag_sex_tgt = np.zeros((2,), dtype=float)
+            age_u_hist = None
+            if x_model == "tabddpm_scalar":
+                age_u_hist = {"bins": 50, "hist": np.zeros((50,), dtype=float).tolist()}
             for tg in sorted(test_tracts):
                 t = targets_by_tract.get(str(tg))
                 if t is None:
@@ -1180,15 +1411,40 @@ def main() -> None:
                     c_rep = np.repeat(c.reshape(1, -1), repeats=n_eval, axis=0)
                     c_t = torch.from_numpy(c_rep)
                 else:
-                    c_t = None
-                z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
-                x_u = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
-                age_idx, sex01 = _decode_samples(x_u)
+                    if x_model == "cat_mlp":
+                        c_t = torch.zeros((n_eval, 0), dtype=torch.float32)
+                    else:
+                        c_t = None
+
+                if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                    if x_mean is None or x_std is None:
+                        raise RuntimeError("Missing x_mean/x_std for tabddpm evaluation.")
+                    z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
+                    x_u = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
+                    if x_model == "tabddpm_scalar":
+                        age_idx, sex01 = _decode_samples(x_u)
+                        # Scalar-specific histogram diagnostic on age_u (post de-standardize).
+                        bins = int(age_u_hist["bins"]) if isinstance(age_u_hist, dict) else 50
+                        h, _ = np.histogram(np.clip(x_u[:, 0], 0.0, 1.0), bins=bins, range=(0.0, 1.0))
+                        age_u_hist["hist"] = (np.asarray(age_u_hist["hist"], dtype=float) + h.astype(float)).tolist()
+                    else:
+                        age_idx, sex01 = _decode_onehot(x_u)
+                elif x_model == "cat_mlp":
+                    y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
+                    sex01 = (y // 23).astype(int)
+                    age_idx = (y % 23).astype(int)
+                else:
+                    raise SystemExit(f"Unknown x_model: {x_model}")
+
                 phat = _p_from_samples(age_idx=age_idx, sex01=sex01)
                 tvd_joint = _tvd(phat["p_joint"], t["p_joint"])
                 tvd_age = _tvd(phat["p_age"], t["p_age"])
                 tvd_sex = _tvd(phat["p_sex"], t["p_sex"])
                 internal_by_tract[str(tg)] = {"tvd_joint": float(tvd_joint), "tvd_age": float(tvd_age), "tvd_sex": float(tvd_sex)}
+                diag_age_pred += np.asarray(phat["p_age"], dtype=float) * float(n_eval)
+                diag_sex_pred += np.asarray(phat["p_sex"], dtype=float) * float(n_eval)
+                diag_age_tgt += np.asarray(t["p_age"], dtype=float) * float(n_eval)
+                diag_sex_tgt += np.asarray(t["p_sex"], dtype=float) * float(n_eval)
 
             vals_joint = [v["tvd_joint"] for v in internal_by_tract.values()]
             vals_age = [v["tvd_age"] for v in internal_by_tract.values()]
@@ -1202,6 +1458,24 @@ def main() -> None:
                 },
             }
             _write_json(fold_dir / "metrics" / "internal_acs_holdout.json", internal)
+            # Sampling distribution diagnostics (aggregate over held-out tracts).
+            diag = {
+                "x_model": x_model,
+                "condition": condition,
+                "fold": int(fold_idx),
+                "n_eval_per_tract": int(args.n_eval_per_tract),
+                "pred": {
+                    "p_age": (diag_age_pred / float(diag_age_pred.sum()) if float(diag_age_pred.sum()) > 0 else np.full((23,), 1.0 / 23.0)).tolist(),
+                    "p_sex": (diag_sex_pred / float(diag_sex_pred.sum()) if float(diag_sex_pred.sum()) > 0 else np.full((2,), 0.5)).tolist(),
+                },
+                "target": {
+                    "p_age": (diag_age_tgt / float(diag_age_tgt.sum()) if float(diag_age_tgt.sum()) > 0 else np.full((23,), 1.0 / 23.0)).tolist(),
+                    "p_sex": (diag_sex_tgt / float(diag_sex_tgt.sum()) if float(diag_sex_tgt.sum()) > 0 else np.full((2,), 0.5)).tolist(),
+                },
+            }
+            if age_u_hist is not None:
+                diag["age_u_hist"] = age_u_hist
+            _write_json(fold_dir / "metrics" / "sampling_diagnostics.json", diag)
             ablation_internal[condition][int(fold_idx)] = dict(internal.get("summary", {}))
             per_tract_tvd[condition]["tvd_joint"].extend([float(v["tvd_joint"]) for v in internal_by_tract.values()])
             per_tract_tvd[condition]["tvd_age"].extend([float(v["tvd_age"]) for v in internal_by_tract.values()])
@@ -1231,10 +1505,26 @@ def main() -> None:
                         c_rep = np.repeat(c.reshape(1, -1), repeats=n_eval, axis=0)
                         c_t = torch.from_numpy(c_rep)
                     else:
-                        c_t = None
-                    z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
-                    x_u = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
-                    age_idx, sex01 = _decode_samples(x_u)
+                        if x_model == "cat_mlp":
+                            c_t = torch.zeros((n_eval, 0), dtype=torch.float32)
+                        else:
+                            c_t = None
+
+                    if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                        if x_mean is None or x_std is None:
+                            raise RuntimeError("Missing x_mean/x_std for tabddpm evaluation.")
+                        z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
+                        x_u = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
+                        if x_model == "tabddpm_scalar":
+                            age_idx, sex01 = _decode_samples(x_u)
+                        else:
+                            age_idx, sex01 = _decode_onehot(x_u)
+                    elif x_model == "cat_mlp":
+                        y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
+                        sex01 = (y // 23).astype(int)
+                        age_idx = (y % 23).astype(int)
+                    else:
+                        raise SystemExit(f"Unknown x_model: {x_model}")
                     phat = _p_from_samples(age_idx=age_idx, sex01=sex01)
                     p_hat_by_tract[str(tg)] = phat
 
