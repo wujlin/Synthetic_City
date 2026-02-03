@@ -1,0 +1,57 @@
+{
+  "fold": 2,
+  "condition": "marginal",
+  "train_pumas": [
+    "3208",
+    "3209",
+    "3210",
+    "3211"
+  ],
+  "test_pumas": [
+    "3212",
+    "3213"
+  ],
+  "n_train_tracts": 208,
+  "n_test_tracts": 66,
+  "n_train_samples": 104364,
+  "cond_dim": 25,
+  "cond_cols": [
+    "p_age_0-4",
+    "p_age_5-9",
+    "p_age_10-14",
+    "p_age_15-17",
+    "p_age_18-19",
+    "p_age_20",
+    "p_age_21",
+    "p_age_22-24",
+    "p_age_25-29",
+    "p_age_30-34",
+    "p_age_35-39",
+    "p_age_40-44",
+    "p_age_45-49",
+    "p_age_50-54",
+    "p_age_55-59",
+    "p_age_60-61",
+    "p_age_62-64",
+    "p_age_65-66",
+    "p_age_67-69",
+    "p_age_70-74",
+    "p_age_75-79",
+    "p_age_80-84",
+    "p_age_85+",
+    "p_sex_male",
+    "p_sex_female"
+  ],
+  "x_mean": [
+    0.4398086667060852,
+    0.5260722041130066
+  ],
+  "x_std": [
+    0.2784467339515686,
+    0.4993763267993927
+  ],
+  "train_metrics": {
+    "loss": 0.5974406599998474
+  },
+  "ckpt": "/home/jinlin/projects/Synthetic_City/outputs/_poc_acs_supervised_b01001_marginal_20260203T120953Z/fold_2/marginal/model.pt"
+}

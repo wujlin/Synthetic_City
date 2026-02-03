@@ -1,0 +1,31 @@
+{
+  "fold": 2,
+  "condition": "none",
+  "train_pumas": [
+    "3208",
+    "3209",
+    "3210",
+    "3211"
+  ],
+  "test_pumas": [
+    "3212",
+    "3213"
+  ],
+  "n_train_tracts": 208,
+  "n_test_tracts": 66,
+  "n_train_samples": 104364,
+  "cond_dim": 0,
+  "cond_cols": [],
+  "x_mean": [
+    0.4409087002277374,
+    0.5252194404602051
+  ],
+  "x_std": [
+    0.2781265079975128,
+    0.4990956783294678
+  ],
+  "train_metrics": {
+    "loss": 0.6084073781967163
+  },
+  "ckpt": "/home/jinlin/projects/Synthetic_City/outputs/_poc_acs_supervised_b01001_marginal_20260203T120953Z/fold_2/none/model.pt"
+}
