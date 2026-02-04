@@ -210,8 +210,6 @@ def _pick_zip_csv_member_with_cols(*, zip_path: pathlib.Path, required_cols: lis
     """
     import zipfile
 
-    pd = _require("pandas")
-
     def _norm(c: Any) -> str:
         return str(c).lstrip("\ufeff").strip().upper()
 
@@ -225,9 +223,33 @@ def _pick_zip_csv_member_with_cols(*, zip_path: pathlib.Path, required_cols: lis
         members = sorted(members, key=lambda m: int(zf.getinfo(m).file_size), reverse=True)
         scanned: list[tuple[str, list[str]]] = []
         for m in members:
+            cols: list[str] = []
             with zf.open(m) as f:
-                header = pd.read_csv(f, nrows=0, low_memory=False)
-            cols = [str(c) for c in list(header.columns)]
+                try:
+                    raw = f.readline(1024 * 1024)
+                except Exception:
+                    raw = b""
+
+            if raw:
+                try:
+                    line = raw.decode("utf-8-sig", errors="replace").strip()
+                except Exception:
+                    line = ""
+
+                if line:
+                    # Heuristic delimiter detection for robust header parsing.
+                    delims = [",", "\t", "|", ";"]
+                    delim = max(delims, key=lambda d: line.count(d))
+                    if line.count(delim) >= 1:
+                        cols = [c.strip().strip('"') for c in line.split(delim)]
+
+            if not cols:
+                # Fallback to pandas, in case header parsing above fails.
+                pd = _require("pandas")
+                with zf.open(m) as f:
+                    header = pd.read_csv(f, nrows=0, low_memory=False)
+                cols = [str(c) for c in list(header.columns)]
+
             scanned.append((m, cols))
             cols_norm = {_norm(c) for c in cols}
             if required.issubset(cols_norm):
@@ -298,41 +320,80 @@ def _load_pums_householder_age(*, data_root: pathlib.Path, pums_year: int, pums_
         raw_dir / f"psam_p{statefp}.zip",
         raw_dir / f"csv_p{state_postal_lower}.zip",
     ]
-    cols = ["SERIALNO", "RELP", "AGEP"]
-    zip_tried: list[str] = []
-    zip_path: pathlib.Path | None = None
-    member: str | None = None
+    def _norm(c: Any) -> str:
+        return str(c).lstrip("\ufeff").strip().upper()
+
+    def _try_load(zp: pathlib.Path, required_cols: list[str]) -> tuple[pathlib.Path, str, Any] | None:
+        member, _ = _pick_zip_csv_member_with_cols(zip_path=zp, required_cols=required_cols)
+        with zipfile.ZipFile(zp) as zf, zf.open(member) as f:
+            df0 = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
+        df0 = df0.rename(columns={c: _norm(c) for c in df0.columns})
+        missing = [c for c in required_cols if _norm(c) not in df0.columns]
+        if missing:
+            raise SystemExit(f"PUMS person file missing columns: {missing}. zip={zp} member={member} cols={list(df0.columns)[:30]}")
+        return zp, member, df0
+
+    errors: list[str] = []
+
+    # Prefer RELP==0 for householder (best effort).
+    cols_relp = ["SERIALNO", "RELP", "AGEP"]
     for zp in candidates:
         if not zp.exists():
             continue
-        zip_tried.append(str(zp))
         try:
-            m, _ = _pick_zip_csv_member_with_cols(zip_path=zp, required_cols=cols)
-        except SystemExit:
+            got = _try_load(zp, cols_relp)
+        except SystemExit as e:
+            errors.append(str(e))
             continue
-        zip_path = zp
-        member = m
-        break
+        assert got is not None
+        zip_path, member, df = got
+        df = df[[_norm(c) for c in cols_relp]].copy()
+        df["SERIALNO"] = df["SERIALNO"].astype(str)
+        df["RELP"] = pd.to_numeric(df["RELP"], errors="coerce")
+        df["AGEP"] = pd.to_numeric(df["AGEP"], errors="coerce")
+        df = df.dropna().copy()
+        df = df[df["RELP"].astype(int) == 0].copy()
+        if df.empty:
+            raise SystemExit(f"No RELP==0 (householder) rows found in PUMS person file. zip={zip_path} member={member}")
+        out = df.groupby("SERIALNO", sort=False)["AGEP"].first().reset_index()
+        out.attrs["householder_method"] = "RELP==0"
+        out.attrs["source_zip"] = str(zip_path)
+        out.attrs["source_member"] = str(member)
+        return out
 
-    if zip_path is None or member is None:
-        raise SystemExit(f"PUMS person zip not found or missing required columns {cols}. Tried: {zip_tried or [str(c) for c in candidates]}")
+    # Fallback: SPORDER==1 (approximate householder) if RELP is unavailable.
+    cols_sporder = ["SERIALNO", "SPORDER", "AGEP"]
+    for zp in candidates:
+        if not zp.exists():
+            continue
+        try:
+            got = _try_load(zp, cols_sporder)
+        except SystemExit as e:
+            errors.append(str(e))
+            continue
+        assert got is not None
+        zip_path, member, df = got
+        print(
+            f"[warn] RELP not available in PUMS person file; using SPORDER==1 as householder proxy (zip={zip_path} member={member})",
+            file=sys.stderr,
+        )
+        df = df[[_norm(c) for c in cols_sporder]].copy()
+        df["SERIALNO"] = df["SERIALNO"].astype(str)
+        df["SPORDER"] = pd.to_numeric(df["SPORDER"], errors="coerce")
+        df["AGEP"] = pd.to_numeric(df["AGEP"], errors="coerce")
+        df = df.dropna().copy()
+        df = df[df["SPORDER"].astype(int) == 1].copy()
+        if df.empty:
+            raise SystemExit(f"No SPORDER==1 rows found in PUMS person file. zip={zip_path} member={member}")
+        out = df.groupby("SERIALNO", sort=False)["AGEP"].first().reset_index()
+        out.attrs["householder_method"] = "SPORDER==1"
+        out.attrs["source_zip"] = str(zip_path)
+        out.attrs["source_member"] = str(member)
+        return out
 
-    with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
-        df = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        raise SystemExit(f"PUMS person file missing columns: {missing}. zip={zip_path} member={member} cols={list(df.columns)[:30]}")
-
-    df = df[cols].copy()
-    df["SERIALNO"] = df["SERIALNO"].astype(str)
-    df["RELP"] = pd.to_numeric(df["RELP"], errors="coerce")
-    df["AGEP"] = pd.to_numeric(df["AGEP"], errors="coerce")
-    df = df.dropna().copy()
-    df = df[df["RELP"].astype(int) == 0].copy()
-    if df.empty:
-        raise SystemExit("No RELP==0 (householder) rows found in PUMS person file.")
-    # If duplicated, keep the first.
-    return df.groupby("SERIALNO", sort=False)["AGEP"].first().reset_index()
+    tried = [str(z) for z in candidates]
+    details = "\n  - " + "\n  - ".join(errors[:10]) if errors else ""
+    raise SystemExit(f"PUMS person zip not found or missing required columns (tried {tried}). Details:{details}")
 
 
 def _parse_age_bounds(age_bins: list[str]) -> list[tuple[float, float]]:
