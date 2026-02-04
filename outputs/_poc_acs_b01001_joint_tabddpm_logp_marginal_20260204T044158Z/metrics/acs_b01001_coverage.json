@@ -1,0 +1,35 @@
+{
+  "by_puma": {
+    "3208": {
+      "n_tracts_study": 57,
+      "n_tracts_in_acs": 57,
+      "total_pop_sum": 152515.0
+    },
+    "3209": {
+      "n_tracts_study": 44,
+      "n_tracts_in_acs": 44,
+      "total_pop_sum": 130503.0
+    },
+    "3210": {
+      "n_tracts_study": 46,
+      "n_tracts_in_acs": 46,
+      "total_pop_sum": 108012.0
+    },
+    "3211": {
+      "n_tracts_study": 61,
+      "n_tracts_in_acs": 61,
+      "total_pop_sum": 120786.0
+    },
+    "3212": {
+      "n_tracts_study": 57,
+      "n_tracts_in_acs": 57,
+      "total_pop_sum": 105626.0
+    },
+    "3213": {
+      "n_tracts_study": 9,
+      "n_tracts_in_acs": 9,
+      "total_pop_sum": 19426.0
+    }
+  },
+  "bad_pumas": []
+}

@@ -1,0 +1,18 @@
+[train] step=200 loss=0.546046
+[train] step=400 loss=0.459536
+[train] step=600 loss=0.459089
+[train] step=800 loss=0.429441
+[train] step=1000 loss=0.365932
+[train] step=200 loss=0.538572
+[train] step=400 loss=0.451671
+[train] step=600 loss=0.442475
+[train] step=800 loss=0.375391
+[train] step=1000 loss=0.372867
+[train] step=200 loss=0.513311
+[train] step=400 loss=0.485701
+[train] step=600 loss=0.432540
+[train] step=800 loss=0.425770
+[train] step=1000 loss=0.391103
+/home/jinlin/projects/Synthetic_City/tools/poc_tabddpm_acs_supervised_b01001.py:1772: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
+  plt.boxplot(data, labels=order, showfliers=False)
+[ok] wrote: /home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/outputs/runs/_poc_acs_b01001_joint_tabddpm_logp_marginal_20260204T044158Z

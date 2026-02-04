@@ -1,0 +1,96 @@
+{
+  "out_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/outputs/runs/_poc_acs_b01001_joint_tabddpm_logp_marginal_20260204T044158Z",
+  "acs_b01001_csv_gz": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/census/acs/acs5_2023/acs5_2023_B01001_tract_state26_county163.csv.gz",
+  "buildings_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/buildings/buildings_detroit_features_price.csv",
+  "tiger_tract_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip",
+  "tiger_puma_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip",
+  "study_pumas": [
+    "3208",
+    "3209",
+    "3210",
+    "3211",
+    "3212",
+    "3213"
+  ],
+  "n_tracts": 274,
+  "puma_blocks": [
+    [
+      "3208",
+      "3209"
+    ],
+    [
+      "3210",
+      "3211"
+    ],
+    [
+      "3212",
+      "3213"
+    ]
+  ],
+  "conditions": [
+    "marginal"
+  ],
+  "x_model": "joint_tabddpm_logp",
+  "cat_mlp_lr": 0.001,
+  "cat_diffusion_lr": 0.001,
+  "n_pseudo_base": 500,
+  "n_eval_per_tract": 2000,
+  "n_eval_joint_samples": 64,
+  "timesteps": 200,
+  "epochs": 1000,
+  "batch_size": 4096,
+  "seed": 0,
+  "baseline_gap": {
+    "by_puma": {
+      "3208": {
+        "tvd_joint": 0.11747108770400597,
+        "tvd_age": 0.10457462236115639,
+        "tvd_sex": 0.00528639865257674
+      },
+      "3209": {
+        "tvd_joint": 0.14140506620804252,
+        "tvd_age": 0.13730150048012088,
+        "tvd_sex": 0.01384784420107707
+      },
+      "3210": {
+        "tvd_joint": 0.10711192549904384,
+        "tvd_age": 0.0997098818669961,
+        "tvd_sex": 0.005136072780691087
+      },
+      "3211": {
+        "tvd_joint": 0.0821284002653193,
+        "tvd_age": 0.07031841833675614,
+        "tvd_sex": 0.007194219151614084
+      },
+      "3212": {
+        "tvd_joint": 0.09045825502817857,
+        "tvd_age": 0.08188359221044653,
+        "tvd_sex": 0.004862183408909315
+      },
+      "3213": {
+        "tvd_joint": 0.15721750976180215,
+        "tvd_age": 0.1397372965697437,
+        "tvd_sex": 0.02998136925234446
+      }
+    },
+    "summary": {
+      "tvd_joint": {
+        "mean": 0.11596537407773207,
+        "max": 0.15721750976180215
+      },
+      "tvd_age": {
+        "mean": 0.10558755197086996,
+        "max": 0.1397372965697437
+      },
+      "tvd_sex": {
+        "mean": 0.011051347907868792,
+        "max": 0.02998136925234446
+      }
+    }
+  },
+  "external_validation": {
+    "enabled": true,
+    "pums_year": 2023,
+    "pums_period": "5-Year"
+  }
+}
