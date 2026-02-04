@@ -59,9 +59,18 @@ def _http_head(url: str, *, timeout_s: int = 30) -> dict[str, str] | None:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             return dict(resp.headers.items())
     except urllib.error.HTTPError as e:
+        # Some environments/proxies intermittently return 403 for HEAD even when GET works.
+        # Treat as "unknown but possibly exists" and let the caller attempt a GET download.
         if e.code == 404:
             return None
+        if e.code == 403:
+            print(f"[warn] HEAD 403 (will still try GET): {url}", file=sys.stderr)
+            return {}
         raise
+    except (urllib.error.URLError, ssl.SSLError, ConnectionResetError, TimeoutError) as e:
+        # Network/proxy flakiness: let the caller attempt GET (which may work via proxy).
+        print(f"[warn] HEAD failed (will still try GET): {url}; err={e}", file=sys.stderr)
+        return {}
 
 
 def _download(url: str, dest: pathlib.Path, *, overwrite: bool = False, timeout_s: int = 60) -> None:
@@ -591,12 +600,41 @@ def _cmd_pums(args: argparse.Namespace) -> None:
     )
 
     missing = []
+    downloaded = []
+    failed = []
     for name in candidates:
         url = base_url + name
         if _http_head(url) is None:
             missing.append(url)
             continue
-        _download(url, out_dir / name, overwrite=args.overwrite)
+        try:
+            _download(url, out_dir / name, overwrite=args.overwrite)
+            downloaded.append(url)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                missing.append(url)
+                continue
+            if e.code == 403:
+                failed.append({"url": url, "code": int(e.code), "reason": "forbidden"})
+                print(f"[warn] GET 403: {url}", file=sys.stderr)
+                continue
+            raise
+        except (urllib.error.URLError, ssl.SSLError, ConnectionResetError, TimeoutError) as e:
+            failed.append({"url": url, "reason": str(e)})
+            print(f"[warn] download failed: {url}; err={e}", file=sys.stderr)
+            continue
+
+    if not downloaded and failed:
+        print("[error] Failed to download PUMS from www2.census.gov.", file=sys.stderr)
+        print("[hint] Try setting proxy env vars (see docs/WORKSTATION_GUIDE.md):", file=sys.stderr)
+        print('  export http_proxy="http://127.0.0.1:7890"', file=sys.stderr)
+        print('  export https_proxy="http://127.0.0.1:7890"', file=sys.stderr)
+        print("[hint] If it still fails, download manually and place files under:", file=sys.stderr)
+        print(f"  {out_dir}", file=sys.stderr)
+        print("[hint] Expected filenames (one of these pairs):", file=sys.stderr)
+        print(f"  - psam_p{state}.zip + psam_h{state}.zip", file=sys.stderr)
+        print(f"  - csv_p{state_postal_lower}.zip + csv_h{state_postal_lower}.zip", file=sys.stderr)
+        raise SystemExit(2)
 
     if missing:
         print("[warn] Some expected PUMS files not found (404):", file=sys.stderr)

@@ -248,6 +248,70 @@ find "$RAW_ROOT/wayback/_probe_z16_r4756" -name "*.jpg" | wc -l
 - 保留脚本自动下载的 ACS 指标表（一般可用）
 - TIGER 边界若自动下载失败，可手动下载 zip 并转换为 GeoParquet（手动流程只做一次，落到 `$RAW_ROOT/census/...` 即可）
 
+### 7.3 PUMS 下载失败（TLS EOF / 403）→ 手动下载 + rsync 落盘
+
+现象（常见）：
+
+- `curl` / Python 报错：`SSL: UNEXPECTED_EOF_WHILE_READING` 或 `HTTP 403: Forbidden`
+- 即使本机 Clash 在跑，某些网络/节点对 `www2.census.gov` 仍不稳定
+
+实践口径（KISS）：
+
+- **不要解压**：保持官方 `*.zip` 文件原名落盘；脚本会直接从 zip 内读取 CSV（避免大文件散落、命名不一致、占用更多空间）。
+- **推荐用仓库内 `dataset/` 作为临时中转目录**（已在 `.gitignore` 忽略，不会进 git），再 `rsync` 推到工作站 A 的标准目录。
+
+#### 7.3.1 需要下载的文件（2023 / 5-Year / MI=26）
+
+官方目录：
+
+```
+https://www2.census.gov/programs-surveys/acs/data/pums/2023/5-Year/
+```
+
+下载并保留原始文件名（任选一组即可）：
+
+- 优先组：
+  - `psam_p26.zip`（person）
+  - `psam_h26.zip`（housing）
+- 备选组：
+  - `csv_pmi.zip`（person）
+  - `csv_hmi.zip`（housing）
+
+#### 7.3.2 推送到工作站 A 的落盘位置
+
+目标目录（唯一口径）：
+
+```bash
+export RAW_ROOT=/home/jinlin/data/geoexplicit_data
+export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+DEST="$DATA_ROOT/detroit/raw/pums/pums_2023_5-Year"
+mkdir -p "$DEST"
+```
+
+从本地（或另一台可下载机器）推送到工作站 A（把 `wsA` 替换成你实际可 ssh 的主机名）：
+
+```bash
+rsync -avP --partial --append-verify \
+  "dataset/psam_p26.zip" \
+  "dataset/psam_h26.zip" \
+  wsA:"$DEST/"
+```
+
+或：
+
+```bash
+rsync -avP --partial --append-verify \
+  "dataset/csv_pmi.zip" \
+  "dataset/csv_hmi.zip" \
+  wsA:"$DEST/"
+```
+
+落盘校验：
+
+```bash
+ls -lh "$DEST" | egrep 'psam_[ph]26\\.zip|csv_[ph]mi\\.zip'
+```
+
 ---
 
 ## 8) 大文件与 git（避免 push 崩盘）

@@ -3,6 +3,7 @@
 # --------
 /data/
 /_sync/
+/dataset/
 
 # --------
 # Experiment artifacts (keep small metrics in git; avoid large weights/samples)

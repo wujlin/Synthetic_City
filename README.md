@@ -106,6 +106,37 @@ python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_ci
 python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
 ```
 
+### Network caveats + manual download fallback
+
+Some environments (campus networks, transparent proxies, or flaky upstream routes) intermittently fail to reach `www2.census.gov` with `403` or TLS EOF errors. If a downloader command fails, **manual download + rsync** is an acceptable fallback.
+
+**PUMS (required for external validation):**
+
+- Target directory:
+  - `$DATA_ROOT/detroit/raw/pums/pums_2023_5-Year/`
+- Download one of the following filename pairs from:
+  - `https://www2.census.gov/programs-surveys/acs/data/pums/2023/5-Year/`
+  - Preferred: `psam_p26.zip` + `psam_h26.zip`
+  - Alternative: `csv_pmi.zip` + `csv_hmi.zip`
+
+After placing the zips, the PoC scripts will find them automatically.
+
+**TIGER (sometimes 403 in some environments):**
+
+- Target directory:
+  - `$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/`
+- If `detroit_fetch_public_data.py tiger` fails, download required zips manually from:
+  - `https://www2.census.gov/geo/tiger/TIGER2023/`
+  - Common files used by the Detroit PoCs:
+    - `TRACT/tl_2023_26_tract.zip`
+    - `PUMA20/tl_2023_26_puma20.zip`
+    - `BG/tl_2023_26_bg.zip` (optional unless you need BG-level joins)
+
+**SafeGraph and GBA LoD1 are not auto-downloadable by this repo:**
+
+- `safegraph` command only creates a symlink to an existing local dataset directory (license-restricted).
+- GlobalBuildingAtlas LoD1 tiles must be obtained separately and passed to `tools/prepare_detroit_buildings_gba.py`.
+
 ## Build ACS targets_long (optional external validation)
 
 This produces an **ACS-derived long table**: `(group, variable, category, target)`.
