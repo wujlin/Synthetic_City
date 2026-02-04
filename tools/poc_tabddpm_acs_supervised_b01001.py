@@ -873,7 +873,14 @@ def main() -> None:
     p.add_argument(
         "--x_model",
         default="tabddpm_scalar",
-        choices=["tabddpm_scalar", "tabddpm_onehot", "cat_mlp", "cat_diffusion_concat", "cat_diffusion_xattn"],
+        choices=[
+            "tabddpm_scalar",
+            "tabddpm_onehot",
+            "cat_mlp",
+            "cat_diffusion_concat",
+            "cat_diffusion_xattn",
+            "joint_tabddpm_logp",
+        ],
         help=(
             "Generative model / encoding for discrete age×sex. "
             "tabddpm_scalar: current (age_u,sex_u) in R^2. "
@@ -881,10 +888,18 @@ def main() -> None:
             "cat_mlp: categorical MLP over 46 joint states (KISS discrete baseline). "
             "cat_diffusion_concat: multinomial diffusion over 46 joint states (concat conditioning). "
             "cat_diffusion_xattn: multinomial diffusion over 46 joint states (cross-attn conditioning)."
+            "joint_tabddpm_logp: Gaussian DDPM over tract-level 46-dim log-prob vectors; decode with softmax to p_joint. "
+            "This is a distribution-to-distribution model (one sample per tract), not pseudo-individual generation."
         ),
     )
     p.add_argument("--cat_mlp_lr", type=float, default=1e-3)
     p.add_argument("--cat_diffusion_lr", type=float, default=1e-3)
+    p.add_argument(
+        "--n_eval_joint_samples",
+        type=int,
+        default=64,
+        help="For x_model=joint_tabddpm_logp: number of joint-vector samples per tract to average at evaluation time.",
+    )
 
     p.add_argument("--timesteps", type=int, default=200)
     p.add_argument("--epochs", type=int, default=5)
@@ -1073,6 +1088,7 @@ def main() -> None:
         "cat_diffusion_lr": float(args.cat_diffusion_lr),
         "n_pseudo_base": int(args.n_pseudo_base),
         "n_eval_per_tract": int(args.n_eval_per_tract),
+        "n_eval_joint_samples": int(args.n_eval_joint_samples),
         "timesteps": int(args.timesteps),
         "epochs": int(args.epochs),
         "batch_size": int(args.batch_size),
@@ -1264,7 +1280,7 @@ def main() -> None:
                 saved_x_model = str(train_summary.get("x_model", "tabddpm_scalar"))
                 if saved_x_model != x_model:
                     raise SystemExit(f"Checkpoint x_model mismatch in {train_summary_path}: saved={saved_x_model} vs args={x_model}")
-                if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                if x_model in {"tabddpm_scalar", "tabddpm_onehot", "joint_tabddpm_logp"}:
                     x_mean = np.asarray(train_summary.get("x_mean"), dtype=np.float32)
                     x_std = np.asarray(train_summary.get("x_std"), dtype=np.float32)
                     cfg = TabDDPMConfig(timesteps=int(args.timesteps))
@@ -1306,32 +1322,42 @@ def main() -> None:
                     w = math.sqrt(max(1.0, total))
                     n_i = int(round(float(args.n_pseudo_base) * (w / w_mean)))
                     n_i = max(int(args.n_pseudo_min), min(int(args.n_pseudo_max), n_i))
-                    age_idx, sex01 = _sample_pseudo(rng=rng, p_joint=t["p_joint"], n=n_i)
-
-                    if x_model == "tabddpm_scalar":
-                        age_u = age_idx.astype(float) / 22.0
-                        sex_u = sex01.astype(float)
-                        x_u = np.stack([age_u, sex_u], axis=1).astype(np.float32)
-                        xs.append(x_u)
-                    elif x_model == "tabddpm_onehot":
-                        xs.append(_encode_onehot(age_idx=age_idx, sex01=sex01).astype(np.float32))
-                    elif x_model in {"cat_mlp", "cat_diffusion_concat", "cat_diffusion_xattn"}:
-                        y = (sex01.astype(int) * 23 + age_idx.astype(int)).astype(np.int64)
-                        ys.append(y)
+                    if x_model == "joint_tabddpm_logp":
+                        # Distribution-to-distribution training: one sample per tract (the full joint distribution).
+                        p_joint = np.asarray(t["p_joint"], dtype=np.float32).reshape(-1)
+                        if p_joint.size != 46:
+                            continue
+                        xs.append(np.log(np.clip(p_joint, 0.0, None) + 1e-6).reshape(1, 46).astype(np.float32))
                     else:
-                        raise SystemExit(f"Unknown x_model: {x_model}")
+                        age_idx, sex01 = _sample_pseudo(rng=rng, p_joint=t["p_joint"], n=n_i)
+
+                        if x_model == "tabddpm_scalar":
+                            age_u = age_idx.astype(float) / 22.0
+                            sex_u = sex01.astype(float)
+                            x_u = np.stack([age_u, sex_u], axis=1).astype(np.float32)
+                            xs.append(x_u)
+                        elif x_model == "tabddpm_onehot":
+                            xs.append(_encode_onehot(age_idx=age_idx, sex01=sex01).astype(np.float32))
+                        elif x_model in {"cat_mlp", "cat_diffusion_concat", "cat_diffusion_xattn"}:
+                            y = (sex01.astype(int) * 23 + age_idx.astype(int)).astype(np.int64)
+                            ys.append(y)
+                        else:
+                            raise SystemExit(f"Unknown x_model: {x_model}")
 
                     if cond_dim > 0:
                         c = tract_cond.get(str(tg))
                         if c is None:
                             continue
                         c = np.asarray(c, dtype=np.float32)
-                        c_rep = np.repeat(c.reshape(1, -1), repeats=int(n_i), axis=0)
-                        cs.append(c_rep)
+                        if x_model == "joint_tabddpm_logp":
+                            cs.append(c.reshape(1, -1))
+                        else:
+                            c_rep = np.repeat(c.reshape(1, -1), repeats=int(n_i), axis=0)
+                            cs.append(c_rep)
 
                 cond_all = np.concatenate(cs, axis=0).astype(np.float32) if cond_dim > 0 else None
 
-                if x_model in {"tabddpm_scalar", "tabddpm_onehot"}:
+                if x_model in {"tabddpm_scalar", "tabddpm_onehot", "joint_tabddpm_logp"}:
                     if not xs:
                         raise SystemExit(f"No training samples constructed for fold={fold_idx}, condition={condition}.")
                     x_u_all = np.concatenate(xs, axis=0).astype(np.float32)
@@ -1426,6 +1452,8 @@ def main() -> None:
                 if x_model in {"cat_diffusion_concat", "cat_diffusion_xattn"}:
                     train_summary["cat_diffusion_lr"] = float(args.cat_diffusion_lr)
                     train_summary["timesteps"] = int(args.timesteps)
+                if x_model == "joint_tabddpm_logp":
+                    train_summary["joint_space"] = "logp_softmax"
                 _write_json(train_summary_path, train_summary)
 
             # --- Internal evaluation vs ACS on held-out tracts ---
@@ -1441,7 +1469,7 @@ def main() -> None:
                 t = targets_by_tract.get(str(tg))
                 if t is None:
                     continue
-                n_eval = int(args.n_eval_per_tract)
+                n_eval = int(args.n_eval_joint_samples) if x_model == "joint_tabddpm_logp" else int(args.n_eval_per_tract)
                 if cond_dim > 0:
                     c = tract_cond.get(str(tg))
                     if c is None:
@@ -1476,6 +1504,37 @@ def main() -> None:
                     y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
                     sex01 = (y // 23).astype(int)
                     age_idx = (y % 23).astype(int)
+                elif x_model == "joint_tabddpm_logp":
+                    if x_mean is None or x_std is None:
+                        raise RuntimeError("Missing x_mean/x_std for joint_tabddpm_logp evaluation.")
+                    z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
+                    logp = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
+                    logp = logp - logp.max(axis=1, keepdims=True)
+                    p = np.exp(logp)
+                    p = p / np.clip(p.sum(axis=1, keepdims=True), 1e-12, None)
+                    p_joint_raw = p.mean(axis=0).astype(float)
+                    # If marginals are available, project to match exactly (guidance/projection).
+                    p_joint = p_joint_raw
+                    if condition == "marginal":
+                        p_joint = _ipf_age23_sex2(seed_joint=p_joint_raw, target_p_age=t["p_age"], target_p_sex=t["p_sex"])
+                    p_age_hat, p_sex_hat = _marginals_from_joint(p_joint)
+                    tvd_joint_raw = _tvd(p_joint_raw, t["p_joint"])
+                    tvd_age_raw = _tvd(_marginals_from_joint(p_joint_raw)[0], t["p_age"])
+                    tvd_sex_raw = _tvd(_marginals_from_joint(p_joint_raw)[1], t["p_sex"])
+                    internal_by_tract[str(tg)] = {
+                        "tvd_joint": float(_tvd(p_joint, t["p_joint"])),
+                        "tvd_age": float(_tvd(p_age_hat, t["p_age"])),
+                        "tvd_sex": float(_tvd(p_sex_hat, t["p_sex"])),
+                        "tvd_joint_raw": float(tvd_joint_raw),
+                        "tvd_age_raw": float(tvd_age_raw),
+                        "tvd_sex_raw": float(tvd_sex_raw),
+                        "projected_to_marginal": bool(condition == "marginal"),
+                    }
+                    diag_age_pred += np.asarray(p_age_hat, dtype=float) * float(n_eval)
+                    diag_sex_pred += np.asarray(p_sex_hat, dtype=float) * float(n_eval)
+                    diag_age_tgt += np.asarray(t["p_age"], dtype=float) * float(n_eval)
+                    diag_sex_tgt += np.asarray(t["p_sex"], dtype=float) * float(n_eval)
+                    continue
                 else:
                     raise SystemExit(f"Unknown x_model: {x_model}")
 
@@ -1539,7 +1598,7 @@ def main() -> None:
                     t = targets_by_tract.get(str(tg))
                     if t is None:
                         continue
-                    n_eval = int(args.n_eval_per_tract)
+                    n_eval = int(args.n_eval_joint_samples) if x_model == "joint_tabddpm_logp" else int(args.n_eval_per_tract)
                     if cond_dim > 0:
                         c = tract_cond.get(str(tg))
                         if c is None:
@@ -1570,6 +1629,21 @@ def main() -> None:
                         y = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(int)
                         sex01 = (y // 23).astype(int)
                         age_idx = (y % 23).astype(int)
+                    elif x_model == "joint_tabddpm_logp":
+                        if x_mean is None or x_std is None:
+                            raise RuntimeError("Missing x_mean/x_std for joint_tabddpm_logp evaluation.")
+                        z = model.sample(n=n_eval, cond=c_t, device=args.device).numpy().astype(np.float32)
+                        logp = (z * x_std.reshape(1, -1) + x_mean.reshape(1, -1)).astype(np.float32)
+                        logp = logp - logp.max(axis=1, keepdims=True)
+                        p = np.exp(logp)
+                        p = p / np.clip(p.sum(axis=1, keepdims=True), 1e-12, None)
+                        p_joint_raw = p.mean(axis=0).astype(float)
+                        p_joint = p_joint_raw
+                        if condition == "marginal":
+                            p_joint = _ipf_age23_sex2(seed_joint=p_joint_raw, target_p_age=t["p_age"], target_p_sex=t["p_sex"])
+                        p_age_hat, p_sex_hat = _marginals_from_joint(p_joint)
+                        p_hat_by_tract[str(tg)] = {"p_joint": p_joint, "p_age": p_age_hat, "p_sex": p_sex_hat}
+                        continue
                     else:
                         raise SystemExit(f"Unknown x_model: {x_model}")
                     phat = _p_from_samples(age_idx=age_idx, sex01=sex01)
