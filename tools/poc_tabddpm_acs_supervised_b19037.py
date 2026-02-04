@@ -203,6 +203,40 @@ def _load_buildings_for_mapping(path: pathlib.Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in tract_to_puma.items()}
 
 
+def _pick_zip_csv_member_with_cols(*, zip_path: pathlib.Path, required_cols: list[str]) -> tuple[str, list[str]]:
+    """
+    Pick a CSV member inside `zip_path` that contains all `required_cols`.
+    This avoids brittle assumptions like `sorted(members)[0]`.
+    """
+    import zipfile
+
+    pd = _require("pandas")
+
+    def _norm(c: Any) -> str:
+        return str(c).lstrip("\ufeff").strip().upper()
+
+    required = {_norm(c) for c in required_cols}
+
+    with zipfile.ZipFile(zip_path) as zf:
+        members = [m for m in zf.namelist() if m.lower().endswith(".csv")]
+        if not members:
+            raise SystemExit(f"No CSV members found inside: {zip_path}")
+
+        members = sorted(members, key=lambda m: int(zf.getinfo(m).file_size), reverse=True)
+        scanned: list[tuple[str, list[str]]] = []
+        for m in members:
+            with zf.open(m) as f:
+                header = pd.read_csv(f, nrows=0, low_memory=False)
+            cols = [str(c) for c in list(header.columns)]
+            scanned.append((m, cols))
+            cols_norm = {_norm(c) for c in cols}
+            if required.issubset(cols_norm):
+                return m, cols
+
+    preview = "; ".join([f"{m}: {cols[:12]}" for (m, cols) in scanned[:5]])
+    raise SystemExit(f"Cannot find a CSV member with columns={required_cols} inside: {zip_path}. Scanned: {preview}")
+
+
 def _load_pums_households(*, data_root: pathlib.Path, pums_year: int, pums_period: str, statefp: str, pumas: set[str], n_rows: int) -> Any:
     """
     Load PUMS housing file for household-level validation.
@@ -225,18 +259,13 @@ def _load_pums_households(*, data_root: pathlib.Path, pums_year: int, pums_perio
     if not zip_path.exists():
         raise SystemExit(f"PUMS housing zip not found. Tried: {candidates[0]} and {candidates[1]}")
 
-    with zipfile.ZipFile(zip_path) as zf:
-        members = [m for m in zf.namelist() if m.lower().endswith(".csv")]
-        if not members:
-            raise SystemExit(f"No CSV members found inside: {zip_path}")
-        member = sorted(members)[0]
-        with zf.open(member) as f:
-            df = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
-
     cols = ["SERIALNO", "PUMA", "HINCP", "WGTP"]
+    member, _ = _pick_zip_csv_member_with_cols(zip_path=zip_path, required_cols=cols)
+    with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
+        df = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
     missing = [c for c in cols if c not in df.columns]
     if missing:
-        raise SystemExit(f"PUMS housing file missing columns: {missing}")
+        raise SystemExit(f"PUMS housing file missing columns: {missing}. zip={zip_path} member={member} cols={list(df.columns)[:30]}")
 
     df = df[cols].copy()
     df["SERIALNO"] = df["SERIALNO"].astype(str)
@@ -269,22 +298,30 @@ def _load_pums_householder_age(*, data_root: pathlib.Path, pums_year: int, pums_
         raw_dir / f"psam_p{statefp}.zip",
         raw_dir / f"csv_p{state_postal_lower}.zip",
     ]
-    zip_path = next((p for p in candidates if p.exists()), candidates[0])
-    if not zip_path.exists():
-        raise SystemExit(f"PUMS person zip not found. Tried: {candidates[0]} and {candidates[1]}")
-
-    with zipfile.ZipFile(zip_path) as zf:
-        members = [m for m in zf.namelist() if m.lower().endswith(".csv")]
-        if not members:
-            raise SystemExit(f"No CSV members found inside: {zip_path}")
-        member = sorted(members)[0]
-        with zf.open(member) as f:
-            df = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
-
     cols = ["SERIALNO", "RELP", "AGEP"]
+    zip_tried: list[str] = []
+    zip_path: pathlib.Path | None = None
+    member: str | None = None
+    for zp in candidates:
+        if not zp.exists():
+            continue
+        zip_tried.append(str(zp))
+        try:
+            m, _ = _pick_zip_csv_member_with_cols(zip_path=zp, required_cols=cols)
+        except SystemExit:
+            continue
+        zip_path = zp
+        member = m
+        break
+
+    if zip_path is None or member is None:
+        raise SystemExit(f"PUMS person zip not found or missing required columns {cols}. Tried: {zip_tried or [str(c) for c in candidates]}")
+
+    with zipfile.ZipFile(zip_path) as zf, zf.open(member) as f:
+        df = pd.read_csv(f, nrows=int(n_rows), low_memory=False)
     missing = [c for c in cols if c not in df.columns]
     if missing:
-        raise SystemExit(f"PUMS person file missing columns: {missing}")
+        raise SystemExit(f"PUMS person file missing columns: {missing}. zip={zip_path} member={member} cols={list(df.columns)[:30]}")
 
     df = df[cols].copy()
     df["SERIALNO"] = df["SERIALNO"].astype(str)
