@@ -258,6 +258,43 @@ Key outputs (small, commit-friendly):
 - `fold_*/**/metrics/internal_acs_holdout.json`
 - `fold_*/**/metrics/external_pums_by_puma.json` (if `--data_root` provided)
 
+## Run ACS-supervised PoC (B19037: householder age × household income, joint-to-joint)
+
+Download B19037 (tract level). Note: this table is wide, and may require request chunking; `--max_get_vars` controls the per-request limit (default: 60).
+
+```bash
+export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+
+python tools/detroit_fetch_public_data.py acs \
+  --out_root "$DATA_ROOT" \
+  --acs_year 2023 \
+  --tables "B19037" \
+  --geo_levels tract
+```
+
+Run 3/4-fold PUMA-block CV (commit-friendly outputs under repo `outputs/`). For external validation (optional), provide `--data_root` so the script can load PUMS.
+
+```bash
+export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
+export ACS_B19037="$DATA_ROOT/detroit/raw/census/acs/acs5_2023/acs5_2023_B19037_tract_state26_county163.csv.gz"
+export OUT_DIR="outputs/_poc_acs_supervised_b19037_$(date -u +%Y%m%dT%H%M%SZ)"
+
+PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b19037.py \
+  --acs_b19037_csv_gz "$ACS_B19037" \
+  --buildings_csv "$BLDG_CSV" \
+  --data_root "$DATA_ROOT" \
+  --conditions "none,marginal" \
+  --puma_blocks "3202,3203;3208,3209;3210,3211;3212,3213" \
+  --epochs 1000 \
+  --batch_size 4096 \
+  --timesteps 200 \
+  --n_eval_joint_samples 64 \
+  --device cuda \
+  --out_dir "$OUT_DIR" \
+  |& tee "$OUT_DIR/run.log"
+```
+
 ## Results syncing strategy
 
 - Large artifacts (model checkpoints, large CSV/parquet) are ignored via `.gitignore`.

@@ -397,6 +397,9 @@ def _cmd_acs(args: argparse.Namespace) -> None:
     state = args.statefp
     county = args.countyfp
     api_key = args.api_key or os.environ.get("CENSUS_API_KEY")
+    max_get_vars = int(getattr(args, "max_get_vars", 60))
+    if max_get_vars < 10:
+        raise SystemExit("--max_get_vars too small (must be >=10)")
 
     tables = [t.strip() for t in args.tables.split(",") if t.strip()]
     if not tables:
@@ -419,18 +422,77 @@ def _cmd_acs(args: argparse.Namespace) -> None:
     variables_payload = json.loads(var_dict_all.read_text(encoding="utf-8"))
     variables_all: dict[str, dict] = variables_payload.get("variables", {})
 
+    def _merge_rows_by_geo(*, geo_level: str, chunks_rows: list[list[list[str]]], table_id: str, vars_e: list[str]) -> list[list[str]]:
+        """
+        Merge multiple ACS API responses (chunks) into one table by geographic keys.
+
+        Each chunk response is a list of rows like:
+          [header, row1, row2, ...]
+
+        We join on geo keys returned by ACS API:
+          tract: (state, county, tract)
+          bg:    (state, county, tract, block group)
+
+        Output header order:
+          NAME, <vars_e in order>, <geo keys>
+        """
+        if geo_level == "tract":
+            geo_cols = ["state", "county", "tract"]
+        elif geo_level == "bg":
+            geo_cols = ["state", "county", "tract", "block group"]
+        else:
+            raise ValueError(f"unsupported geo_level: {geo_level}")
+
+        if not chunks_rows:
+            raise RuntimeError(f"no chunk rows to merge for {table_id}/{geo_level}")
+
+        merged: dict[tuple[str, ...], dict[str, str]] = {}
+        name_by_key: dict[tuple[str, ...], str] = {}
+
+        for ci, rows in enumerate(chunks_rows):
+            if not rows:
+                raise RuntimeError(f"empty response for {table_id}/{geo_level} chunk#{ci}")
+            header = rows[0]
+            if not isinstance(header, list):
+                raise RuntimeError(f"unexpected header type for {table_id}/{geo_level}: {type(header)}")
+
+            idx_name = header.index("NAME") if "NAME" in header else None
+            try:
+                idx_geo = [header.index(c) for c in geo_cols]
+            except ValueError as e:
+                raise RuntimeError(f"missing geo columns in response for {table_id}/{geo_level}: need {geo_cols}, got {header[-10:]}") from e
+
+            # Variables present in this chunk.
+            vars_chunk = [v for v in vars_e if v in header]
+            idx_vars = [header.index(v) for v in vars_chunk]
+
+            for row in rows[1:]:
+                key = tuple(str(row[i]) for i in idx_geo)
+                if key not in merged:
+                    merged[key] = {}
+                if idx_name is not None and key not in name_by_key:
+                    name_by_key[key] = str(row[idx_name])
+                for v, j in zip(vars_chunk, idx_vars, strict=False):
+                    merged[key][v] = str(row[j])
+
+        out_header = ["NAME"] + list(vars_e) + geo_cols
+        out_rows: list[list[str]] = [out_header]
+        for key in sorted(merged.keys()):
+            name = name_by_key.get(key, "")
+            vals = [merged[key].get(v, "") for v in vars_e]
+            out_rows.append([name] + vals + list(key))
+        return out_rows
+
     for table_id in tables:
         vars_e, vars_meta = _acs_select_estimate_variables(variables_all, table_id)
         if not vars_e:
             raise SystemExit(f"no estimate variables found for table {table_id} in {acs_year}/{dataset}")
 
         # Always include NAME; keep vars count under a conservative cap.
-        get_vars = ["NAME"] + vars_e
-        if len(get_vars) > 60:
-            raise SystemExit(
-                f"too many vars for {table_id} ({len(get_vars)}). "
-                "KISS: split table or implement chunking."
-            )
+        if max_get_vars <= 1:
+            raise SystemExit("--max_get_vars must be > 1")
+        chunk_size = max_get_vars - 1  # leave room for NAME
+        var_chunks = [vars_e[i : i + chunk_size] for i in range(0, len(vars_e), chunk_size)]
 
         # Write a small variable dictionary for this table (estimate only).
         var_dict_path = out_dir / f"acs5_{acs_year}_{table_id}_variables.csv"
@@ -443,21 +505,28 @@ def _cmd_acs(args: argparse.Namespace) -> None:
                     w.writerow([name, meta.get("label", ""), meta.get("concept", ""), meta.get("predicateType", "")])
 
         for geo_level in geo_levels:
-            rows = _acs_fetch(
-                year=acs_year,
-                dataset=dataset,
-                state_fips=state,
-                county_fips=county,
-                geo_level=geo_level,
-                get_vars=get_vars,
-                api_key=api_key,
-            )
             out_path = out_dir / f"acs5_{acs_year}_{table_id}_{geo_level}_state{state}_county{county}.csv.gz"
             if out_path.exists() and not args.overwrite:
                 print(f"[skip] exists: {out_path}", file=sys.stderr)
                 continue
 
-            _write_csv_gz(out_path, rows)
+            # Fetch in chunks if needed (some tables exceed the API cap).
+            chunks_rows: list[list[list[str]]] = []
+            for chunk in var_chunks:
+                get_vars = ["NAME"] + list(chunk)
+                rows = _acs_fetch(
+                    year=acs_year,
+                    dataset=dataset,
+                    state_fips=state,
+                    county_fips=county,
+                    geo_level=geo_level,
+                    get_vars=get_vars,
+                    api_key=api_key,
+                )
+                chunks_rows.append(rows)
+
+            merged_rows = _merge_rows_by_geo(geo_level=geo_level, chunks_rows=chunks_rows, table_id=table_id, vars_e=vars_e)
+            _write_csv_gz(out_path, merged_rows)
             _write_json(
                 out_dir / f"{out_path.name}.metadata.json",
                 {
@@ -468,7 +537,13 @@ def _cmd_acs(args: argparse.Namespace) -> None:
                     "geo_level": geo_level,
                     "statefp": state,
                     "countyfp": county,
-                    "n_vars": len(get_vars),
+                    "n_vars": 1 + len(vars_e),
+                    "chunking": {
+                        "enabled": bool(len(var_chunks) > 1),
+                        "max_get_vars": int(max_get_vars),
+                        "n_requests": int(len(var_chunks)),
+                        "vars_per_request_max": int(chunk_size),
+                    },
                     "download_utc": _utc_now_iso(),
                     "license": "Public domain (US Census ACS).",
                     "api_key_used": bool(api_key),
@@ -684,6 +759,11 @@ def main() -> None:
         help="Comma-separated: tract,bg",
     )
     p_acs.add_argument("--api_key", default=None, help="Census API key (or set env CENSUS_API_KEY).")
+    p_acs.add_argument(
+        "--max_get_vars",
+        default="60",
+        help="Max number of variables in a single Census API request (including NAME). If a table exceeds this, it will be chunked and merged by geo keys. Default: 60.",
+    )
     p_acs.set_defaults(func=_cmd_acs)
 
     p_pums = sub.add_parser("pums", help="Download ACS PUMS (MI state files).")
