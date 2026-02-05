@@ -403,18 +403,18 @@ def _parse_age_bounds(age_bins: list[str]) -> list[tuple[float, float]]:
     out: list[tuple[float, float]] = []
     for b in age_bins:
         s = str(b).strip().lower()
-        m = re.search(r"under\\s+(\\d+)", s)
+        m = re.search(r"under\s+(\d+)", s)
         if m:
             hi = float(int(m.group(1)))
             out.append((-math.inf, hi))
             continue
-        m = re.search(r"(\\d+)\\s+to\\s+(\\d+)", s)
+        m = re.search(r"(\d+)\s+to\s+(\d+)", s)
         if m:
             lo = float(int(m.group(1)))
             hi = float(int(m.group(2)) + 1)
             out.append((lo, hi))
             continue
-        m = re.search(r"(\\d+)\\s*(?:years?\\s*)?and\\s+over", s)
+        m = re.search(r"(\d+)\s*(?:years?\s*)?and\s+over", s)
         if m:
             lo = float(int(m.group(1)))
             out.append((lo, math.inf))
@@ -431,7 +431,7 @@ def _parse_income_edges(income_bins: list[str]) -> list[float]:
     uppers: list[float] = []
     for idx, b in enumerate(income_bins):
         s = str(b).strip().lower()
-        nums = [int(x.replace(",", "")) for x in re.findall(r"(\\d[\\d,]*)", s)]
+        nums = [int(x.replace(",", "")) for x in re.findall(r"(\d[\d,]*)", s)]
         if "less than" in s and nums:
             uppers.append(float(nums[0]))
             continue
