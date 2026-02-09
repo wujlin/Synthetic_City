@@ -199,9 +199,17 @@ def _acs_fetch(
 ) -> list[list[str]]:
     if geo_level == "tract":
         for_clause = "tract:*"
-        in_clause = f"state:{state_fips} county:{county_fips}"
+        county_fips = str(county_fips or "").strip()
+        if county_fips.lower() in {"", "all", "*"}:
+            # Statewide tract query: response still includes "county" and "tract".
+            in_clause = f"state:{state_fips}"
+        else:
+            in_clause = f"state:{state_fips} county:{county_fips}"
     elif geo_level == "bg":
         for_clause = "block group:*"
+        county_fips = str(county_fips or "").strip()
+        if county_fips.lower() in {"", "all", "*"}:
+            raise ValueError("bg geo_level requires a specific county_fips (statewide BG is too large).")
         in_clause = f"state:{state_fips} county:{county_fips} tract:*"
     else:
         raise ValueError(f"unsupported geo_level: {geo_level}")
@@ -403,8 +411,9 @@ def _cmd_acs(args: argparse.Namespace) -> None:
     out_root = pathlib.Path(args.out_root).resolve()
     acs_year = int(args.acs_year)
     dataset = "acs/acs5"
-    state = args.statefp
-    county = args.countyfp
+    state = str(args.statefp).zfill(2)
+    county_raw = str(args.countyfp).strip()
+    county = "all" if county_raw.lower() in {"", "all", "*"} else str(county_raw).zfill(3)
     api_key = args.api_key or os.environ.get("CENSUS_API_KEY")
     max_get_vars = int(getattr(args, "max_get_vars", 60))
     if max_get_vars < 10:
@@ -514,6 +523,9 @@ def _cmd_acs(args: argparse.Namespace) -> None:
                     w.writerow([name, meta.get("label", ""), meta.get("concept", ""), meta.get("predicateType", "")])
 
         for geo_level in geo_levels:
+            if geo_level == "bg" and county == "all":
+                raise SystemExit("--countyfp all is not supported for geo_level=bg (too large); pick a countyfp.")
+
             out_path = out_dir / f"acs5_{acs_year}_{table_id}_{geo_level}_state{state}_county{county}.csv.gz"
             if out_path.exists() and not args.overwrite:
                 print(f"[skip] exists: {out_path}", file=sys.stderr)
@@ -527,7 +539,7 @@ def _cmd_acs(args: argparse.Namespace) -> None:
                     year=acs_year,
                     dataset=dataset,
                     state_fips=state,
-                    county_fips=county,
+                    county_fips=("" if county == "all" else county),
                     geo_level=geo_level,
                     get_vars=get_vars,
                     api_key=api_key,
@@ -785,7 +797,7 @@ def main() -> None:
     _add_common_after(p_acs)
     p_acs.add_argument("--acs_year", default="2023", help="ACS end-year (e.g. 2023 for 2019-2023).")
     p_acs.add_argument("--statefp", default="26", help="State FIPS (MI=26).")
-    p_acs.add_argument("--countyfp", default="163", help="County FIPS (Wayne=163).")
+    p_acs.add_argument("--countyfp", default="163", help='County FIPS (Wayne=163). Use "all" for statewide tract downloads.')
     p_acs.add_argument(
         "--tables",
         default="B01001,B11016,B19001,B23025,B08301,B08303",
