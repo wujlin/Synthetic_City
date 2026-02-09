@@ -193,10 +193,41 @@ def build_bg_age_sex_counts(*, p12: Any) -> Any:
     if not isinstance(p12, pd.DataFrame):
         raise TypeError("p12 must be a pandas DataFrame")
 
-    needed_geo = ["state", "county", "tract", "block group"]
-    missing_geo = [c for c in needed_geo if c not in p12.columns]
-    if missing_geo:
-        raise ValueError(f"P12 missing geography columns: {missing_geo}. Expected Census API schema.")
+    cols = set(p12.columns.astype(str).tolist())
+
+    def _bg_geoid_from_frame(df: "Any") -> "Any":
+        # Preferred: explicit bg_geoid.
+        if "bg_geoid" in cols:
+            return df["bg_geoid"].astype(str)
+        # Common: GEOID / GEO_ID.
+        for c in ("GEOID", "GEOID20", "geoid"):
+            if c in cols:
+                s = df[c].astype(str).str.replace(r"[^0-9]", "", regex=True)
+                return s.str[-12:].astype(str)
+        if "GEO_ID" in cols:
+            s = df["GEO_ID"].astype(str)
+            s = s.str.replace("US", "", regex=False).str.replace(r"[^0-9]", "", regex=True)
+            return s.str[-12:].astype(str)
+
+        # Census API schema.
+        if {"state", "county", "tract", "block group"} <= cols:
+            state = df["state"].astype(str).str.zfill(2)
+            county = df["county"].astype(str).str.zfill(3)
+            tract = df["tract"].astype(str).str.zfill(6)
+            bg = df["block group"].astype(str).str.zfill(1)
+            return (state + county + tract + bg).astype(str)
+
+        # TIGER-like schema (rare in our pipeline but common in exports).
+        if {"STATEFP", "COUNTYFP", "TRACTCE", "BLKGRPCE"} <= cols:
+            state = df["STATEFP"].astype(str).str.zfill(2)
+            county = df["COUNTYFP"].astype(str).str.zfill(3)
+            tract = df["TRACTCE"].astype(str).str.zfill(6)
+            bg = df["BLKGRPCE"].astype(str).str.zfill(1)
+            return (state + county + tract + bg).astype(str)
+
+        raise ValueError(
+            "Cannot derive bg_geoid. Provide columns (bg_geoid) or (GEOID/GEO_ID) or Census API geo columns."
+        )
 
     var_map = _p12_var_map()
     vars_present = [v for v in var_map.keys() if v in p12.columns]
@@ -209,12 +240,7 @@ def build_bg_age_sex_counts(*, p12: Any) -> Any:
         df[v] = pd.to_numeric(df[v], errors="coerce").fillna(0.0).astype(int)
 
     # Build BG GEOID (12 digits): state(2)+county(3)+tract(6)+bg(1)
-    df["bg_geoid"] = (
-        df["state"].astype(str).str.zfill(2)
-        + df["county"].astype(str).str.zfill(3)
-        + df["tract"].astype(str).str.zfill(6)
-        + df["block group"].astype(str).str.zfill(1)
-    )
+    df["bg_geoid"] = _bg_geoid_from_frame(df)
 
     rows = []
     for v in vars_present:
@@ -413,4 +439,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
