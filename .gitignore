@@ -33,6 +33,10 @@ outputs/**/samples*.csv
 outputs/**/samples*.csv.gz
 outputs/**/samples*.npz
 
+# Base population artifacts can be very large (statewide BG-level counts / microdata)
+outputs/**/base_pop_*.parquet
+outputs/**/base_pop_*.csv.gz
+
 # --------
 # Python / Jupyter
 # --------

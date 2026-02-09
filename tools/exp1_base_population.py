@@ -9,6 +9,12 @@ Problem this answers:
 
 Design (KISS):
 - v0 implementation focuses on P12 (Sex by Age) and produces BG x (age_group, sex) counts exactly.
+- v0.1 adds BG-level race totals using DHC P5 (Hispanic or Latino Origin by Race) and builds a
+  BG-level (age, sex, race) count table that matches BOTH:
+    1) P12 age×sex counts (exact), and
+    2) P5 race totals (exact; Hispanic dimension optionally kept separate later).
+  Since DHC does not provide age×sex×race cross-tabs in this dataset, we infer the joint structure
+  via IPF initialized by a global seed from Michigan PUMS, then integerize with exact marginals.
 - Optional: download DHC tables via Census API (mode=fetch). Many environments will prefer manual
   download; mode=build works from local parquet/csv.
 - Output defaults to a compact counts table; microdata expansion is optional (can be very large).
@@ -32,6 +38,7 @@ import json
 import os
 import pathlib
 import sys
+import zipfile
 from typing import Any
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -53,6 +60,30 @@ def _utc_now_iso() -> str:
 def _write_json(path: pathlib.Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _write_table(df: Any, out_path: pathlib.Path) -> pathlib.Path:
+    """
+    Write a table with a parquet-first policy, but fall back to compressed CSV when parquet
+    engines (pyarrow/fastparquet) are unavailable. This keeps the script runnable in minimal envs.
+    """
+    pd = _require("pandas")
+
+    out_path = pathlib.Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.suffix.lower() == ".parquet":
+        try:
+            df.to_parquet(out_path, index=False)
+            return out_path
+        except ImportError:
+            # Fall back to CSV.GZ next to the parquet path.
+            out_csv = out_path.with_suffix(".csv.gz")
+            df.to_csv(out_csv, index=False, compression="gzip")
+            return out_csv
+    # For non-parquet paths, just write CSV (infer compression by suffix).
+    compression = "gzip" if out_path.name.endswith(".gz") else None
+    df.to_csv(out_path, index=False, compression=compression)
+    return out_path
 
 
 def _fetch_json(url: str, *, timeout_s: int = 60) -> Any:
@@ -180,6 +211,333 @@ def _p12_var_map() -> dict[str, tuple[int, int]]:
         var = f"P12_{(27 + k):03d}N"
         m[var] = (2, k)
     return m
+
+
+def _find_first_csv_in_zip(zip_path: pathlib.Path) -> str:
+    with zipfile.ZipFile(zip_path) as zf:
+        names = [n for n in zf.namelist() if n.lower().endswith(".csv")]
+        if not names:
+            raise RuntimeError(f"No .csv found inside: {zip_path}")
+        return names[0]
+
+
+def _resolve_pums_person_zip(*, data_root: pathlib.Path, pums_year: int, pums_period: str, statefp: str) -> pathlib.Path:
+    statefp = str(statefp).zfill(2)
+    state_postal_lower = "mi" if statefp == "26" else None
+    raw_dir = data_root / "detroit" / "raw" / "pums" / f"pums_{pums_year}_{pums_period}"
+    candidates: list[pathlib.Path] = [raw_dir / f"psam_p{statefp}.zip"]
+    if state_postal_lower is not None:
+        candidates.append(raw_dir / f"csv_p{state_postal_lower}i.zip")  # csv_pmi.zip
+        candidates.append(raw_dir / f"csv_p{state_postal_lower}.zip")
+    for p in candidates:
+        if p.exists():
+            return p
+    raise SystemExit(f"PUMS person zip not found. Tried: {candidates}")
+
+
+def _age_to_p12_idx(age: int) -> int:
+    # 23 bins (same semantics as DHC P12 / ACS B01001 23 age groups).
+    if age < 0:
+        age = 0
+    if age <= 4:
+        return 0
+    if age <= 9:
+        return 1
+    if age <= 14:
+        return 2
+    if age <= 17:
+        return 3
+    if age <= 19:
+        return 4
+    if age == 20:
+        return 5
+    if age == 21:
+        return 6
+    if age <= 24:
+        return 7
+    if age <= 29:
+        return 8
+    if age <= 34:
+        return 9
+    if age <= 39:
+        return 10
+    if age <= 44:
+        return 11
+    if age <= 49:
+        return 12
+    if age <= 54:
+        return 13
+    if age <= 59:
+        return 14
+    if age <= 61:
+        return 15
+    if age <= 64:
+        return 16
+    if age <= 66:
+        return 17
+    if age <= 69:
+        return 18
+    if age <= 74:
+        return 19
+    if age <= 79:
+        return 20
+    if age <= 84:
+        return 21
+    return 22
+
+
+def _rac1p_to_race7(code: int) -> int | None:
+    """
+    Map PUMS RAC1P (1..9) into DHC/P5 7-category race:
+      0 white, 1 black, 2 aian, 3 asian, 4 nhpi, 5 other, 6 two_or_more
+    """
+    try:
+        c = int(code)
+    except Exception:
+        return None
+    if c == 1:
+        return 0
+    if c == 2:
+        return 1
+    if c in (3, 4, 5):
+        return 2
+    if c == 6:
+        return 3
+    if c == 7:
+        return 4
+    if c == 8:
+        return 5
+    if c == 9:
+        return 6
+    return None
+
+
+def _p5_race7_totals(*, df: Any) -> Any:
+    """
+    Derive 7-category race totals from DHC P5 (Hispanic or Latino Origin by Race).
+    We collapse Hispanic dimension:
+      race_total = not_hisp_race + hisp_race
+    """
+    pd = _require("pandas")
+
+    need = [
+        "P5_003N",
+        "P5_004N",
+        "P5_005N",
+        "P5_006N",
+        "P5_007N",
+        "P5_008N",
+        "P5_009N",
+        "P5_011N",
+        "P5_012N",
+        "P5_013N",
+        "P5_014N",
+        "P5_015N",
+        "P5_016N",
+        "P5_017N",
+    ]
+    missing = [c for c in need if c not in df.columns]
+    if missing:
+        raise ValueError(f"P5 missing expected variables: {missing}")
+
+    for c in need:
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0.0).astype(int)
+
+    out = pd.DataFrame(
+        {
+            "race_white": df["P5_003N"] + df["P5_011N"],
+            "race_black": df["P5_004N"] + df["P5_012N"],
+            "race_aian": df["P5_005N"] + df["P5_013N"],
+            "race_asian": df["P5_006N"] + df["P5_014N"],
+            "race_nhpi": df["P5_007N"] + df["P5_015N"],
+            "race_other": df["P5_008N"] + df["P5_016N"],
+            "race_two_or_more": df["P5_009N"] + df["P5_017N"],
+        }
+    )
+    return out
+
+
+def _ipf_2d(*, seed_joint: Any, target_row: Any, target_col: Any, iters: int = 50, eps: float = 1e-12) -> Any:
+    """
+    2D IPF (raking) to match row/col marginals.
+    """
+    np = _require("numpy")
+
+    x = np.asarray(seed_joint, dtype=float).copy()
+    row = np.asarray(target_row, dtype=float)
+    col = np.asarray(target_col, dtype=float)
+    if row.size == 0 or col.size == 0:
+        raise ValueError("target marginals must be non-empty")
+    if x.shape != (row.size, col.size):
+        raise ValueError(f"seed_joint shape {x.shape} != ({row.size},{col.size})")
+
+    # Guard: avoid all-zeros rows/cols in seed.
+    x = np.clip(x, 0.0, None)
+    x = x + eps
+
+    for _ in range(int(iters)):
+        # row scaling
+        rs = x.sum(axis=1)
+        rf = row / np.maximum(rs, eps)
+        x *= rf.reshape(-1, 1)
+        # col scaling
+        cs = x.sum(axis=0)
+        cf = col / np.maximum(cs, eps)
+        x *= cf.reshape(1, -1)
+    return x
+
+
+class _MaxFlow:
+    def __init__(self, n: int) -> None:
+        self.n = int(n)
+        self.adj: list[list[int]] = [[] for _ in range(self.n)]
+        self.to: list[int] = []
+        self.cap: list[int] = []
+        self.rev: list[int] = []
+
+    def add_edge(self, u: int, v: int, c: int) -> None:
+        if c <= 0:
+            return
+        u = int(u)
+        v = int(v)
+        c = int(c)
+        fwd = len(self.to)
+        bwd = fwd + 1
+        self.to.append(v)
+        self.cap.append(c)
+        self.rev.append(bwd)
+        self.to.append(u)
+        self.cap.append(0)
+        self.rev.append(fwd)
+        self.adj[u].append(fwd)
+        self.adj[v].append(bwd)
+
+    def max_flow(self, s: int, t: int) -> int:
+        from collections import deque
+
+        flow = 0
+        s = int(s)
+        t = int(t)
+        while True:
+            parent = [-1] * self.n
+            parent_edge = [-1] * self.n
+            q: deque[int] = deque([s])
+            parent[s] = s
+            while q and parent[t] == -1:
+                u = q.popleft()
+                for ei in self.adj[u]:
+                    if self.cap[ei] <= 0:
+                        continue
+                    v = self.to[ei]
+                    if parent[v] != -1:
+                        continue
+                    parent[v] = u
+                    parent_edge[v] = ei
+                    q.append(v)
+            if parent[t] == -1:
+                break
+            # augment 1 unit at a time (capacities are small)
+            aug = 10**9
+            v = t
+            while v != s:
+                ei = parent_edge[v]
+                aug = min(aug, self.cap[ei])
+                v = parent[v]
+            v = t
+            while v != s:
+                ei = parent_edge[v]
+                self.cap[ei] -= aug
+                self.cap[self.rev[ei]] += aug
+                v = parent[v]
+            flow += aug
+        return int(flow)
+
+
+def _integerize_2d(*, x: Any, row_targets: Any, col_targets: Any) -> Any:
+    """
+    Integerize a non-negative matrix with fixed integer row/col sums:
+    - Start with floor(x)
+    - Add 1s according to residuals using a small max-flow on cells with positive fractional parts.
+    """
+    np = _require("numpy")
+
+    x = np.asarray(x, dtype=float)
+    row = np.asarray(row_targets, dtype=int)
+    col = np.asarray(col_targets, dtype=int)
+    if x.shape != (row.size, col.size):
+        raise ValueError("shape mismatch in integerize")
+    if row.sum() != col.sum():
+        raise ValueError("row/col totals mismatch")
+
+    base = np.floor(x).astype(int)
+    # Fix any tiny negative due to numeric noise.
+    base = np.clip(base, 0, None)
+
+    row_res = row - base.sum(axis=1)
+    col_res = col - base.sum(axis=0)
+    if (row_res < 0).any() or (col_res < 0).any():
+        # This can happen if x has large values and floor overshoots due to invalid targets; treat as error.
+        raise RuntimeError("Negative residuals in integerize (check IPF output/targets).")
+    need = int(row_res.sum())
+    if need == 0:
+        return base
+
+    frac = x - np.floor(x)
+    R, C = base.shape
+    s = 0
+    row0 = 1
+    col0 = row0 + R
+    t = col0 + C
+    g = _MaxFlow(t + 1)
+    for i in range(R):
+        g.add_edge(s, row0 + i, int(row_res[i]))
+    for j in range(C):
+        g.add_edge(col0 + j, t, int(col_res[j]))
+
+    # Prefer edges with positive fractional part; order columns by frac desc.
+    for i in range(R):
+        cols = list(range(C))
+        cols.sort(key=lambda j: float(frac[i, j]), reverse=True)
+        for j in cols:
+            if frac[i, j] > 0.0:
+                g.add_edge(row0 + i, col0 + j, 1)
+
+    got = g.max_flow(s, t)
+    if got != need:
+        # Fallback: allow all edges.
+        g = _MaxFlow(t + 1)
+        for i in range(R):
+            g.add_edge(s, row0 + i, int(row_res[i]))
+        for j in range(C):
+            g.add_edge(col0 + j, t, int(col_res[j]))
+        for i in range(R):
+            for j in range(C):
+                g.add_edge(row0 + i, col0 + j, 1)
+        got = g.max_flow(s, t)
+        if got != need:
+            raise RuntimeError(f"Integerize failed: need={need} got={got}")
+
+    # Decode flow: look at reverse capacities from col->row edges.
+    # In our edge structure, added edges are row->col with cap reduced; reverse edge has cap==1 for used.
+    # We'll detect used by scanning adjacency from row nodes to col nodes.
+    for i in range(R):
+        u = row0 + i
+        for ei in g.adj[u]:
+            v = g.to[ei]
+            if v < col0 or v >= col0 + C:
+                continue
+            # reverse edge capacity >0 means flow was sent on u->v
+            rev_ei = g.rev[ei]
+            if g.cap[rev_ei] > 0:
+                j = v - col0
+                base[i, j] += 1
+
+    # Final asserts
+    if not (base.sum(axis=1) == row).all():
+        raise RuntimeError("Row sums mismatch after integerize.")
+    if not (base.sum(axis=0) == col).all():
+        raise RuntimeError("Col sums mismatch after integerize.")
+    return base
 
 
 def build_bg_age_sex_counts(*, p12: Any) -> Any:
@@ -310,6 +668,65 @@ def _internal_validate_p12(*, counts_long: Any, p12: Any) -> dict[str, Any]:
     }
 
 
+def _compute_seed_age_sex_race(*, pums_person_zip: pathlib.Path, n_rows: int | None = None) -> tuple[Any, dict[str, Any]]:
+    """
+    Compute a global seed joint for (sex×age_idx) x race7 from Michigan PUMS.
+    Returns:
+      seed_prob: (46, 7) with sum=1
+      meta: mapping info + totals
+    """
+    pd = _require("pandas")
+    np = _require("numpy")
+
+    member = _find_first_csv_in_zip(pums_person_zip)
+    usecols = ["AGEP", "SEX", "RAC1P", "PWGTP"]
+    with zipfile.ZipFile(pums_person_zip) as zf, zf.open(member) as f:
+        df = pd.read_csv(f, nrows=n_rows, usecols=lambda c: c in set(usecols), low_memory=False)
+    missing = [c for c in usecols if c not in df.columns]
+    if missing:
+        raise RuntimeError(f"PUMS missing required cols: {missing} (zip={pums_person_zip} member={member})")
+
+    w = pd.to_numeric(df["PWGTP"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(dtype=float)
+    age = pd.to_numeric(df["AGEP"], errors="coerce").fillna(0.0).clip(lower=0.0, upper=99.0).to_numpy(dtype=int)
+    sex = pd.to_numeric(df["SEX"], errors="coerce").fillna(1).astype(int).clip(lower=1, upper=2).to_numpy(dtype=int)
+    rac = pd.to_numeric(df["RAC1P"], errors="coerce").fillna(-1).astype(int).to_numpy(dtype=int)
+
+    age_idx = np.vectorize(_age_to_p12_idx, otypes=[int])(age)
+    race7 = np.array([_rac1p_to_race7(int(c)) if int(c) >= 0 else None for c in rac], dtype=object)
+
+    mask = (w > 0) & (race7 != np.array(None))
+    # race7 is object array; build numeric
+    race7_num = np.full(rac.shape[0], -1, dtype=int)
+    for i, v in enumerate(race7.tolist()):
+        if v is None:
+            continue
+        race7_num[i] = int(v)
+    mask = (w > 0) & (race7_num >= 0)
+
+    w = w[mask]
+    sex = sex[mask]
+    age_idx = age_idx[mask]
+    race7_num = race7_num[mask]
+
+    seed = np.zeros((46, 7), dtype=float)
+    # rows: male age_idx (0..22) then female (23..45)
+    row_idx = (sex - 1) * 23 + age_idx
+    for r, c, ww in zip(row_idx.tolist(), race7_num.tolist(), w.tolist()):
+        seed[int(r), int(c)] += float(ww)
+    tot = float(seed.sum())
+    if tot <= 0:
+        raise RuntimeError("PUMS seed has zero total weight (unexpected).")
+    seed_prob = seed / tot
+    meta = {
+        "pums_person_zip": str(pums_person_zip),
+        "member": str(member),
+        "n_rows_used": int(len(w)),
+        "race7_labels": ["white", "black", "aian", "asian", "nhpi", "other", "two_or_more"],
+        "total_weight": float(tot),
+    }
+    return seed_prob, meta
+
+
 def main() -> None:
     pd = _require("pandas")
 
@@ -331,6 +748,17 @@ def main() -> None:
 
     # build options
     p.add_argument("--p12_path", default=None, help="Path to DHC P12 file (parquet/csv) for build mode.")
+    p.add_argument(
+        "--dhc_bg_path",
+        default=None,
+        help="Path to combined DHC BG file that includes P12 (+ optional P5). If set, overrides --p12_path.",
+    )
+    p.add_argument("--include_race", action="store_true", help="Also build BG×age×sex×race counts using P5 + IPF.")
+    p.add_argument("--pums_person_zip", default=None, help="PUMS person zip for seed joint (recommended for --include_race).")
+    p.add_argument("--pums_year", type=int, default=2022)
+    p.add_argument("--pums_period", default="5-Year")
+    p.add_argument("--ipf_iters", type=int, default=50)
+    p.add_argument("--max_bgs", type=int, default=None, help="Optional cap of BG rows for a quick smoke run.")
     p.add_argument("--counts_only", action="store_true", help="Only write BG×age×sex counts (default).")
     p.add_argument("--expand_microdata", action="store_true", help="Expand to per-person rows (can be huge).")
     p.add_argument("--max_persons", type=int, default=None, help="Optional cap when expanding microdata (debug).")
@@ -380,7 +808,11 @@ def main() -> None:
         return
 
     # --- build mode ---
-    if not args.p12_path:
+    if args.dhc_bg_path:
+        p12_path = pathlib.Path(args.dhc_bg_path).expanduser().resolve()
+        if not p12_path.exists():
+            raise SystemExit(f"DHC BG file not found: {p12_path}")
+    elif not args.p12_path:
         # default location produced by mode=fetch
         default_p12 = data_root / "detroit" / "raw" / "census" / "dhc_2020" / f"dhc_2020_P12_bg_state{str(args.statefp).zfill(2)}.parquet"
         if default_p12.exists():
@@ -398,17 +830,147 @@ def main() -> None:
     else:
         p12 = pd.read_csv(p12_path, low_memory=False)
 
-    counts_long = build_bg_age_sex_counts(p12=p12)
+    if args.max_bgs is not None:
+        p12 = p12.head(int(args.max_bgs)).copy()
 
-    # Write counts (parquet preferred; but parquet is ignored by git by default).
-    out_counts = out_dir / "base_pop_bg_age_sex_counts.parquet"
-    counts_long.to_parquet(out_counts, index=False)
-    print(f"[ok] wrote: {out_counts}")
+    if not args.include_race:
+        counts_long = build_bg_age_sex_counts(p12=p12)
 
-    internal_validation = {"p12_exactness": _internal_validate_p12(counts_long=counts_long, p12=p12)}
-    _write_json(out_dir / "internal_validation.json", internal_validation)
+        # Write counts (parquet preferred; may fall back to csv.gz if parquet engine missing).
+        out_counts = _write_table(counts_long, out_dir / "base_pop_bg_age_sex_counts.parquet")
+        print(f"[ok] wrote: {out_counts}")
+
+        internal_validation = {"p12_exactness": _internal_validate_p12(counts_long=counts_long, p12=p12)}
+        _write_json(out_dir / "internal_validation.json", internal_validation)
+    else:
+        np = _require("numpy")
+
+        # Ensure required columns exist.
+        var_map = _p12_var_map()
+        for v in var_map:
+            if v not in p12.columns:
+                raise SystemExit(f"Missing P12 var {v} in DHC file (need full P12_003N..P12_049N).")
+        race_totals_df = _p5_race7_totals(df=p12)
+
+        # Build BG GEOID and numeric arrays.
+        p12 = p12.copy()
+        p12["bg_geoid"] = (
+            p12["state"].astype(str).str.zfill(2)
+            + p12["county"].astype(str).str.zfill(3)
+            + p12["tract"].astype(str).str.zfill(6)
+            + p12["block group"].astype(str).str.zfill(1)
+        )
+        # row targets: 46 = male(23) + female(23)
+        male_vars = [f"P12_{(3 + k):03d}N" for k in range(23)]
+        fem_vars = [f"P12_{(27 + k):03d}N" for k in range(23)]
+        for c in male_vars + fem_vars:
+            p12[c] = pd.to_numeric(p12[c], errors="coerce").fillna(0.0).astype(int)
+        rows46 = np.concatenate([p12[male_vars].to_numpy(dtype=int), p12[fem_vars].to_numpy(dtype=int)], axis=1)
+        race7 = race_totals_df.to_numpy(dtype=int)  # (N,7)
+
+        # Seed joint from PUMS (recommended).
+        seed_meta: dict[str, Any] = {"used": False}
+        seed_prob = None
+        try:
+            if args.pums_person_zip:
+                pums_zip = pathlib.Path(args.pums_person_zip).expanduser().resolve()
+            else:
+                pums_zip = _resolve_pums_person_zip(
+                    data_root=data_root,
+                    pums_year=int(args.pums_year),
+                    pums_period=str(args.pums_period),
+                    statefp=str(args.statefp),
+                )
+            seed_prob, seed_meta2 = _compute_seed_age_sex_race(pums_person_zip=pums_zip, n_rows=None)
+            seed_meta = {"used": True, "meta": seed_meta2}
+        except Exception as e:
+            seed_meta = {"used": False, "error": str(e), "fallback": "independence_seed_from_DHC_marginals"}
+
+        # Independence fallback seed if PUMS is unavailable.
+        if seed_prob is None:
+            row_global = rows46.sum(axis=0).astype(float)
+            col_global = race7.sum(axis=0).astype(float)
+            if row_global.sum() <= 0 or col_global.sum() <= 0:
+                raise SystemExit("Cannot build fallback seed: DHC totals are zero.")
+            seed_prob = (row_global / row_global.sum()).reshape(-1, 1) * (col_global / col_global.sum()).reshape(1, -1)
+            seed_prob = seed_prob / float(seed_prob.sum())
+
+        # Build per-BG tables.
+        race_labels = ["white", "black", "aian", "asian", "nhpi", "other", "two_or_more"]
+        bg_ids = p12["bg_geoid"].astype(str).to_numpy()
+
+        bg_col: list[str] = []
+        sex_col: list[int] = []
+        age_col: list[int] = []
+        race_col: list[str] = []
+        cnt_col: list[int] = []
+
+        max_p12_abs = 0
+        max_race_abs = 0
+        worst_p12 = None
+        worst_race = None
+        n_bg = int(bg_ids.shape[0])
+
+        for i in range(n_bg):
+            bg = str(bg_ids[i])
+            row_t = rows46[i, :].astype(int)
+            col_t = race7[i, :].astype(int)
+            total = int(row_t.sum())
+            if total <= 0:
+                continue
+            if int(col_t.sum()) != total:
+                # DHC should be consistent; but guard and continue.
+                continue
+
+            seed_joint = seed_prob * float(total)
+            x = _ipf_2d(seed_joint=seed_joint, target_row=row_t, target_col=col_t, iters=int(args.ipf_iters))
+            x_int = _integerize_2d(x=x, row_targets=row_t, col_targets=col_t)
+
+            # internal diffs (should be 0)
+            d_p12 = int(np.abs(x_int.sum(axis=1) - row_t).max())
+            d_r = int(np.abs(x_int.sum(axis=0) - col_t).max())
+            if d_p12 > max_p12_abs:
+                max_p12_abs = d_p12
+                worst_p12 = {"bg_geoid": bg}
+            if d_r > max_race_abs:
+                max_race_abs = d_r
+                worst_race = {"bg_geoid": bg}
+
+            nz = np.nonzero(x_int)
+            rr = nz[0].tolist()
+            cc = nz[1].tolist()
+            vv = x_int[nz].astype(int).tolist()
+            for r, c, v in zip(rr, cc, vv):
+                if v <= 0:
+                    continue
+                sex = 1 if int(r) < 23 else 2
+                age_idx = int(r) % 23
+                bg_col.append(bg)
+                sex_col.append(int(sex))
+                age_col.append(int(age_idx))
+                race_col.append(str(race_labels[int(c)]))
+                cnt_col.append(int(v))
+
+        out = pd.DataFrame({"bg_geoid": bg_col, "sex": sex_col, "age_idx": age_col, "race": race_col, "count": cnt_col})
+        out = out[out["count"] > 0].reset_index(drop=True)
+
+        out_counts = _write_table(out, out_dir / "base_pop_bg_age_sex_race_counts.parquet")
+        print(f"[ok] wrote: {out_counts}")
+
+        _write_json(
+            out_dir / "internal_validation.json",
+            {
+                "p12_exactness": {"max_abs_diff": int(max_p12_abs), "worst": worst_p12},
+                "race_exactness": {"max_abs_diff": int(max_race_abs), "worst": worst_race},
+                "seed": seed_meta,
+                "race_labels": race_labels,
+                "note": "Counts match DHC P12 (age×sex) and P5-derived race totals exactly; joint is inferred via IPF seed + integerization.",
+            },
+        )
 
     if args.expand_microdata:
+        if args.include_race:
+            raise SystemExit("--expand_microdata is not supported with --include_race in v0.1; use counts and sample later.")
         np = _require("numpy")
         # Expand counts into per-person rows. This can be very large for a full state.
         rows = []
@@ -432,8 +994,7 @@ def main() -> None:
                 )
             )
         micro = pd.concat(rows, ignore_index=True) if rows else pd.DataFrame(columns=["bg_geoid", "sex", "age_idx"])
-        out_micro = out_dir / "base_pop_bg_age_sex_microdata.parquet"
-        micro.to_parquet(out_micro, index=False)
+        out_micro = _write_table(micro, out_dir / "base_pop_bg_age_sex_microdata.parquet")
         print(f"[ok] wrote: {out_micro} (n={int(micro.shape[0])})")
 
 

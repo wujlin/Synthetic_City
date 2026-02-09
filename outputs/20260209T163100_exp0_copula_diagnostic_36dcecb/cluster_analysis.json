@@ -1,0 +1,21 @@
+{
+  "n_clusters": 5,
+  "cluster_sizes": {
+    "0": 14,
+    "1": 14,
+    "2": 13,
+    "3": 14,
+    "4": 14
+  },
+  "intra_tvd": {
+    "n": 664,
+    "mean": 0.18825485019176144,
+    "p90": 0.23548236545451784
+  },
+  "inter_tvd": {
+    "n": 2786,
+    "mean": 0.19423038760431444,
+    "p90": 0.2544618254678168
+  },
+  "note": "Clusters are income-quantile bins (no sklearn). If inter>>intra, features may predict copula variation."
+}

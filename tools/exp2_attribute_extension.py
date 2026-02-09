@@ -17,7 +17,8 @@ Design choices (KISS, aligned with repo constraints):
 - Use the existing Gaussian DDPM (DiffusionTabularModel) on a continuous vector:
     x = [income_z] + onehot(SCHL) + onehot(ESR)
   Conditioning is concatenated (demo-only) to keep implementation minimal.
-- Race/Hispanic conditioning is supported if columns exist, but is optional.
+- Race conditioning is supported if columns exist, but is optional.
+- Optional PUMA-level context features (computed from PUMS itself) can be concatenated to condition.
 - Checkpoints are written but ignored by git via .gitignore.
 
 Outputs:
@@ -228,7 +229,67 @@ class _Encoder:
     esr_cats: list[str]
 
 
-def _encode_condition(*, df: Any, use_race: bool) -> tuple[Any, Any, _Encoder]:
+def _build_puma_stats(*, df: Any, puma_col: str, wcol: str) -> tuple[dict[str, "Any"], list[str]]:
+    """
+    Build lightweight PUMA context features from PUMS itself.
+    These are intended to be available at inference time via external aggregates (ACS etc.).
+    """
+    pd = _require("pandas")
+    np = _require("numpy")
+
+    d = df[[puma_col, wcol, "AGEP", "PINCP"]].copy()
+    d[puma_col] = d[puma_col].astype(str)
+    d[wcol] = pd.to_numeric(d[wcol], errors="coerce").fillna(0.0).clip(lower=0.0)
+    d["AGEP"] = pd.to_numeric(d["AGEP"], errors="coerce").fillna(0.0).clip(lower=0.0, upper=99.0)
+    d["PINCP"] = pd.to_numeric(d["PINCP"], errors="coerce").fillna(0.0).clip(lower=0.0)
+    d["PINCP_log"] = np.log1p(d["PINCP"].to_numpy(dtype=np.float32))
+
+    def _wmean(x: "Any", w: "Any") -> float:
+        x = np.asarray(x, dtype=float)
+        w = np.asarray(w, dtype=float)
+        s = float(w.sum())
+        if s <= 0:
+            return float("nan")
+        return float((x * w).sum() / s)
+
+    rows = []
+    for puma, g in d.groupby(puma_col, sort=False):
+        w = g[wcol].to_numpy(dtype=float)
+        age = g["AGEP"].to_numpy(dtype=float)
+        inc = g["PINCP_log"].to_numpy(dtype=float)
+        pop = float(w.sum())
+        rows.append(
+            {
+                "puma": str(puma),
+                "pop_log": float(np.log(max(pop, 1.0))),
+                "mean_age": _wmean(age, w),
+                "mean_income_log": _wmean(inc, w),
+                "pct_child": float(w[age < 18].sum() / max(pop, 1e-9)),
+                "pct_elderly": float(w[age >= 65].sum() / max(pop, 1e-9)),
+            }
+        )
+    feat = pd.DataFrame(rows)
+    cols = ["pop_log", "mean_age", "mean_income_log", "pct_child", "pct_elderly"]
+    # z-score across PUMAs
+    mu = feat[cols].mean(axis=0, numeric_only=True)
+    sd = feat[cols].std(axis=0, ddof=0, numeric_only=True).replace(0.0, 1.0)
+    feat_z = (feat[cols] - mu) / sd
+    out: dict[str, Any] = {}
+    for i, r in feat.iterrows():
+        out[str(r["puma"])] = feat_z.iloc[i].to_numpy(dtype=np.float32)
+    return out, [f"puma_{c}_z" for c in cols]
+
+
+def _encode_condition(
+    *,
+    df: Any,
+    puma_col: str,
+    use_race: bool,
+    use_puma_stats: bool,
+    puma_stats: dict[str, "Any"] | None,
+    puma_stat_cols: list[str] | None,
+    race_cats_global: list[int] | None,
+) -> tuple[Any, Any, _Encoder]:
     pd = _require("pandas")
     np = _require("numpy")
 
@@ -245,18 +306,30 @@ def _encode_condition(*, df: Any, use_race: bool) -> tuple[Any, Any, _Encoder]:
     race_cats: list[str] | None = None
     if use_race:
         race = pd.to_numeric(df.get("RAC1P"), errors="coerce").fillna(-1).astype(int)
-        # Keep only non-missing races; missing rows are dropped for simplicity.
-        mask = race >= 0
+        if not race_cats_global:
+            raise RuntimeError("use_race requested but race_cats_global is None/empty")
+        race_cat = pd.Categorical(race, categories=race_cats_global, ordered=False)
+        # Keep only known races (codes >=0)
+        mask = race_cat.codes >= 0
         if not bool(mask.all()):
             df = df.loc[mask].copy()
             age_oh = age_oh[mask.to_numpy(dtype=bool)]
             sex_oh = sex_oh[mask.to_numpy(dtype=bool)]
             cond_parts = [age_oh, sex_oh]
-        race_cat = pd.Categorical(race.loc[mask])
         race_cats = [str(x) for x in race_cat.categories.tolist()]
-        race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes]
+        race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes[mask.to_numpy(dtype=bool)]]
         cond_parts.append(race_oh)
         cond_cols += [f"race_{c}" for c in race_cats]
+
+    if use_puma_stats:
+        if puma_stats is None or puma_stat_cols is None:
+            raise RuntimeError("use_puma_stats requested but puma_stats/puma_stat_cols is None")
+        p = df[puma_col].astype(str).to_numpy()
+        stats = np.stack([np.asarray(puma_stats.get(str(x)), dtype=np.float32) for x in p], axis=0)
+        if stats.ndim != 2:
+            raise RuntimeError("Invalid puma stats shape")
+        cond_parts.append(stats.astype(np.float32))
+        cond_cols += list(puma_stat_cols)
 
     cond = np.concatenate(cond_parts, axis=1).astype(np.float32)
     enc = _Encoder(
@@ -396,7 +469,11 @@ def main() -> None:
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
     ap.add_argument("--n_rows", type=int, default=None, help="Optional cap for faster iteration.")
-    ap.add_argument("--conditions", default="demo_only", help='Comma-separated: demo_only, demo_race (v0).')
+    ap.add_argument(
+        "--conditions",
+        default="demo_only",
+        help='Comma-separated condition sets: demo_only, demo_race, demo_puma, demo_race_puma (v0.1).',
+    )
     ap.add_argument("--n_folds", type=int, default=5)
     ap.add_argument("--fold_split", choices=["hash"], default="hash")
     ap.add_argument("--timesteps", type=int, default=200)
@@ -438,11 +515,20 @@ def main() -> None:
     )
     member = _find_first_csv_in_zip(person_zip)
 
-    usecols = ["PUMA", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR", "RAC1P"]
+    usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR", "RAC1P"]
     with zipfile.ZipFile(person_zip) as zf, zf.open(member) as f:
         df = pd.read_csv(f, nrows=args.n_rows, usecols=lambda c: c in set(usecols), low_memory=False)
 
-    missing = [c for c in ["PUMA", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR"] if c not in df.columns]
+    # Prefer PUMA20 (PUMS 2022+); fall back to legacy PUMA if present.
+    if "PUMA" in df.columns:
+        puma_col = "PUMA"
+    elif "PUMA20" in df.columns:
+        puma_col = "PUMA20"
+        df["PUMA"] = df["PUMA20"]
+    else:
+        raise SystemExit(f"PUMS missing PUMA columns (need PUMA or PUMA20) (zip={person_zip} member={member})")
+
+    missing = [c for c in ["PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR"] if c not in df.columns]
     if missing:
         raise SystemExit(f"PUMS missing required cols: {missing} (zip={person_zip} member={member})")
 
@@ -467,9 +553,19 @@ def main() -> None:
     conditions = [c.strip() for c in str(args.conditions).split(",") if c.strip()]
     hidden_dims = tuple(int(x) for x in str(args.hidden_dims).split(",") if x.strip())
 
+    # Global race categories for stable one-hot across folds.
+    race_cats_global: list[int] | None = None
+    if "RAC1P" in df.columns:
+        rc = sorted({int(x) for x in df["RAC1P"].to_numpy(dtype=int).tolist() if int(x) >= 0})
+        race_cats_global = rc if rc else None
+
+    # PUMA stats for "puma" conditions.
+    puma_stats, puma_stat_cols = _build_puma_stats(df=df, puma_col="PUMA", wcol="PWGTP")
+
     metrics_by_condition: dict[str, Any] = {}
     for cond_id in conditions:
-        use_race = cond_id in {"demo_race", "demo+race", "demo_race_only"}
+        use_race = "race" in cond_id
+        use_puma_stats = "puma" in cond_id
         cond_root = out_dir / cond_id
         cond_root.mkdir(parents=True, exist_ok=True)
 
@@ -480,7 +576,15 @@ def main() -> None:
             test_df = df[df["PUMA"].isin(test_pumas)].copy()
 
             # Encode condition & targets on train.
-            train_df2, cond_train, enc_cond = _encode_condition(df=train_df, use_race=use_race)
+            train_df2, cond_train, enc_cond = _encode_condition(
+                df=train_df,
+                puma_col="PUMA",
+                use_race=use_race,
+                use_puma_stats=use_puma_stats,
+                puma_stats=puma_stats,
+                puma_stat_cols=puma_stat_cols,
+                race_cats_global=race_cats_global,
+            )
             x_train, enc_target, decode_meta = _encode_targets(df=train_df2)
             # Patch encoder with condition info.
             enc = _Encoder(
@@ -520,7 +624,15 @@ def main() -> None:
             _write_json(fold_dir / "train_summary.json", train_summary)
 
             # --- Evaluate on test rows (paired generation: keep conditions from test_df) ---
-            test_df2, cond_test, _ = _encode_condition(df=test_df, use_race=use_race)
+            test_df2, cond_test, _ = _encode_condition(
+                df=test_df,
+                puma_col="PUMA",
+                use_race=use_race,
+                use_puma_stats=use_puma_stats,
+                puma_stats=puma_stats,
+                puma_stat_cols=puma_stat_cols,
+                race_cats_global=race_cats_global,
+            )
             n_test = int(test_df2.shape[0])
             if n_test == 0:
                 by_fold_metrics[str(fold)] = {"note": "empty test fold", "n_test": 0}
