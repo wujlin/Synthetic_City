@@ -310,14 +310,15 @@ def _encode_condition(
             raise RuntimeError("use_race requested but race_cats_global is None/empty")
         race_cat = pd.Categorical(race, categories=race_cats_global, ordered=False)
         # Keep only known races (codes >=0)
-        mask = race_cat.codes >= 0
-        if not bool(mask.all()):
-            df = df.loc[mask].copy()
-            age_oh = age_oh[mask.to_numpy(dtype=bool)]
-            sex_oh = sex_oh[mask.to_numpy(dtype=bool)]
+        mask = (race_cat.codes >= 0)
+        mask_np = np.asarray(mask, dtype=bool)
+        if not bool(mask_np.all()):
+            df = df.loc[mask_np].copy()
+            age_oh = age_oh[mask_np]
+            sex_oh = sex_oh[mask_np]
             cond_parts = [age_oh, sex_oh]
         race_cats = [str(x) for x in race_cat.categories.tolist()]
-        race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes[mask.to_numpy(dtype=bool)]]
+        race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes[mask_np]]
         cond_parts.append(race_oh)
         cond_cols += [f"race_{c}" for c in race_cats]
 
