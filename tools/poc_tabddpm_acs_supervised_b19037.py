@@ -628,6 +628,9 @@ def _targets_by_tract(df: Any, *, tracts: set[str], schema: dict[str, Any]) -> d
                 continue
             counts[int(i), int(j)] = float(getattr(r, var))
         total = float(counts.sum())
+        if total <= 0:
+            # Skip empty tracts to avoid undefined marginals (and IPF failures).
+            continue
         denom = total if total > 0 else 1.0
         p_joint = (counts.reshape(-1) / denom).astype(float)
         p_age = (counts.sum(axis=1) / denom).astype(float)
@@ -710,9 +713,6 @@ def main() -> None:
     exclude_pumas = {p for p in exclude_pumas if p and p.lower() not in {"nan", "none"}}
 
     study_tracts = {tg for tg, pu in tract_to_puma.items() if str(pu) not in exclude_pumas}
-    study_pumas = sorted({str(pu) for tg, pu in tract_to_puma.items() if tg in study_tracts})
-    if len(study_pumas) < 2:
-        raise SystemExit(f"Too few study PUMAs inferred from buildings_csv: {study_pumas}")
 
     schema = _parse_b19037_schema(variables_csv=vars_path)
     age_bins = list(schema["age_bins"])
@@ -723,6 +723,14 @@ def main() -> None:
 
     df = _read_acs(acs_path, table_id="B19037")
     targets_by_tract = _targets_by_tract(df, tracts=study_tracts, schema=schema)
+    valid_tracts = set(map(str, targets_by_tract.keys()))
+    dropped_tracts = sorted(set(map(str, study_tracts)) - valid_tracts)
+    if dropped_tracts:
+        print(f"[warn] dropped {len(dropped_tracts)} tracts with empty B19037 totals (total_households==0).", file=sys.stderr)
+    study_tracts = valid_tracts
+    study_pumas = sorted({str(tract_to_puma.get(tg)) for tg in study_tracts if tract_to_puma.get(tg) is not None})
+    if len(study_pumas) < 2:
+        raise SystemExit(f"Too few study PUMAs after filtering empty tracts: {study_pumas}")
 
     cond_list = [c.strip() for c in str(args.conditions).split(",") if c.strip()]
     unknown = [c for c in cond_list if c not in {"none", "marginal"}]
@@ -750,6 +758,7 @@ def main() -> None:
         "buildings_csv": str(buildings_csv),
         "study_pumas": study_pumas,
         "n_tracts": int(len(study_tracts)),
+        "dropped_empty_tracts": {"count": int(len(dropped_tracts)), "tract_geoids": dropped_tracts[:50]},
         "puma_blocks": blocks,
         "conditions": cond_list,
         "x_model": "joint_tabddpm_logp",
@@ -845,6 +854,8 @@ def main() -> None:
             p_age = np.asarray(t["p_age"], dtype=float)
             p_inc = np.asarray(t["p_income"], dtype=float)
             p_true = np.asarray(t["p_joint"], dtype=float)
+            if float(p_age.sum()) <= 0 or float(p_inc.sum()) <= 0:
+                continue
 
             p_ind = _outer_from_marginals(p_row=p_age, p_col=p_inc)
             p_ipf = _ipf_2d(seed_joint=seed_p, target_row=p_age, target_col=p_inc)
