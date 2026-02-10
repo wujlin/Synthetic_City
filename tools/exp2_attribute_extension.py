@@ -546,7 +546,7 @@ def main() -> None:
 
     # Filter invalid PUMA codes before sampling (PUMS uses -9 for NIU/invalid in some extracts).
     puma_num = pd.to_numeric(df["PUMA"], errors="coerce")
-    df = df[puma_num.notna() & (puma_num.astype(int) != -9)].copy()
+    df = df[puma_num.notna() & (puma_num != -9)].copy()
 
     # Clean.
     df["PUMA"] = df["PUMA"].astype(str)
