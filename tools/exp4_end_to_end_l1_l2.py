@@ -23,6 +23,7 @@ import math
 import os
 import pathlib
 import random
+import re
 import sys
 import zipfile
 from typing import Any
@@ -68,6 +69,56 @@ def _resolve_pums_person_zip(*, data_root: pathlib.Path, pums_year: int, pums_pe
         if p.exists():
             return p
     raise SystemExit(f"PUMS person zip not found. Tried: {candidates}")
+
+
+def _pick_latest_tiger_zip(cands: list[pathlib.Path]) -> pathlib.Path | None:
+    """
+    Pick the latest-year TIGER zip among candidates like tl_2023_26_bg.zip.
+    Falls back to lexicographic order if year cannot be parsed.
+    """
+    if not cands:
+        return None
+
+    def _key(p: pathlib.Path) -> tuple[int, str]:
+        m = re.match(r"tl_(\d{4})_", p.name)
+        year = int(m.group(1)) if m else -1
+        return (year, p.name)
+
+    return sorted(cands, key=_key, reverse=True)[0]
+
+
+def _auto_find_tiger_zips(
+    *, data_root: pathlib.Path, statefp: str
+) -> tuple[pathlib.Path | None, pathlib.Path | None, dict[str, list[str]]]:
+    """
+    Try to locate TIGER BG + PUMA20 zip files under common data_root layouts.
+    Returns: (bg_zip, puma_zip, debug_candidates)
+    """
+    statefp2 = str(statefp).zfill(2)
+    search_roots = [
+        data_root / "detroit" / "raw" / "census" / "tiger",
+        data_root / "detroit" / "raw" / "census",
+        data_root / "detroit" / "raw",
+        data_root / "detroit",
+    ]
+    bg_cands: list[pathlib.Path] = []
+    puma_cands: list[pathlib.Path] = []
+    for root in search_roots:
+        root = pathlib.Path(root)
+        if not root.exists():
+            continue
+        bg_cands.extend(list(root.rglob(f"tl_*_{statefp2}_bg.zip")))
+        puma_cands.extend(list(root.rglob(f"tl_*_{statefp2}_puma20.zip")))
+
+    bg_cands_u = sorted({p.resolve() for p in bg_cands})
+    puma_cands_u = sorted({p.resolve() for p in puma_cands})
+    bg_zip = _pick_latest_tiger_zip(bg_cands_u)
+    puma_zip = _pick_latest_tiger_zip(puma_cands_u)
+    debug = {
+        "bg": [str(p) for p in bg_cands_u[:20]],
+        "puma20": [str(p) for p in puma_cands_u[:20]],
+    }
+    return bg_zip, puma_zip, debug
 
 
 def _stable_hash_fold(values: list[str], *, n_folds: int, seed: int) -> dict[str, int]:
@@ -251,7 +302,8 @@ def _bg_to_puma_map(*, tiger_bg_zip: pathlib.Path, tiger_puma_zip: pathlib.Path)
     puma["puma"] = puma_code.astype(int).astype(str)
 
     bg_cent = bg[["bg_geoid", "geometry"]].copy()
-    bg_cent["geometry"] = bg_cent.geometry.centroid
+    # Use representative points to avoid centroid-in-geographic-CRS pitfalls and keep points inside polygons.
+    bg_cent["geometry"] = bg_cent.geometry.representative_point()
     if bg_cent.crs != puma.crs:
         bg_cent = bg_cent.to_crs(puma.crs)
 
@@ -397,19 +449,19 @@ def main() -> None:
     else:
         tiger_bg_zip = pathlib.Path(args.tiger_bg_zip).expanduser().resolve() if args.tiger_bg_zip else None
         tiger_puma_zip = pathlib.Path(args.tiger_puma_zip).expanduser().resolve() if args.tiger_puma_zip else None
+        debug_cands = None
         if tiger_bg_zip is None or tiger_puma_zip is None:
-            # Try common layout under data_root.
-            cand_dir = data_root / "detroit" / "raw" / "census" / "tiger"
+            bg2, puma2, debug_cands = _auto_find_tiger_zips(data_root=data_root, statefp=str(args.statefp))
             if tiger_bg_zip is None:
-                p = cand_dir / f"tl_2023_{str(args.statefp).zfill(2)}_bg.zip"
-                if p.exists():
-                    tiger_bg_zip = p
+                tiger_bg_zip = bg2
             if tiger_puma_zip is None:
-                p = cand_dir / f"tl_2023_{str(args.statefp).zfill(2)}_puma20.zip"
-                if p.exists():
-                    tiger_puma_zip = p
+                tiger_puma_zip = puma2
         if tiger_bg_zip is None or tiger_puma_zip is None:
-            raise SystemExit("Missing TIGER zips. Provide --tiger_bg_zip and --tiger_puma_zip (or place under data_root/.../tiger).")
+            msg = "Missing TIGER zips. Provide --tiger_bg_zip and --tiger_puma_zip.\n"
+            if debug_cands is not None:
+                msg += f"Auto-search candidates (first 20 each): {json.dumps(debug_cands, ensure_ascii=False)}\n"
+            msg += "Expected filenames like tl_2023_<STATEFP>_bg.zip and tl_2023_<STATEFP>_puma20.zip under $DATA_ROOT/detroit/raw/census/.\n"
+            raise SystemExit(msg)
         bg_to_puma = _bg_to_puma_map(tiger_bg_zip=tiger_bg_zip, tiger_puma_zip=tiger_puma_zip)
         if bool(args.cache_bg_to_puma):
             _write_json(cache_path, bg_to_puma)
@@ -442,7 +494,9 @@ def main() -> None:
     ref["ESR"] = pd.to_numeric(ref["ESR"], errors="coerce").fillna(0).astype(int).astype(str)
     ref = ref[ref["PWGTP"] > 0].copy()
 
-    puma_stats, puma_stat_cols = _build_puma_stats(pums_df=ref.rename(columns={"puma": "PUMA"}), puma_col="PUMA", wcol="PWGTP")
+    # ref already includes both numeric-ish 'PUMA' and string 'puma'.
+    # Avoid duplicate column labels by using 'puma' for grouping.
+    puma_stats, puma_stat_cols = _build_puma_stats(pums_df=ref, puma_col="puma", wcol="PWGTP")
 
     # --- Fold assignment (same as Exp2) ---
     pumas_all = sorted(set(ref["puma"].unique().tolist()) | set(base_sample["puma"].unique().tolist()))
