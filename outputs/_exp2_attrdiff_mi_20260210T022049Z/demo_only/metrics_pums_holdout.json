@@ -1,0 +1,26 @@
+{
+  "by_fold": {
+    "0": {
+      "note": "empty test fold",
+      "n_test": 0
+    },
+    "1": {
+      "note": "empty test fold",
+      "n_test": 0
+    },
+    "2": {
+      "note": "empty test fold",
+      "n_test": 0
+    },
+    "3": {
+      "note": "empty test fold",
+      "n_test": 0
+    },
+    "4": {
+      "note": "empty train fold (check n_folds / unique PUMA count)",
+      "n_train_rows": 0,
+      "n_test_rows": 200000,
+      "n_test_pumas": 1
+    }
+  }
+}

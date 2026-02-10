@@ -1,0 +1,2 @@
+[info] loading P12: /home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/census/dhc_2020/dhc_2020_bg_michigan.csv.gz
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_exp1_basepop_bg_mi_20260210T022031Z/base_pop_bg_age_sex_race_counts.parquet
