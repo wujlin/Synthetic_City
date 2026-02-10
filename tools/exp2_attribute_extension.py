@@ -528,20 +528,25 @@ def main() -> None:
 
     usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR", "RAC1P"]
     with zipfile.ZipFile(person_zip) as zf, zf.open(member) as f:
-        df = pd.read_csv(f, nrows=args.n_rows, usecols=lambda c: c in set(usecols), low_memory=False)
+        # Read the full file first (no head bias), then sample later if --n_rows is set.
+        df = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
     # Prefer PUMA20 (PUMS 2022+); fall back to legacy PUMA if present.
-    if "PUMA" in df.columns:
-        puma_col = "PUMA"
-    elif "PUMA20" in df.columns:
+    if "PUMA20" in df.columns:
         puma_col = "PUMA20"
         df["PUMA"] = df["PUMA20"]
+    elif "PUMA" in df.columns:
+        puma_col = "PUMA"
     else:
         raise SystemExit(f"PUMS missing PUMA columns (need PUMA or PUMA20) (zip={person_zip} member={member})")
 
     missing = [c for c in ["PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR"] if c not in df.columns]
     if missing:
         raise SystemExit(f"PUMS missing required cols: {missing} (zip={person_zip} member={member})")
+
+    # Filter invalid PUMA codes before sampling (PUMS uses -9 for NIU/invalid in some extracts).
+    puma_num = pd.to_numeric(df["PUMA"], errors="coerce")
+    df = df[puma_num.notna() & (puma_num.astype(int) != -9)].copy()
 
     # Clean.
     df["PUMA"] = df["PUMA"].astype(str)
@@ -557,6 +562,10 @@ def main() -> None:
     df = df[df["PWGTP"] > 0].copy()
     if df.empty:
         raise SystemExit("No valid PUMS rows after cleaning.")
+
+    # Randomly subsample after cleaning + invalid-PUMA filtering.
+    if args.n_rows is not None and int(args.n_rows) > 0 and int(df.shape[0]) > int(args.n_rows):
+        df = df.sample(n=int(args.n_rows), random_state=int(args.seed)).reset_index(drop=True)
 
     pumas = sorted(df["PUMA"].unique().tolist())
     fold_of = _stable_hash_fold(pumas, n_folds=int(args.n_folds), seed=int(args.seed))
