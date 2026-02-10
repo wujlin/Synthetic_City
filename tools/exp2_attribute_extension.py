@@ -487,6 +487,7 @@ def main() -> None:
     ap.add_argument("--pums_year", type=int, default=2023)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
+    ap.add_argument("--mode", choices=["train_eval", "eval_only"], default="train_eval")
     ap.add_argument("--n_rows", type=int, default=None, help="Optional cap for faster iteration.")
     ap.add_argument(
         "--conditions",
@@ -518,8 +519,13 @@ def main() -> None:
     )
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Avoid overwriting the original training metadata when doing eval-only recovery.
+    meta_path = out_dir / "run.metadata.json"
+    if args.mode == "eval_only" and meta_path.exists():
+        meta_path = out_dir / "eval.metadata.json"
+
     _write_json(
-        out_dir / "run.metadata.json",
+        meta_path,
         {
             "created_utc": _utc_now_iso(),
             "argv": sys.argv,
@@ -599,6 +605,7 @@ def main() -> None:
 
         by_fold_metrics = {}
         for fold in range(int(args.n_folds)):
+            fold_dir = cond_root / f"fold_{fold}"
             test_pumas = {p for p, f in fold_of.items() if f == fold}
             train_df = df[~df["PUMA"].isin(test_pumas)].copy().reset_index(drop=True)
             test_df = df[df["PUMA"].isin(test_pumas)].copy().reset_index(drop=True)
@@ -612,63 +619,98 @@ def main() -> None:
                 }
                 continue
 
-            # Encode condition & targets on train.
-            train_df2, cond_train, enc_cond = _encode_condition(
-                df=train_df,
-                puma_col="PUMA",
-                use_race=use_race,
-                use_puma_stats=use_puma_stats,
-                puma_stats=puma_stats,
-                puma_stat_cols=puma_stat_cols,
-                race_cats_global=race_cats_global,
-            )
-            if train_df2.empty:
-                by_fold_metrics[str(fold)] = {
-                    "note": "empty train fold after condition filtering (likely missing/invalid RAC1P categories)",
-                    "n_train_rows": 0,
-                    "n_test_rows": int(test_df.shape[0]),
-                    "n_test_pumas": int(len(test_pumas)),
-                }
-                continue
-            x_train, enc_target, decode_meta = _encode_targets(df=train_df2)
-            # Patch encoder with condition info.
-            enc = _Encoder(
-                cond_cols=enc_cond.cond_cols,
-                age_depth=enc_cond.age_depth,
-                sex_depth=enc_cond.sex_depth,
-                race_cats=enc_cond.race_cats,
-                income_mean=enc_target.income_mean,
-                income_std=enc_target.income_std,
-                schl_cats=enc_target.schl_cats,
-                esr_cats=enc_target.esr_cats,
-            )
+            model = None
+            enc = None
+            decode_meta = None
+            if args.mode == "eval_only":
+                model_path = fold_dir / "model.pt"
+                enc_path = fold_dir / "encoder.json"
+                if not model_path.exists() or not enc_path.exists():
+                    by_fold_metrics[str(fold)] = {
+                        "note": "missing_checkpoint_or_encoder (eval_only)",
+                        "model_path": str(model_path),
+                        "encoder_path": str(enc_path),
+                        "n_test_rows": int(test_df.shape[0]),
+                        "n_test_pumas": int(len(test_pumas)),
+                    }
+                    continue
 
-            # Torch tensors.
-            x_t = torch.as_tensor(x_train, dtype=torch.float32)
-            c_t = torch.as_tensor(cond_train, dtype=torch.float32)
+                payload = json.loads(enc_path.read_text(encoding="utf-8"))
+                enc = _Encoder(**payload["condition"])
+                decode_meta = payload["decode_meta"]
+                model = DiffusionTabularModel(input_dim=1, cond_dim=0, seed=int(args.seed))
+                model.load(model_path)
+            else:
+                # Encode condition & targets on train.
+                train_df2, cond_train, enc_cond = _encode_condition(
+                    df=train_df,
+                    puma_col="PUMA",
+                    use_race=use_race,
+                    use_puma_stats=use_puma_stats,
+                    puma_stats=puma_stats,
+                    puma_stat_cols=puma_stat_cols,
+                    race_cats_global=race_cats_global,
+                )
+                if train_df2.empty:
+                    by_fold_metrics[str(fold)] = {
+                        "note": "empty train fold after condition filtering (likely missing/invalid RAC1P categories)",
+                        "n_train_rows": 0,
+                        "n_test_rows": int(test_df.shape[0]),
+                        "n_test_pumas": int(len(test_pumas)),
+                    }
+                    continue
+                x_train, enc_target, decode_meta = _encode_targets(df=train_df2)
+                # Patch encoder with condition info.
+                enc = _Encoder(
+                    cond_cols=enc_cond.cond_cols,
+                    age_depth=enc_cond.age_depth,
+                    sex_depth=enc_cond.sex_depth,
+                    race_cats=enc_cond.race_cats,
+                    income_mean=enc_target.income_mean,
+                    income_std=enc_target.income_std,
+                    schl_cats=enc_target.schl_cats,
+                    esr_cats=enc_target.esr_cats,
+                )
 
-            cfg = TabDDPMConfig(
-                timesteps=int(args.timesteps),
-                hidden_dims=hidden_dims,
-                lr=float(args.lr),
-            )
-            model = DiffusionTabularModel(input_dim=int(x_train.shape[1]), cond_dim=int(cond_train.shape[1]), seed=int(args.seed), config=cfg)
-            train_summary = model.fit(
-                x=x_t,
-                cond=c_t,
-                epochs=int(args.epochs),
-                batch_size=int(args.batch_size),
-                device=args.device,
-                log_every=int(args.log_every),
-            )
+                # Torch tensors.
+                x_t = torch.as_tensor(x_train, dtype=torch.float32)
+                c_t = torch.as_tensor(cond_train, dtype=torch.float32)
 
-            fold_dir = cond_root / f"fold_{fold}"
-            fold_dir.mkdir(parents=True, exist_ok=True)
-            model.save(fold_dir / "model.pt")
-            _write_json(fold_dir / "encoder.json", {"condition": asdict(enc), "decode_meta": decode_meta})
-            _write_json(fold_dir / "train_summary.json", train_summary)
+                cfg = TabDDPMConfig(
+                    timesteps=int(args.timesteps),
+                    hidden_dims=hidden_dims,
+                    lr=float(args.lr),
+                )
+                model = DiffusionTabularModel(
+                    input_dim=int(x_train.shape[1]),
+                    cond_dim=int(cond_train.shape[1]),
+                    seed=int(args.seed),
+                    config=cfg,
+                )
+                train_summary = model.fit(
+                    x=x_t,
+                    cond=c_t,
+                    epochs=int(args.epochs),
+                    batch_size=int(args.batch_size),
+                    device=args.device,
+                    log_every=int(args.log_every),
+                )
+
+                fold_dir.mkdir(parents=True, exist_ok=True)
+                model.save(fold_dir / "model.pt")
+                _write_json(fold_dir / "encoder.json", {"condition": asdict(enc), "decode_meta": decode_meta})
+                _write_json(fold_dir / "train_summary.json", train_summary)
 
             # --- Evaluate on test rows (paired generation: keep conditions from test_df) ---
+            assert model is not None
+            assert enc is not None
+            assert decode_meta is not None
+            race_eval = race_cats_global
+            if use_race and enc.race_cats:
+                try:
+                    race_eval = [int(x) for x in enc.race_cats]
+                except Exception:
+                    race_eval = race_cats_global
             test_df2, cond_test, _ = _encode_condition(
                 df=test_df,
                 puma_col="PUMA",
@@ -676,7 +718,7 @@ def main() -> None:
                 use_puma_stats=use_puma_stats,
                 puma_stats=puma_stats,
                 puma_stat_cols=puma_stat_cols,
-                race_cats_global=race_cats_global,
+                race_cats_global=race_eval,
             )
             n_test = int(test_df2.shape[0])
             if n_test == 0:
