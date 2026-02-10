@@ -356,6 +356,9 @@ def _encode_targets(*, df: Any) -> tuple[Any, _Encoder, Any]:
     pd = _require("pandas")
     np = _require("numpy")
 
+    if getattr(df, "empty", False):
+        raise RuntimeError("encode_targets received an empty DataFrame (check fold split / filtering).")
+
     income = pd.to_numeric(df["PINCP"], errors="coerce").fillna(0.0).clip(lower=0.0).to_numpy(dtype=np.float32)
     income_log = np.log1p(income)
     mu = float(income_log.mean())
@@ -405,8 +408,15 @@ def _decode_samples(*, x_hat: Any, enc_target: _Encoder, decode_meta: dict[str, 
     schl_idx = schl_logits.argmax(axis=1) if schl_logits.shape[1] > 0 else np.zeros(x_hat.shape[0], dtype=int)
     esr_idx = esr_logits.argmax(axis=1) if esr_logits.shape[1] > 0 else np.zeros(x_hat.shape[0], dtype=int)
 
-    schl = [enc_target.schl_cats[int(i)] for i in schl_idx]
-    esr = [enc_target.esr_cats[int(i)] for i in esr_idx]
+    # Be robust to pathological folds where a category list is empty.
+    if enc_target.schl_cats:
+        schl = [enc_target.schl_cats[int(i)] for i in schl_idx]
+    else:
+        schl = ["0"] * int(x_hat.shape[0])
+    if enc_target.esr_cats:
+        esr = [enc_target.esr_cats[int(i)] for i in esr_idx]
+    else:
+        esr = ["0"] * int(x_hat.shape[0])
 
     out = pd.DataFrame({"PINCP": income.astype(float), "SCHL": schl, "ESR": esr})
     # Confidence diagnostics (optional)
@@ -573,8 +583,17 @@ def main() -> None:
         by_fold_metrics = {}
         for fold in range(int(args.n_folds)):
             test_pumas = {p for p, f in fold_of.items() if f == fold}
-            train_df = df[~df["PUMA"].isin(test_pumas)].copy()
-            test_df = df[df["PUMA"].isin(test_pumas)].copy()
+            train_df = df[~df["PUMA"].isin(test_pumas)].copy().reset_index(drop=True)
+            test_df = df[df["PUMA"].isin(test_pumas)].copy().reset_index(drop=True)
+
+            if train_df.empty:
+                by_fold_metrics[str(fold)] = {
+                    "note": "empty train fold (check n_folds / unique PUMA count)",
+                    "n_train_rows": 0,
+                    "n_test_rows": int(test_df.shape[0]),
+                    "n_test_pumas": int(len(test_pumas)),
+                }
+                continue
 
             # Encode condition & targets on train.
             train_df2, cond_train, enc_cond = _encode_condition(
@@ -586,6 +605,14 @@ def main() -> None:
                 puma_stat_cols=puma_stat_cols,
                 race_cats_global=race_cats_global,
             )
+            if train_df2.empty:
+                by_fold_metrics[str(fold)] = {
+                    "note": "empty train fold after condition filtering (likely missing/invalid RAC1P categories)",
+                    "n_train_rows": 0,
+                    "n_test_rows": int(test_df.shape[0]),
+                    "n_test_pumas": int(len(test_pumas)),
+                }
+                continue
             x_train, enc_target, decode_meta = _encode_targets(df=train_df2)
             # Patch encoder with condition info.
             enc = _Encoder(
