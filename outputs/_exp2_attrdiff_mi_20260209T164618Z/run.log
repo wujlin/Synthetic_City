@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/home/jinlin/projects/Synthetic_City/tools/exp2_attribute_extension.py", line 724, in <module>
+    main()
+  File "/home/jinlin/projects/Synthetic_City/tools/exp2_attribute_extension.py", line 579, in main
+    train_df2, cond_train, enc_cond = _encode_condition(
+                                      ^^^^^^^^^^^^^^^^^^
+  File "/home/jinlin/projects/Synthetic_City/tools/exp2_attribute_extension.py", line 320, in _encode_condition
+    race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes[mask.to_numpy(dtype=bool)]]
+                                                                      ^^^^^^^^^^^^^
+AttributeError: 'numpy.ndarray' object has no attribute 'to_numpy'

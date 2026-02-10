@@ -1,0 +1,45 @@
+{
+  "created_utc": "2026-02-09T16:47:52Z",
+  "argv": [
+    "tools/exp1_base_population.py",
+    "--dhc_bg_path",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/census/dhc/dhc_2020_bg_michigan.csv.gz",
+    "--pums_person_zip",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2022_5-Year/csv_pmi.zip",
+    "--statefp",
+    "26",
+    "--include_race",
+    "--ipf_iters",
+    "50",
+    "--out_dir",
+    "outputs/_exp1_basepop_bg_mi_20260209T164752Z"
+  ],
+  "script": "exp1_base_population.py",
+  "mode": "build",
+  "env": {
+    "RAW_ROOT": "/home/jinlin/data/geoexplicit_data",
+    "SYNTHCITY_DATA_ROOT": null
+  },
+  "args": {
+    "mode": "build",
+    "data_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+    "out_dir": "outputs/_exp1_basepop_bg_mi_20260209T164752Z",
+    "dhc_year": 2020,
+    "statefp": "26",
+    "api_key": null,
+    "tables": "P12",
+    "timeout_s": 60,
+    "out_raw_dir": null,
+    "p12_path": null,
+    "dhc_bg_path": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/census/dhc/dhc_2020_bg_michigan.csv.gz",
+    "include_race": true,
+    "pums_person_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2022_5-Year/csv_pmi.zip",
+    "pums_year": 2022,
+    "pums_period": "5-Year",
+    "ipf_iters": 50,
+    "max_bgs": null,
+    "counts_only": false,
+    "expand_microdata": false,
+    "max_persons": null
+  }
+}

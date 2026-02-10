@@ -1,0 +1,39 @@
+{
+  "by_fold": {
+    "0": {
+      "note": "missing_checkpoint_or_encoder (eval_only)",
+      "model_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_0/model.pt",
+      "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_0/encoder.json",
+      "n_test_rows": 23997,
+      "n_test_pumas": 14
+    },
+    "1": {
+      "note": "missing_checkpoint_or_encoder (eval_only)",
+      "model_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_1/model.pt",
+      "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_1/encoder.json",
+      "n_test_rows": 24842,
+      "n_test_pumas": 17
+    },
+    "2": {
+      "note": "missing_checkpoint_or_encoder (eval_only)",
+      "model_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_2/model.pt",
+      "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_2/encoder.json",
+      "n_test_rows": 17983,
+      "n_test_pumas": 11
+    },
+    "3": {
+      "note": "missing_checkpoint_or_encoder (eval_only)",
+      "model_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_3/model.pt",
+      "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_3/encoder.json",
+      "n_test_rows": 20962,
+      "n_test_pumas": 16
+    },
+    "4": {
+      "note": "missing_checkpoint_or_encoder (eval_only)",
+      "model_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_4/model.pt",
+      "encoder_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/demo_race_puma/fold_4/encoder.json",
+      "n_test_rows": 13728,
+      "n_test_pumas": 10
+    }
+  }
+}

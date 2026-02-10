@@ -1,0 +1,41 @@
+{
+  "created_utc": "2026-02-09T15:10:43Z",
+  "argv": [
+    "tools/exp0_copula_diagnostic.py",
+    "--data_root",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+    "--pums_period",
+    "5-Year",
+    "--statefp",
+    "26",
+    "--use_weights",
+    "--bins",
+    "10",
+    "--pairwise_pairs",
+    "20000",
+    "--out_dir",
+    "outputs/_exp0_copula_mi_20260209T151039Z"
+  ],
+  "script": "exp0_copula_diagnostic.py",
+  "env": {
+    "RAW_ROOT": "/home/jinlin/data/geoexplicit_data",
+    "SYNTHCITY_DATA_ROOT": null
+  },
+  "args": {
+    "data_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+    "pums_year": 2023,
+    "pums_period": "5-Year",
+    "statefp": "26",
+    "pums_person_zip": null,
+    "n_rows": null,
+    "group_col": "PUMA",
+    "x_col": "AGEP",
+    "y_col": "PINCP",
+    "weight_col": "PWGTP",
+    "use_weights": true,
+    "bins": 10,
+    "pairwise_pairs": 20000,
+    "seed": 0,
+    "out_dir": "outputs/_exp0_copula_mi_20260209T151039Z"
+  }
+}

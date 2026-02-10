@@ -1,0 +1,9 @@
+usage: exp1_base_population [-h] [--mode {fetch,build}]
+                            [--data_root DATA_ROOT] [--out_dir OUT_DIR]
+                            [--dhc_year DHC_YEAR] [--statefp STATEFP]
+                            [--api_key API_KEY] [--tables TABLES]
+                            [--timeout_s TIMEOUT_S]
+                            [--out_raw_dir OUT_RAW_DIR] [--p12_path P12_PATH]
+                            [--counts_only] [--expand_microdata]
+                            [--max_persons MAX_PERSONS]
+exp1_base_population: error: unrecognized arguments: --dhc_bg_path /home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/census/dhc/dhc_2020_bg_michigan.csv.gz --pums_person_zip /home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2022_5-Year/csv_pmi.zip --include_race --ipf_iters 50

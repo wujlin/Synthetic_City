@@ -1,0 +1,68 @@
+{
+  "condition": {
+    "cond_cols": [
+      "age_0",
+      "age_1",
+      "age_2",
+      "age_3",
+      "age_4",
+      "age_5",
+      "age_6",
+      "age_7",
+      "age_8",
+      "age_9",
+      "age_10",
+      "age_11",
+      "age_12",
+      "age_13",
+      "age_14",
+      "age_15",
+      "age_16",
+      "age_17",
+      "age_18",
+      "age_19",
+      "age_20",
+      "age_21",
+      "age_22",
+      "sex_m",
+      "sex_f",
+      "race_1",
+      "race_2",
+      "race_3",
+      "race_4",
+      "race_5",
+      "race_6",
+      "race_7",
+      "race_8",
+      "race_9"
+    ],
+    "age_depth": 23,
+    "sex_depth": 2,
+    "race_cats": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "income_mean": NaN,
+    "income_std": 1.0,
+    "schl_cats": [],
+    "esr_cats": []
+  },
+  "decode_meta": {
+    "income_z_col": 0,
+    "schl_slice": [
+      1,
+      1
+    ],
+    "esr_slice": [
+      1,
+      1
+    ]
+  }
+}
