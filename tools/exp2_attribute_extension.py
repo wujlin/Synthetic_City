@@ -168,19 +168,25 @@ def _weighted_rank(u: "Any", w: "Any") -> "Any":
     np = _require("numpy")
     u = np.asarray(u, dtype=float)
     w = np.asarray(w, dtype=float)
+    if u.shape != w.shape:
+        raise ValueError(f"u and w must have the same shape, got {u.shape} vs {w.shape}")
     mask = np.isfinite(u) & np.isfinite(w) & (w > 0)
-    u = u[mask]
-    w = w[mask]
-    if u.size == 0:
-        return np.asarray([], dtype=float)
-    order = np.argsort(u, kind="mergesort")
-    w_sorted = w[order]
+    # Keep output aligned to input length; invalid rows are NaN and will be filtered later
+    # when we build copulas/joints.
+    out = np.full(u.shape, np.nan, dtype=float)
+    u_m = u[mask]
+    w_m = w[mask]
+    if u_m.size == 0:
+        return out
+    order = np.argsort(u_m, kind="mergesort")
+    w_sorted = w_m[order]
     cw = np.cumsum(w_sorted)
     tot = float(cw[-1])
     r_sorted = (cw - 0.5 * w_sorted) / max(tot, 1e-12)
     r = np.empty_like(r_sorted)
     r[order] = r_sorted
-    return np.clip(r, 0.0, 1.0)
+    out[mask] = np.clip(r, 0.0, 1.0)
+    return out
 
 
 def _copula_hist2d(*, u: "Any", v: "Any", w: "Any", bins: int = 10) -> "Any":
@@ -399,6 +405,8 @@ def _decode_samples(*, x_hat: Any, enc_target: _Encoder, decode_meta: dict[str, 
     x_hat = np.asarray(x_hat, dtype=np.float32)
     inc_z = x_hat[:, 0]
     inc_log = inc_z * float(enc_target.income_std) + float(enc_target.income_mean)
+    # Prevent overflow during expm1 for pathological samples.
+    inc_log = np.clip(inc_log, -10.0, 20.0)
     income = np.expm1(inc_log).clip(min=0.0)
 
     s0, s1 = decode_meta["schl_slice"]
