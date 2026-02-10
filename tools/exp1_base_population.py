@@ -811,7 +811,21 @@ def main() -> None:
     if args.dhc_bg_path:
         p12_path = pathlib.Path(args.dhc_bg_path).expanduser().resolve()
         if not p12_path.exists():
-            raise SystemExit(f"DHC BG file not found: {p12_path}")
+            # Common operator error: path typo. Try to auto-locate by basename under data_root.
+            cands = sorted((data_root / "detroit" / "raw" / "census").glob(f"**/{p12_path.name}"))
+            if len(cands) == 1:
+                p12_path = cands[0]
+                print(f"[warn] DHC BG file not found at provided path; using auto-detected: {p12_path}")
+            elif len(cands) > 1:
+                msg = "\n".join([str(p) for p in cands[:10]])
+                raise SystemExit(
+                    f"DHC BG file not found: {pathlib.Path(args.dhc_bg_path).expanduser().resolve()}\n"
+                    "Multiple candidates found under data_root (first 10):\n"
+                    f"{msg}\n"
+                    "Please pass the correct --dhc_bg_path."
+                )
+            else:
+                raise SystemExit(f"DHC BG file not found: {p12_path}")
     elif not args.p12_path:
         # default location produced by mode=fetch
         default_p12 = data_root / "detroit" / "raw" / "census" / "dhc_2020" / f"dhc_2020_P12_bg_state{str(args.statefp).zfill(2)}.parquet"
