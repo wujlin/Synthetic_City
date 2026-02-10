@@ -1,15 +1,20 @@
 {
-  "created_utc": "2026-02-10T11:51:54Z",
+  "created_utc": "2026-02-10T12:52:52Z",
   "argv": [
     "tools/exp2_worst_puma_diagnosis.py",
     "--exp2_run_dir",
     "outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z",
     "--top_k",
-    "10"
+    "10",
+    "--with_pums_profile",
+    "--data_root",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+    "--pums_year",
+    "2023"
   ],
-  "run_dir": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z",
+  "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z",
   "inputs": {
-    "ablation_summary": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/ablation_summary.json"
+    "ablation_summary": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_fixpuma20_20260210T034137Z/ablation_summary.json"
   },
   "conditions": [
     "demo_only",
@@ -1839,5 +1844,285 @@
       }
     }
   },
-  "pums_profiles": null
+  "pums_profiles": {
+    "pums_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip",
+    "member": "psam_p26.csv",
+    "income_edges": [
+      0.0,
+      10000.0,
+      25000.0,
+      50000.0,
+      75000.0,
+      100000.0,
+      150000.0,
+      250000.0,
+      10000000.0
+    ],
+    "by_puma": {
+      "1001": {
+        "n_rows": 4806,
+        "total_weight": 154162.0,
+        "mean_age_w": 36.900967813079745,
+        "mean_income_w": 32256.2630609359,
+        "pct_child_w": 0.2419921900338605,
+        "pct_elderly_w": 0.13603222584034977
+      },
+      "1003": {
+        "n_rows": 6547,
+        "total_weight": 179025.0,
+        "mean_age_w": 38.21484708839547,
+        "mean_income_w": 46624.80684820556,
+        "pct_child_w": 0.25654517525485265,
+        "pct_elderly_w": 0.15716240748498814
+      },
+      "1004": {
+        "n_rows": 4747,
+        "total_weight": 126756.0,
+        "mean_age_w": 39.43648426898924,
+        "mean_income_w": 37739.08119536748,
+        "pct_child_w": 0.23949951087128024,
+        "pct_elderly_w": 0.16100224052510334
+      },
+      "1703": {
+        "n_rows": 3610,
+        "total_weight": 104006.0,
+        "mean_age_w": 37.44749341384151,
+        "mean_income_w": 20052.950887448802,
+        "pct_child_w": 0.24666846143491722,
+        "pct_elderly_w": 0.1450685537372844
+      },
+      "1801": {
+        "n_rows": 8550,
+        "total_weight": 170002.0,
+        "mean_age_w": 36.9128186727215,
+        "mean_income_w": 36736.94441241868,
+        "pct_child_w": 0.18553899365889814,
+        "pct_elderly_w": 0.1534570181527276
+      },
+      "1802": {
+        "n_rows": 3791,
+        "total_weight": 111657.0,
+        "mean_age_w": 36.639404605174775,
+        "mean_income_w": 27215.060856014403,
+        "pct_child_w": 0.21535595618725203,
+        "pct_elderly_w": 0.13602371548581818
+      },
+      "2101": {
+        "n_rows": 5800,
+        "total_weight": 138683.0,
+        "mean_age_w": 39.44443082425387,
+        "mean_income_w": 38310.85736535841,
+        "pct_child_w": 0.2278505656785619,
+        "pct_elderly_w": 0.1765897766849578
+      },
+      "2102": {
+        "n_rows": 4887,
+        "total_weight": 123239.0,
+        "mean_age_w": 35.50714465388392,
+        "mean_income_w": 31229.732471052183,
+        "pct_child_w": 0.20040733858599957,
+        "pct_elderly_w": 0.13186572432428045
+      },
+      "2400": {
+        "n_rows": 8512,
+        "total_weight": 153323.0,
+        "mean_age_w": 41.7633036139392,
+        "mean_income_w": 33704.70105594073,
+        "pct_child_w": 0.2160015131454511,
+        "pct_elderly_w": 0.20806402170581062
+      },
+      "2701": {
+        "n_rows": 5596,
+        "total_weight": 114956.0,
+        "mean_age_w": 42.32009638470371,
+        "mean_income_w": 50167.816294930235,
+        "pct_child_w": 0.21202025122655624,
+        "pct_elderly_w": 0.2014248930025401
+      },
+      "2702": {
+        "n_rows": 5509,
+        "total_weight": 122221.0,
+        "mean_age_w": 34.86689685078669,
+        "mean_income_w": 50463.61895255316,
+        "pct_child_w": 0.1258539858125854,
+        "pct_elderly_w": 0.12974038831297405
+      },
+      "2703": {
+        "n_rows": 6137,
+        "total_weight": 131318.0,
+        "mean_age_w": 36.708219741391126,
+        "mean_income_w": 40589.99852267016,
+        "pct_child_w": 0.21297156520812074,
+        "pct_elderly_w": 0.13102544967178908
+      },
+      "2902": {
+        "n_rows": 6518,
+        "total_weight": 139952.0,
+        "mean_age_w": 40.147129015662514,
+        "mean_income_w": 52455.204191437064,
+        "pct_child_w": 0.22732794100834572,
+        "pct_elderly_w": 0.16498513776151824
+      },
+      "2903": {
+        "n_rows": 8035,
+        "total_weight": 175634.0,
+        "mean_age_w": 40.519939191728255,
+        "mean_income_w": 52569.95905120877,
+        "pct_child_w": 0.21591491396882154,
+        "pct_elderly_w": 0.17571768564173224
+      },
+      "2905": {
+        "n_rows": 5241,
+        "total_weight": 137385.0,
+        "mean_age_w": 40.06160789023547,
+        "mean_income_w": 50196.72344142374,
+        "pct_child_w": 0.2190049859882811,
+        "pct_elderly_w": 0.16026494886632456
+      },
+      "2906": {
+        "n_rows": 7862,
+        "total_weight": 157199.0,
+        "mean_age_w": 43.60848351452617,
+        "mean_income_w": 72232.1833853905,
+        "pct_child_w": 0.22162354722358285,
+        "pct_elderly_w": 0.23065032220306744
+      },
+      "2907": {
+        "n_rows": 6479,
+        "total_weight": 174715.0,
+        "mean_age_w": 42.08348453195204,
+        "mean_income_w": 43096.24917150789,
+        "pct_child_w": 0.18206221560827635,
+        "pct_elderly_w": 0.208854420055519
+      },
+      "2908": {
+        "n_rows": 7455,
+        "total_weight": 187400.0,
+        "mean_age_w": 39.97988794023479,
+        "mean_income_w": 46183.749413020276,
+        "pct_child_w": 0.1633564567769477,
+        "pct_elderly_w": 0.1565581643543223
+      },
+      "3001": {
+        "n_rows": 4954,
+        "total_weight": 127087.0,
+        "mean_age_w": 40.591649814693874,
+        "mean_income_w": 39431.53847364404,
+        "pct_child_w": 0.22128148433750108,
+        "pct_elderly_w": 0.16717681588203356
+      },
+      "3002": {
+        "n_rows": 5846,
+        "total_weight": 176655.0,
+        "mean_age_w": 40.57902691687187,
+        "mean_income_w": 41678.86773654864,
+        "pct_child_w": 0.22792448557923636,
+        "pct_elderly_w": 0.1773400130197277
+      },
+      "3004": {
+        "n_rows": 5701,
+        "total_weight": 154212.0,
+        "mean_age_w": 41.9813049568127,
+        "mean_income_w": 35194.83990869712,
+        "pct_child_w": 0.18391564858765855,
+        "pct_elderly_w": 0.201527766970145
+      },
+      "3005": {
+        "n_rows": 6311,
+        "total_weight": 139657.0,
+        "mean_age_w": 41.03573039661456,
+        "mean_income_w": 31408.044709538368,
+        "pct_child_w": 0.19435474054290153,
+        "pct_elderly_w": 0.1814373787207229
+      },
+      "3006": {
+        "n_rows": 5398,
+        "total_weight": 146636.0,
+        "mean_age_w": 39.13371204888295,
+        "mean_income_w": 28504.17842821681,
+        "pct_child_w": 0.22191003573474455,
+        "pct_elderly_w": 0.15897187593769607
+      },
+      "3201": {
+        "n_rows": 8094,
+        "total_weight": 203198.0,
+        "mean_age_w": 40.90434945225839,
+        "mean_income_w": 51356.0544395122,
+        "pct_child_w": 0.21563696493075718,
+        "pct_elderly_w": 0.17497711591649523
+      },
+      "3203": {
+        "n_rows": 5914,
+        "total_weight": 169912.0,
+        "mean_age_w": 36.196395781345636,
+        "mean_income_w": 27567.425608550308,
+        "pct_child_w": 0.2748834690898818,
+        "pct_elderly_w": 0.14167922218560197
+      },
+      "3206": {
+        "n_rows": 5115,
+        "total_weight": 134896.0,
+        "mean_age_w": 41.875882161072234,
+        "mean_income_w": 36800.68798185269,
+        "pct_child_w": 0.21168900486300557,
+        "pct_elderly_w": 0.2090425216463053
+      },
+      "3207": {
+        "n_rows": 4530,
+        "total_weight": 121056.0,
+        "mean_age_w": 38.60337364525509,
+        "mean_income_w": 27672.667525773195,
+        "pct_child_w": 0.23160355537932859,
+        "pct_elderly_w": 0.15347442505947662
+      },
+      "3208": {
+        "n_rows": 4176,
+        "total_weight": 152525.0,
+        "mean_age_w": 36.29994427143091,
+        "mean_income_w": 18590.442288149483,
+        "pct_child_w": 0.26663169972135714,
+        "pct_elderly_w": 0.14207506966071135
+      },
+      "3209": {
+        "n_rows": 3391,
+        "total_weight": 130496.0,
+        "mean_age_w": 38.71082638548308,
+        "mean_income_w": 21315.876410004905,
+        "pct_child_w": 0.2518391368317803,
+        "pct_elderly_w": 0.17066423491907798
+      },
+      "3210": {
+        "n_rows": 3333,
+        "total_weight": 108044.0,
+        "mean_age_w": 35.51988078930806,
+        "mean_income_w": 17016.37453259783,
+        "pct_child_w": 0.26452186146384804,
+        "pct_elderly_w": 0.12793861760023695
+      },
+      "3211": {
+        "n_rows": 4384,
+        "total_weight": 120752.0,
+        "mean_age_w": 39.65062276401219,
+        "mean_income_w": 29254.907049158606,
+        "pct_child_w": 0.17964091692063072,
+        "pct_elderly_w": 0.1675500198754472
+      },
+      "3212": {
+        "n_rows": 3446,
+        "total_weight": 105567.0,
+        "mean_age_w": 35.60528384817225,
+        "mean_income_w": 17745.366828649105,
+        "pct_child_w": 0.27736887474305416,
+        "pct_elderly_w": 0.12526641848304867
+      },
+      "3213": {
+        "n_rows": 4519,
+        "total_weight": 116659.0,
+        "mean_age_w": 37.66187778053986,
+        "mean_income_w": 35116.1152932907,
+        "pct_child_w": 0.2658688999562828,
+        "pct_elderly_w": 0.16093057543781447
+      }
+    }
+  }
 }
