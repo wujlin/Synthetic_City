@@ -88,3 +88,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Fold artifacts (local-only)
+outputs/**/fold_*/
