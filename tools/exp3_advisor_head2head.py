@@ -173,11 +173,65 @@ def _ensure_bg_geoid(
         gpd = None
 
     d = advisor_df.copy()
+
+    def _with_bg_geoid(bg_df: Any) -> Any:
+        out_bg = bg_df.copy()
+        if "GEOID" in out_bg.columns:
+            out_bg["bg_geoid"] = out_bg["GEOID"].astype(str)
+        else:
+            req = ["STATEFP", "COUNTYFP", "TRACTCE", "BLKGRPCE"]
+            miss = [c for c in req if c not in out_bg.columns]
+            if miss:
+                raise SystemExit(f"TIGER BG missing columns: {miss}")
+            out_bg["bg_geoid"] = (
+                out_bg["STATEFP"].astype(str).str.zfill(2)
+                + out_bg["COUNTYFP"].astype(str).str.zfill(3)
+                + out_bg["TRACTCE"].astype(str).str.zfill(6)
+                + out_bg["BLKGRPCE"].astype(str).str.zfill(1)
+            )
+        return out_bg
+
+    def _spatial_join_bg(points_like: Any, bg_zip: pathlib.Path) -> Any:
+        if gpd is None:
+            raise SystemExit("Spatial join requires geopandas.")
+        bg = _with_bg_geoid(gpd.read_file(f"zip://{pathlib.Path(bg_zip).expanduser().resolve()}"))
+        pts = points_like.copy()
+        if getattr(pts, "crs", None) is None:
+            # Conservative default for external synthetic data exports.
+            pts = pts.set_crs("EPSG:4326", allow_override=True)
+        if pts.crs != bg.crs:
+            pts = pts.to_crs(bg.crs)
+
+        # If advisor geometry is polygon/line, convert to interior points.
+        geom_type = pts.geometry.geom_type.astype(str).str.lower()
+        if geom_type.isin({"polygon", "multipolygon", "linestring", "multilinestring"}).any():
+            pts = pts.copy()
+            pts["geometry"] = pts.geometry.representative_point()
+
+        joined = gpd.sjoin(pts, bg[["bg_geoid", "geometry"]], how="left", predicate="within")
+        out = pd.DataFrame(joined.drop(columns=["geometry"], errors="ignore"))
+        out = out[out["bg_geoid"].notna()].copy()
+        out["bg_geoid"] = out["bg_geoid"].astype(str)
+        return out
+
     bg_col = _infer_col(d, ["bg_geoid", "block_group", "blockgroup", "geoid_bg", "bgid", "bgid20", "geoid"])
     if bg_col is not None:
         d["bg_geoid"] = _clean_bg_geoid(d[bg_col])
         d = d[d["bg_geoid"].str.len() == 12].copy()
         return d
+
+    # Prefer geometry if present (common in advisor gpkg exports).
+    if gpd is not None and "geometry" in d.columns:
+        if tiger_bg_zip is None:
+            raise SystemExit("advisor data lacks bg_geoid; please pass --tiger_bg_zip for spatial join.")
+        try:
+            gdf = d if isinstance(d, gpd.GeoDataFrame) else gpd.GeoDataFrame(d, geometry="geometry")
+            gdf = gdf[gdf.geometry.notna()].copy()
+            if not gdf.empty:
+                return _spatial_join_bg(gdf, tiger_bg_zip)
+        except Exception:
+            # Fall through to lon/lat branch if geometry branch fails.
+            pass
 
     lon_col = _infer_col(d, ["lon", "lng", "longitude", "x"])
     lat_col = _infer_col(d, ["lat", "latitude", "y"])
@@ -199,29 +253,7 @@ def _ensure_bg_geoid(
         geometry=gpd.points_from_xy(d[lon_col].to_numpy(dtype=float), d[lat_col].to_numpy(dtype=float)),
         crs="EPSG:4326",
     )
-    bg = gpd.read_file(f"zip://{pathlib.Path(tiger_bg_zip).expanduser().resolve()}")
-    if pts.crs != bg.crs:
-        pts = pts.to_crs(bg.crs)
-
-    if "GEOID" in bg.columns:
-        bg["bg_geoid"] = bg["GEOID"].astype(str)
-    else:
-        req = ["STATEFP", "COUNTYFP", "TRACTCE", "BLKGRPCE"]
-        miss = [c for c in req if c not in bg.columns]
-        if miss:
-            raise SystemExit(f"TIGER BG missing columns: {miss}")
-        bg["bg_geoid"] = (
-            bg["STATEFP"].astype(str).str.zfill(2)
-            + bg["COUNTYFP"].astype(str).str.zfill(3)
-            + bg["TRACTCE"].astype(str).str.zfill(6)
-            + bg["BLKGRPCE"].astype(str).str.zfill(1)
-        )
-
-    joined = gpd.sjoin(pts, bg[["bg_geoid", "geometry"]], how="left", predicate="within")
-    out = pd.DataFrame(joined.drop(columns=["geometry"]))
-    out = out[out["bg_geoid"].notna()].copy()
-    out["bg_geoid"] = out["bg_geoid"].astype(str)
-    return out
+    return _spatial_join_bg(pts, tiger_bg_zip)
 
 
 def _normalize_sex(series: Any) -> Any:
@@ -360,4 +392,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
