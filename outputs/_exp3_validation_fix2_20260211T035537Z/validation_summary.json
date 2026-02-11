@@ -1,0 +1,12 @@
+{
+  "created_utc": "2026-02-11T03:57:53Z",
+  "paths": {
+    "synthetic": "/home/jinlin/projects/Synthetic_City/outputs/_exp4_end_to_end_l1_l2_tiger_20260211T033948Z/synthetic_sample.csv.gz",
+    "acs_targets_long": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/marginals/acs5_2022_marginals_long_tract_state26_michigan.csv",
+    "pums_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip"
+  },
+  "layers": {
+    "L2_tract": "written",
+    "L3_puma": "written"
+  }
+}
