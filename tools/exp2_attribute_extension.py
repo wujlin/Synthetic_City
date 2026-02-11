@@ -286,14 +286,108 @@ def _build_puma_stats(*, df: Any, puma_col: str, wcol: str) -> tuple[dict[str, "
     return out, [f"puma_{c}_z" for c in cols]
 
 
+def _resolve_buildings_csv(*, data_root: pathlib.Path, buildings_csv: str | None) -> pathlib.Path | None:
+    if buildings_csv:
+        p = pathlib.Path(buildings_csv).expanduser().resolve()
+        if not p.exists():
+            raise SystemExit(f"buildings_csv not found: {p}")
+        return p
+    cand = data_root / "detroit" / "processed" / "buildings" / "buildings_detroit_features_price.csv"
+    if cand.exists():
+        return cand
+    return None
+
+
+def _build_puma_built_stats(*, buildings_df: Any, puma_col: str = "puma") -> tuple[dict[str, "Any"], list[str]]:
+    """
+    Build PUMA-level built-environment context from building table.
+
+    Required: a PUMA column and at least one numeric feature among known candidates.
+    """
+    pd = _require("pandas")
+    np = _require("numpy")
+
+    d = buildings_df.copy()
+    if puma_col not in d.columns:
+        # Common fallback names.
+        for c in ["PUMA", "puma20", "PUMA20"]:
+            if c in d.columns:
+                d[puma_col] = d[c]
+                break
+    if puma_col not in d.columns:
+        raise SystemExit("buildings_csv missing puma/PUMA/PUMA20 column for built context.")
+
+    d[puma_col] = pd.to_numeric(d[puma_col], errors="coerce")
+    d = d[d[puma_col].notna()].copy()
+    d[puma_col] = d[puma_col].astype(int).astype(str)
+    if d.empty:
+        raise SystemExit("buildings_csv has no valid puma rows.")
+
+    # Candidate feature columns (take those that exist).
+    num_cols = []
+    for c in ["cap_proxy", "height_m", "height", "footprint_area_m2", "footprint_area", "dist_cbd_km"]:
+        if c in d.columns:
+            num_cols.append(c)
+    for c in num_cols:
+        d[c] = pd.to_numeric(d[c], errors="coerce").fillna(0.0).astype(float)
+
+    # Price tier entropy/proportions if available.
+    has_price_tier = "price_tier" in d.columns
+    if has_price_tier:
+        d["price_tier"] = pd.to_numeric(d["price_tier"], errors="coerce").fillna(0).astype(int)
+
+    rows = []
+    for puma, g in d.groupby(puma_col, sort=False):
+        row: dict[str, Any] = {"puma": str(puma)}
+        row["n_buildings_log"] = float(np.log(max(int(g.shape[0]), 1)))
+        row["cap_proxy_sum_log"] = float(np.log1p(float(g["cap_proxy"].sum()))) if "cap_proxy" in g.columns else 0.0
+        if "height_m" in g.columns:
+            row["height_mean"] = float(g["height_m"].mean())
+        elif "height" in g.columns:
+            row["height_mean"] = float(g["height"].mean())
+        else:
+            row["height_mean"] = 0.0
+        if "footprint_area_m2" in g.columns:
+            row["footprint_mean_log"] = float(np.log1p(float(g["footprint_area_m2"].mean())))
+        elif "footprint_area" in g.columns:
+            row["footprint_mean_log"] = float(np.log1p(float(g["footprint_area"].mean())))
+        else:
+            row["footprint_mean_log"] = 0.0
+        row["dist_cbd_mean"] = float(g["dist_cbd_km"].mean()) if "dist_cbd_km" in g.columns else 0.0
+        if has_price_tier:
+            valid = g["price_tier"][g["price_tier"] > 0]
+            if valid.empty:
+                probs = [0.0] * 5
+            else:
+                counts = np.bincount(valid.to_numpy(dtype=int), minlength=6)[1:6].astype(float)
+                probs = (counts / max(float(counts.sum()), 1e-12)).tolist()
+            for i, p in enumerate(probs, start=1):
+                row[f"price_tier_p{i}"] = float(p)
+        rows.append(row)
+
+    feat = pd.DataFrame(rows)
+    cols = [c for c in feat.columns if c != "puma"]
+    if not cols:
+        raise SystemExit("No usable built features found in buildings_csv.")
+
+    mu = feat[cols].mean(axis=0, numeric_only=True)
+    sd = feat[cols].std(axis=0, ddof=0, numeric_only=True).replace(0.0, 1.0)
+    feat_z = (feat[cols] - mu) / sd
+
+    out: dict[str, Any] = {}
+    for i, r in feat.iterrows():
+        out[str(r["puma"])] = feat_z.iloc[i].to_numpy(dtype=np.float32)
+    return out, [f"built_{c}_z" for c in cols]
+
+
 def _encode_condition(
     *,
     df: Any,
     puma_col: str,
     use_race: bool,
-    use_puma_stats: bool,
-    puma_stats: dict[str, "Any"] | None,
-    puma_stat_cols: list[str] | None,
+    use_area_stats: bool,
+    area_stats: dict[str, "Any"] | None,
+    area_stat_cols: list[str] | None,
     race_cats_global: list[int] | None,
 ) -> tuple[Any, Any, _Encoder]:
     pd = _require("pandas")
@@ -328,15 +422,17 @@ def _encode_condition(
         cond_parts.append(race_oh)
         cond_cols += [f"race_{c}" for c in race_cats]
 
-    if use_puma_stats:
-        if puma_stats is None or puma_stat_cols is None:
-            raise RuntimeError("use_puma_stats requested but puma_stats/puma_stat_cols is None")
+    if use_area_stats:
+        if area_stats is None or area_stat_cols is None:
+            raise RuntimeError("use_area_stats requested but area_stats/area_stat_cols is None")
         p = df[puma_col].astype(str).to_numpy()
-        stats = np.stack([np.asarray(puma_stats.get(str(x)), dtype=np.float32) for x in p], axis=0)
+        dim = int(len(area_stat_cols))
+        zero = np.zeros(dim, dtype=np.float32)
+        stats = np.stack([np.asarray(area_stats.get(str(x), zero), dtype=np.float32) for x in p], axis=0)
         if stats.ndim != 2:
-            raise RuntimeError("Invalid puma stats shape")
+            raise RuntimeError("Invalid area stats shape")
         cond_parts.append(stats.astype(np.float32))
-        cond_cols += list(puma_stat_cols)
+        cond_cols += list(area_stat_cols)
 
     cond = np.concatenate(cond_parts, axis=1).astype(np.float32)
     enc = _Encoder(
@@ -487,6 +583,7 @@ def main() -> None:
     ap.add_argument("--pums_year", type=int, default=2023)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
+    ap.add_argument("--buildings_csv", default=None, help="Optional building features CSV for built-context conditions.")
     ap.add_argument("--mode", choices=["train_eval", "eval_only"], default="train_eval")
     ap.add_argument(
         "--resume",
@@ -497,7 +594,10 @@ def main() -> None:
     ap.add_argument(
         "--conditions",
         default="demo_only",
-        help='Comma-separated condition sets: demo_only, demo_race, demo_puma, demo_race_puma (v0.1).',
+        help=(
+            "Comma-separated condition sets: "
+            "demo_only, demo_race, demo_puma, demo_race_puma, demo_race_puma_built"
+        ),
     )
     ap.add_argument("--n_folds", type=int, default=5)
     ap.add_argument("--fold_split", choices=["hash"], default="hash")
@@ -600,11 +700,39 @@ def main() -> None:
 
     # PUMA stats for "puma" conditions.
     puma_stats, puma_stat_cols = _build_puma_stats(df=df, puma_col="PUMA", wcol="PWGTP")
+    built_stats = None
+    built_stat_cols = None
+    if any("built" in c for c in conditions):
+        bcsv = _resolve_buildings_csv(data_root=data_root, buildings_csv=args.buildings_csv)
+        if bcsv is None:
+            raise SystemExit(
+                "built condition requested but buildings CSV not found. "
+                "Pass --buildings_csv or place file at detroit/processed/buildings/buildings_detroit_features_price.csv"
+            )
+        bdf = pd.read_csv(bcsv, low_memory=False)
+        built_stats, built_stat_cols = _build_puma_built_stats(buildings_df=bdf, puma_col="puma")
 
     metrics_by_condition: dict[str, Any] = {}
     for cond_id in conditions:
         use_race = "race" in cond_id
         use_puma_stats = "puma" in cond_id
+        use_built_stats = "built" in cond_id
+        use_area_stats = use_puma_stats or use_built_stats
+        area_stats = None
+        area_stat_cols = None
+        if use_area_stats:
+            base_map = puma_stats if use_puma_stats else {}
+            base_cols = puma_stat_cols if use_puma_stats else []
+            extra_map = built_stats if use_built_stats and built_stats is not None else {}
+            extra_cols = built_stat_cols if use_built_stats and built_stat_cols is not None else []
+            # Union by PUMA; missing pieces are zero-filled.
+            keys = sorted(set(base_map.keys()) | set(extra_map.keys()))
+            area_stats = {}
+            for k in keys:
+                a = np.asarray(base_map.get(k, np.zeros(len(base_cols), dtype=np.float32)), dtype=np.float32)
+                b = np.asarray(extra_map.get(k, np.zeros(len(extra_cols), dtype=np.float32)), dtype=np.float32)
+                area_stats[str(k)] = np.concatenate([a, b], axis=0).astype(np.float32)
+            area_stat_cols = list(base_cols) + list(extra_cols)
         cond_root = out_dir / cond_id
         cond_root.mkdir(parents=True, exist_ok=True)
 
@@ -669,9 +797,9 @@ def main() -> None:
                         df=train_df,
                         puma_col="PUMA",
                         use_race=use_race,
-                        use_puma_stats=use_puma_stats,
-                        puma_stats=puma_stats,
-                        puma_stat_cols=puma_stat_cols,
+                        use_area_stats=use_area_stats,
+                        area_stats=area_stats,
+                        area_stat_cols=area_stat_cols,
                         race_cats_global=race_cats_global,
                     )
                     if train_df2.empty:
@@ -738,9 +866,9 @@ def main() -> None:
                 df=test_df,
                 puma_col="PUMA",
                 use_race=use_race,
-                use_puma_stats=use_puma_stats,
-                puma_stats=puma_stats,
-                puma_stat_cols=puma_stat_cols,
+                use_area_stats=use_area_stats,
+                area_stats=area_stats,
+                area_stat_cols=area_stat_cols,
                 race_cats_global=race_eval,
             )
             n_test = int(test_df2.shape[0])

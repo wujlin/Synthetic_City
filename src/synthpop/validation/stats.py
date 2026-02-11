@@ -328,6 +328,36 @@ def compute_stats_metrics_against_targets_long(
         out.loc[mask16 & esr.isin({"4", "5"})] = "armed_forces"
         syn["ESR_16p"] = out.astype(object)
 
+    if "SCHL_25p" in variables and "SCHL_25p" not in syn.columns:
+        if "AGEP" not in syn.columns or "SCHL" not in syn.columns:
+            raise ValueError('variables include "SCHL_25p" but synthetic lacks AGEP/SCHL.')
+        age = pd.to_numeric(syn.get("AGEP"), errors="coerce")
+        schl = pd.to_numeric(syn.get("SCHL"), errors="coerce")
+        mask25 = age >= 25
+
+        out = pd.Series([None] * int(syn.shape[0]), index=syn.index, dtype=object)
+        # PUMS SCHL coarse mapping to ACS B15003 bins.
+        out.loc[mask25] = "less_than_high_school"
+        out.loc[mask25 & schl.isin([19, 20])] = "high_school_or_ged"
+        out.loc[mask25 & schl.isin([21, 22, 23])] = "some_college_or_assoc"
+        out.loc[mask25 & (schl >= 24)] = "bachelor_plus"
+        syn["SCHL_25p"] = out.astype(object)
+
+    if "PINCP_16p_bin" in variables and "PINCP_16p_bin" not in syn.columns:
+        if "AGEP" not in syn.columns or "PINCP" not in syn.columns:
+            raise ValueError('variables include "PINCP_16p_bin" but synthetic lacks AGEP/PINCP.')
+        age = pd.to_numeric(syn.get("AGEP"), errors="coerce")
+        inc = pd.to_numeric(syn.get("PINCP"), errors="coerce").fillna(0.0).clip(lower=0.0)
+        mask16_earn = (age >= 16) & (inc > 0)
+
+        out = pd.Series([None] * int(syn.shape[0]), index=syn.index, dtype=object)
+        out.loc[mask16_earn & (inc < 25_000.0)] = "lt_25k"
+        out.loc[mask16_earn & (inc >= 25_000.0) & (inc < 50_000.0)] = "25k_50k"
+        out.loc[mask16_earn & (inc >= 50_000.0) & (inc < 75_000.0)] = "50k_75k"
+        out.loc[mask16_earn & (inc >= 75_000.0) & (inc < 100_000.0)] = "75k_100k"
+        out.loc[mask16_earn & (inc >= 100_000.0)] = "ge_100k"
+        syn["PINCP_16p_bin"] = out.astype(object)
+
     available_vars = set(syn.columns.tolist())
     used_vars: list[str] = []
     skipped_vars: list[str] = []
@@ -348,6 +378,17 @@ def compute_stats_metrics_against_targets_long(
             if var == "ESR_16p":
                 age_g = pd.to_numeric(s_g.get("AGEP"), errors="coerce")
                 s_g = s_g[age_g >= 16]
+                if s_g.empty:
+                    continue
+            if var == "SCHL_25p":
+                age_g = pd.to_numeric(s_g.get("AGEP"), errors="coerce")
+                s_g = s_g[age_g >= 25]
+                if s_g.empty:
+                    continue
+            if var == "PINCP_16p_bin":
+                age_g = pd.to_numeric(s_g.get("AGEP"), errors="coerce")
+                inc_g = pd.to_numeric(s_g.get("PINCP"), errors="coerce").fillna(0.0)
+                s_g = s_g[(age_g >= 16) & (inc_g > 0)]
                 if s_g.empty:
                     continue
             t_g = t_var[t_var[group_col] == g]
@@ -418,7 +459,11 @@ def compute_stats_metrics_against_targets_long(
         "variables_skipped_missing_in_synthetic": skipped_vars,
         "bin_edges": used_bin_edges,
         "reference_source": "targets_long",
-        "variable_scopes": {"ESR_16p": "AGEP>=16 (match ACS B23025 population 16+)"} if "ESR_16p" in used_vars else {},
+        "variable_scopes": {
+            "ESR_16p": "AGEP>=16 (match ACS B23025 population 16+)",
+            "SCHL_25p": "AGEP>=25 (match ACS B15003 population 25+)",
+            "PINCP_16p_bin": "AGEP>=16 and PINCP>0 (approx ACS B20001 earnings universe)",
+        },
     }
 
     return {
