@@ -54,6 +54,65 @@ def _find_first_csv_in_zip(zip_path: pathlib.Path) -> str:
         return names[0]
 
 
+def _age_idx_to_midpoint(age_idx_series: Any) -> Any:
+    pd = _require("pandas")
+    # 23-bin midpoints used across Exp2/Exp4 for AGEP approximation.
+    mids = [2.0, 7.0, 12.0, 16.0, 19.0, 20.0, 21.0, 23.0, 27.0, 32.0, 37.0, 42.0, 47.0, 52.0, 57.0, 61.0, 64.0, 66.0, 69.0, 74.0, 79.0, 84.0, 90.0]
+    age_idx = pd.to_numeric(age_idx_series, errors="coerce").fillna(0).astype(int).clip(lower=0, upper=22)
+    return age_idx.map(lambda x: float(mids[int(x)]))
+
+
+def _harmonize_synthetic_columns(syn: Any, *, puma_group_col: str) -> Any:
+    pd = _require("pandas")
+
+    out = syn.copy()
+    cols = {str(c).lower(): str(c) for c in out.columns}
+
+    def _has(c: str) -> bool:
+        return c in out.columns
+
+    def _pick(*cands: str) -> str | None:
+        for c in cands:
+            if c in cols:
+                return cols[c]
+        return None
+
+    # AGEP
+    if not _has("AGEP"):
+        age_idx_col = _pick("age_idx", "agebin", "age_bin", "age_group_idx")
+        if age_idx_col is not None:
+            out["AGEP"] = _age_idx_to_midpoint(out[age_idx_col])
+
+    # SEX
+    if not _has("SEX"):
+        sex_col = _pick("sex")
+        if sex_col is not None:
+            out["SEX"] = pd.to_numeric(out[sex_col], errors="coerce").fillna(1).astype(int).clip(lower=1, upper=2)
+
+    # PINCP
+    if not _has("PINCP"):
+        inc_col = _pick("income", "pincp")
+        if inc_col is not None:
+            out["PINCP"] = pd.to_numeric(out[inc_col], errors="coerce").fillna(0.0).clip(lower=0.0)
+
+    # ESR
+    if not _has("ESR"):
+        esr_col = _pick("esr")
+        if esr_col is not None:
+            out["ESR"] = out[esr_col].astype(str)
+
+    # puma grouping
+    if not _has("puma"):
+        if str(puma_group_col) in out.columns:
+            out["puma"] = out[str(puma_group_col)].astype(str)
+        else:
+            puma_col = _pick("puma", "puma20")
+            if puma_col is not None:
+                out["puma"] = out[puma_col].astype(str)
+
+    return out
+
+
 def _resolve_pums_person_zip(*, data_root: pathlib.Path, pums_year: int, pums_period: str, statefp: str) -> pathlib.Path:
     statefp = str(statefp).zfill(2)
     state_postal_lower = "mi" if statefp == "26" else None
@@ -113,6 +172,7 @@ def main() -> None:
         syn = pd.read_parquet(syn_path)
     else:
         syn = pd.read_csv(syn_path, low_memory=False)
+    syn = _harmonize_synthetic_columns(syn, puma_group_col=str(args.puma_group_col))
 
     # --- L2: Tract marginals vs ACS targets_long ---
     l2 = None
@@ -200,4 +260,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
