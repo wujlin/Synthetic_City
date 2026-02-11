@@ -70,7 +70,9 @@ def compute_stats_metrics(
         return 0.5 * float(np.abs(p - q).sum())
 
     def _norm_counts(series: "Any") -> "Any":
-        c = series.value_counts(dropna=False, normalize=True)
+        # Normalize category keys to string to avoid mixed-type sort failures
+        # (e.g., Interval from pd.cut vs float/int raw categories).
+        c = series.astype(str).value_counts(dropna=False, normalize=True)
         return c.astype(float)
 
     def _marginal_tvd_by_group(*, syn_col: str, ref_col: str) -> dict[str, Any]:
