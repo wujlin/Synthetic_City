@@ -1,0 +1,62 @@
+{
+  "created_utc": "2026-02-11T09:06:03Z",
+  "inputs": {
+    "exp1_counts_path": "/home/jinlin/projects/Synthetic_City/outputs/_exp1_basepop_bg_mi_20260210T022031Z/base_pop_bg_age_sex_race_counts.parquet",
+    "advisor_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/reference/advisor_synthpop/mi.zip",
+    "advisor_member": "mi/mi_population.gpkg",
+    "advisor_layer": "mi_population",
+    "tiger_bg_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_bg.zip",
+    "data_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+    "statefp": "26"
+  },
+  "summary": {
+    "mean_tvd_bg_age_sex": 0.13824183852775698,
+    "p50_tvd_bg_age_sex": 0.12115536618856952,
+    "p90_tvd_bg_age_sex": 0.19425857497633894,
+    "max_tvd_bg_age_sex": 1.0,
+    "n_bg_overlap": 8197,
+    "worst_bg_top10": [
+      {
+        "bg_geoid": "261639823011",
+        "tvd": 1.0
+      },
+      {
+        "bg_geoid": "261476420002",
+        "tvd": 0.9743589743589743
+      },
+      {
+        "bg_geoid": "261639841001",
+        "tvd": 0.9722222222222221
+      },
+      {
+        "bg_geoid": "260937402002",
+        "tvd": 0.9679144385026738
+      },
+      {
+        "bg_geoid": "260539502003",
+        "tvd": 0.9656699889258029
+      },
+      {
+        "bg_geoid": "261639852001",
+        "tvd": 0.9541984732824427
+      },
+      {
+        "bg_geoid": "261158301004",
+        "tvd": 0.9500000000000001
+      },
+      {
+        "bg_geoid": "261251974002",
+        "tvd": 0.9485981308411214
+      },
+      {
+        "bg_geoid": "260539502002",
+        "tvd": 0.9390756302521007
+      },
+      {
+        "bg_geoid": "260992267003",
+        "tvd": 0.9340796019900498
+      }
+    ]
+  },
+  "note": "Head-to-head compares normalized BG age×sex distributions (not absolute counts)."
+}

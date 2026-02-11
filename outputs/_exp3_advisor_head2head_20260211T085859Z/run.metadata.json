@@ -1,0 +1,22 @@
+{
+  "created_utc": "2026-02-11T09:06:03Z",
+  "argv": [
+    "tools/exp3_advisor_head2head.py",
+    "--exp1_counts_path",
+    "outputs/_exp1_basepop_bg_mi_20260210T022031Z/base_pop_bg_age_sex_race_counts.parquet",
+    "--advisor_zip",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data/reference/advisor_synthpop/mi.zip",
+    "--advisor_member",
+    "mi/mi_population.gpkg",
+    "--advisor_layer",
+    "mi_population",
+    "--tiger_bg_zip",
+    "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_bg.zip",
+    "--out_dir",
+    "outputs/_exp3_advisor_head2head_20260211T085859Z"
+  ],
+  "env": {
+    "RAW_ROOT": "/home/jinlin/data/geoexplicit_data",
+    "SYNTHCITY_DATA_ROOT": null
+  }
+}
