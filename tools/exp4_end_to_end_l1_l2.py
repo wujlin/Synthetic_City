@@ -196,6 +196,21 @@ def _tvd_from_dists(p: dict[str, float], q: dict[str, float]) -> float | None:
     return _tvd(pv, qv)
 
 
+def _cosine_from_dists(p: dict[str, float], q: dict[str, float]) -> float | None:
+    np = _require("numpy")
+    if not p or not q:
+        return None
+    keys = sorted(set(p.keys()) | set(q.keys()))
+    pv = np.asarray([float(p.get(k, 0.0)) for k in keys], dtype=float)
+    qv = np.asarray([float(q.get(k, 0.0)) for k in keys], dtype=float)
+    pn = float(np.linalg.norm(pv))
+    qn = float(np.linalg.norm(qv))
+    if pn <= 0 or qn <= 0:
+        return None
+    c = float(np.dot(pv, qv) / (pn * qn))
+    return c if np.isfinite(c) else None
+
+
 def _weighted_cat_dist(df: Any, col: str, wcol: str) -> dict[str, float]:
     pd = _require("pandas")
     s = df[[col, wcol]].copy()
@@ -694,6 +709,10 @@ def main() -> None:
             _weighted_joint_dist(s_joint, ["age_idx", "PINCP_bin"], "W"),
             _weighted_joint_dist(r_p.assign(age_idx=r_joint["age_idx"]), ["age_idx", "PINCP_bin"], "PWGTP"),
         )
+        m["puma_cosine_age_income_bin_joint"] = _cosine_from_dists(
+            _weighted_joint_dist(s_joint, ["age_idx", "PINCP_bin"], "W"),
+            _weighted_joint_dist(r_p.assign(age_idx=r_joint["age_idx"]), ["age_idx", "PINCP_bin"], "PWGTP"),
+        )
 
         per_puma[str(puma)] = m
 
@@ -705,7 +724,20 @@ def main() -> None:
         arr = np.asarray(vals, dtype=float)
         return {"mean": float(arr.mean()), "max": float(arr.max()), "n_pumas": int(arr.size)}
 
-    out_metrics = {"by_puma": per_puma, "summary": {k: _agg(k) for k in ["tvd_income_bin", "tvd_schl", "tvd_esr", "copula_tvd_age_income", "joint_tvd_age_income_bin"]}}
+    def _agg_cos(metric: str) -> dict[str, float] | None:
+        vals = [per_puma[p][metric] for p in per_puma if per_puma[p].get(metric) is not None]
+        if not vals:
+            return None
+        arr = np.asarray(vals, dtype=float)
+        return {"mean": float(arr.mean()), "min": float(arr.min()), "max": float(arr.max()), "n_pumas": int(arr.size)}
+
+    out_metrics = {
+        "by_puma": per_puma,
+        "summary": {
+            **{k: _agg(k) for k in ["tvd_income_bin", "tvd_schl", "tvd_esr", "copula_tvd_age_income", "joint_tvd_age_income_bin"]},
+            "puma_cosine_age_income_bin_joint": _agg_cos("puma_cosine_age_income_bin_joint"),
+        },
+    }
     _write_json(out_dir / "end_to_end_puma_metrics.json", out_metrics)
 
     print(f"[ok] wrote: {out_dir}")

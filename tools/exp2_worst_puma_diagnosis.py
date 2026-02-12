@@ -87,7 +87,7 @@ def main() -> None:
     ap.add_argument("--conditions", default=None, help="Comma-separated conditions; default: from ablation_summary.json")
     ap.add_argument(
         "--metrics",
-        default="tvd_income_bin,tvd_schl,tvd_esr,copula_tvd_age_income,joint_tvd_age_income_bin",
+        default="tvd_income_bin,tvd_schl,tvd_esr,copula_tvd_age_income,joint_tvd_age_income_bin,puma_cosine_age_income_bin_joint",
         help="Comma-separated metrics to rank PUMAs by.",
     )
     ap.add_argument("--top_k", type=int, default=5)
@@ -122,6 +122,10 @@ def main() -> None:
     )
     metrics = [m.strip() for m in str(args.metrics).split(",") if m.strip()]
 
+    def _is_higher_worse(metric: str) -> bool:
+        # Distances/errors: higher is worse. Similarities (cosine): lower is worse.
+        return "cosine" not in str(metric).lower()
+
     # Build per-condition per-PUMA metric dict.
     cond_puma: dict[str, dict[str, dict[str, float]]] = {}
     cond_puma_fold: dict[str, dict[str, int]] = {}
@@ -150,7 +154,7 @@ def main() -> None:
             for metric in metrics:
                 vals = [(p, mm.get(metric)) for p, mm in cond_puma.get(cond, {}).items() if metric in mm]
                 vals = [(p, float(v)) for p, v in vals if v is not None and math.isfinite(float(v))]
-                vals.sort(key=lambda t: t[1], reverse=True)
+                vals.sort(key=lambda t: t[1], reverse=_is_higher_worse(metric))
                 for p, _ in vals[:top_k]:
                     selected.add(str(p))
     selected = {str(p) for p in selected if str(p)}
@@ -162,7 +166,7 @@ def main() -> None:
         for metric in metrics:
             vals = [(p, mm.get(metric)) for p, mm in cond_puma.get(cond, {}).items() if metric in mm]
             vals = [(p, float(v)) for p, v in vals if v is not None and math.isfinite(float(v))]
-            vals.sort(key=lambda t: t[1], reverse=True)
+            vals.sort(key=lambda t: t[1], reverse=_is_higher_worse(metric))
             worst_by_metric[metric] = [
                 {"puma": str(p), "value": float(v), "fold": int(cond_puma_fold.get(cond, {}).get(str(p), -1))}
                 for p, v in vals[: int(args.top_k)]
@@ -252,4 +256,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

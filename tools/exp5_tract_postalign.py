@@ -217,6 +217,21 @@ def _tvd_from_dists(p: dict[str, float], q: dict[str, float]) -> float | None:
     return _tvd(pv, qv)
 
 
+def _cosine_from_dists(p: dict[str, float], q: dict[str, float]) -> float | None:
+    np = _require("numpy")
+    if not p or not q:
+        return None
+    keys = sorted(set(p.keys()) | set(q.keys()))
+    pv = np.asarray([float(p.get(k, 0.0)) for k in keys], dtype=float)
+    qv = np.asarray([float(q.get(k, 0.0)) for k in keys], dtype=float)
+    pn = float(np.linalg.norm(pv))
+    qn = float(np.linalg.norm(qv))
+    if pn <= 0 or qn <= 0:
+        return None
+    c = float(np.dot(pv, qv) / (pn * qn))
+    return c if np.isfinite(c) else None
+
+
 def _harmonize_synthetic_columns(df: Any, *, tract_col: str, puma_col: str) -> Any:
     pd = _require("pandas")
 
@@ -581,6 +596,10 @@ def _puma_metrics_vs_pums(
             _weighted_joint_dist(s_joint, ["age_idx", "PINCP_bin"], wcol),
             _weighted_joint_dist(r_joint, ["age_idx", "PINCP_bin"], ref_wcol),
         )
+        m["puma_cosine_age_income_bin_joint"] = _cosine_from_dists(
+            _weighted_joint_dist(s_joint, ["age_idx", "PINCP_bin"], wcol),
+            _weighted_joint_dist(r_joint, ["age_idx", "PINCP_bin"], ref_wcol),
+        )
         per_puma[str(p)] = m
 
     def _agg(metric: str) -> dict[str, float] | None:
@@ -590,6 +609,13 @@ def _puma_metrics_vs_pums(
         arr = np.asarray(vals, dtype=float)
         return {"mean": float(arr.mean()), "max": float(arr.max()), "n_pumas": int(arr.size)}
 
+    def _agg_cos(metric: str) -> dict[str, float] | None:
+        vals = [per_puma[p][metric] for p in per_puma if per_puma[p].get(metric) is not None]
+        if not vals:
+            return None
+        arr = np.asarray(vals, dtype=float)
+        return {"mean": float(arr.mean()), "min": float(arr.min()), "max": float(arr.max()), "n_pumas": int(arr.size)}
+
     return {
         "by_puma": per_puma,
         "summary": {
@@ -598,6 +624,7 @@ def _puma_metrics_vs_pums(
             "tvd_esr": _agg("tvd_esr"),
             "copula_tvd_age_income": _agg("copula_tvd_age_income"),
             "joint_tvd_age_income_bin": _agg("joint_tvd_age_income_bin"),
+            "puma_cosine_age_income_bin_joint": _agg_cos("puma_cosine_age_income_bin_joint"),
         },
     }
 
@@ -635,7 +662,14 @@ def _load_pums_reference(*, data_root: pathlib.Path, pums_year: int, pums_period
 
 def _summary_delta(*, before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
-    for metric in ["tvd_income_bin", "tvd_schl", "tvd_esr", "copula_tvd_age_income", "joint_tvd_age_income_bin"]:
+    for metric in [
+        "tvd_income_bin",
+        "tvd_schl",
+        "tvd_esr",
+        "copula_tvd_age_income",
+        "joint_tvd_age_income_bin",
+        "puma_cosine_age_income_bin_joint",
+    ]:
         b = (before.get("summary", {}).get(metric) or {}).get("mean")
         a = (after.get("summary", {}).get(metric) or {}).get("mean")
         if b is None or a is None:
@@ -821,4 +855,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
