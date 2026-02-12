@@ -134,7 +134,7 @@ def _discover_gpkg_layers(path: pathlib.Path) -> list[str]:
         return []
 
 
-def _load_advisor_df(*, advisor_zip: pathlib.Path, advisor_member: str | None, advisor_layer: str | None) -> Any:
+def _load_advisor_df(*, advisor_zip: pathlib.Path, advisor_member: str, advisor_layer: str | None) -> Any:
     pd = _require("pandas")
     gpd = None
     try:
@@ -144,32 +144,9 @@ def _load_advisor_df(*, advisor_zip: pathlib.Path, advisor_member: str | None, a
 
     with zipfile.ZipFile(advisor_zip) as zf:
         members = [n for n in zf.namelist() if not n.endswith("/") and not n.startswith("__MACOSX/")]
-        if advisor_member:
-            if advisor_member not in members:
-                raise SystemExit(f"advisor_member not found in zip: {advisor_member}")
-            target = advisor_member
-        else:
-            # Prefer geopackage/parquet/csv in this order.
-            def _score(name: str) -> tuple[int, int, int]:
-                lo = name.lower()
-                if lo.endswith(".gpkg"):
-                    # Prefer person/population tables over workplace/network tables.
-                    if "population" in lo or lo.endswith("mi_population.gpkg"):
-                        return (0, 0, len(name))
-                    if "workplace" in lo or "network" in lo:
-                        return (0, 2, len(name))
-                    return (0, 1, len(name))
-                if lo.endswith(".parquet"):
-                    return (1, 0, len(name))
-                if lo.endswith(".csv"):
-                    return (2, 0, len(name))
-                return (9, 0, len(name))
-
-            members_sorted = sorted(members, key=_score)
-            target = members_sorted[0] if members_sorted else None
-            if target is None:
-                raise SystemExit("advisor zip has no readable members.")
-            print(f"[info] advisor member auto-selected: {target}")
+        if advisor_member not in members:
+            raise SystemExit(f"advisor_member not found in zip: {advisor_member}")
+        target = advisor_member
 
         suffix = pathlib.Path(target).suffix.lower()
         with tempfile.TemporaryDirectory(prefix="advisor_") as td:
@@ -178,32 +155,21 @@ def _load_advisor_df(*, advisor_zip: pathlib.Path, advisor_member: str | None, a
             if suffix == ".gpkg":
                 if gpd is None:
                     raise SystemExit("advisor file is .gpkg but geopandas is not installed.")
-                # Handle multi-layer gpkg: pick the layer that contains person-level age/sex fields.
+                layers = _discover_gpkg_layers(extracted)
+                if not layers:
+                    raise SystemExit("Failed to list layers in advisor gpkg; pass a valid gpkg file/member.")
                 chosen_layer = advisor_layer
                 if chosen_layer is None:
-                    layers = _discover_gpkg_layers(extracted)
-                    if layers:
-                        print(f"[info] advisor gpkg layers: {layers}")
-                    if layers:
-                        age_cands = {"age", "agep", "age_years", "person_age"}
-                        sex_cands = {"sex", "gender", "sex_id", "person_sex"}
-                        for lyr in layers:
-                            try:
-                                probe = gpd.read_file(extracted, layer=lyr, rows=50)
-                            except Exception:
-                                continue
-                            cols_l = {str(c).lower() for c in probe.columns}
-                            if cols_l & age_cands and cols_l & sex_cands:
-                                chosen_layer = lyr
-                                break
-                        # fallback: keep first layer if no age/sex match found
-                        if chosen_layer is None:
-                            chosen_layer = layers[0]
-                    if chosen_layer is not None:
-                        print(f"[info] advisor gpkg chosen layer: {chosen_layer}")
+                    if len(layers) == 1:
+                        chosen_layer = layers[0]
+                    else:
+                        raise SystemExit(
+                            f"advisor gpkg has multiple layers {layers}; "
+                            "please pass --advisor_layer explicitly."
+                        )
+                if chosen_layer not in layers:
+                    raise SystemExit(f"advisor_layer not found in gpkg layers: {chosen_layer} not in {layers}")
                 try:
-                    if chosen_layer is None:
-                        return gpd.read_file(extracted)
                     return gpd.read_file(extracted, layer=chosen_layer)
                 except Exception as e:
                     raise SystemExit(f"Failed to read advisor gpkg layer={chosen_layer}: {e}") from e
@@ -212,35 +178,6 @@ def _load_advisor_df(*, advisor_zip: pathlib.Path, advisor_member: str | None, a
             if suffix == ".csv":
                 return pd.read_csv(extracted, low_memory=False)
             raise SystemExit(f"Unsupported advisor member type: {target}")
-
-
-def _auto_find_tiger_bg_zip(*, data_root: pathlib.Path, statefp: str) -> pathlib.Path | None:
-    statefp = str(statefp).zfill(2)
-    patterns = [
-        f"detroit/raw/geo/tiger/**/tl_*_{statefp}_bg.zip",
-        f"detroit/raw/census/tiger/**/tl_*_{statefp}_bg.zip",
-        f"tl_*_{statefp}_bg.zip",
-    ]
-    cands: list[pathlib.Path] = []
-    for pat in patterns:
-        cands.extend([p for p in data_root.glob(pat) if p.is_file()])
-    if not cands:
-        return None
-
-    # Prefer higher TIGER year if present in filename, then longer path depth.
-    def _score(p: pathlib.Path) -> tuple[int, int]:
-        name = p.name
-        year = -1
-        try:
-            parts = name.split("_")
-            if len(parts) >= 2:
-                year = int(parts[1])
-        except Exception:
-            year = -1
-        return (year, len(str(p)))
-
-    cands = sorted(cands, key=_score, reverse=True)
-    return cands[0]
 
 
 def _ensure_bg_geoid(
@@ -312,9 +249,8 @@ def _ensure_bg_geoid(
             gdf = gdf[gdf.geometry.notna()].copy()
             if not gdf.empty:
                 return _spatial_join_bg(gdf, tiger_bg_zip)
-        except Exception:
-            # Fall through to lon/lat branch if geometry branch fails.
-            pass
+        except Exception as e:
+            raise SystemExit(f"advisor geometry spatial-join failed: {e}") from e
 
     lon_col = _infer_col(d, ["lon", "lng", "longitude", "x"])
     lat_col = _infer_col(d, ["lat", "latitude", "y"])
@@ -357,16 +293,13 @@ def main() -> None:
     pd = _require("pandas")
     np = _require("numpy")
     from src.synthpop.pipeline.detroit_v0 import make_run_id
-    from src.synthpop.paths import data_root as default_data_root
 
     ap = argparse.ArgumentParser(prog="exp3_advisor_head2head")
     ap.add_argument("--exp1_counts_path", required=True, help="Exp1 counts table with bg_geoid, age_idx, sex, count.")
     ap.add_argument("--advisor_zip", required=True, help="Advisor synthpop zip, e.g., reference/advisor_synthpop/mi.zip")
-    ap.add_argument("--advisor_member", default=None, help="Optional member path inside advisor zip.")
+    ap.add_argument("--advisor_member", required=True, help="Required member path inside advisor zip.")
     ap.add_argument("--advisor_layer", default=None, help="Optional layer name for advisor gpkg (if multi-layer).")
     ap.add_argument("--tiger_bg_zip", default=None, help="Optional TIGER BG zip if advisor has only lon/lat.")
-    ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--statefp", default="26")
     ap.add_argument("--out_dir", default=None, help="Default: outputs/<run_id> under repo.")
     args = ap.parse_args()
 
@@ -399,9 +332,6 @@ def main() -> None:
         raise SystemExit(f"advisor_zip not found: {advisor_zip}")
     adv = _load_advisor_df(advisor_zip=advisor_zip, advisor_member=args.advisor_member, advisor_layer=args.advisor_layer)
     tiger_bg_zip = pathlib.Path(args.tiger_bg_zip).expanduser().resolve() if args.tiger_bg_zip else None
-    if tiger_bg_zip is None:
-        data_root = pathlib.Path(args.data_root).expanduser().resolve()
-        tiger_bg_zip = _auto_find_tiger_bg_zip(data_root=data_root, statefp=str(args.statefp))
     adv = _ensure_bg_geoid(advisor_df=adv, tiger_bg_zip=tiger_bg_zip)
 
     age_col = _infer_col(adv, ["age", "AGEP", "Age", "AGE"])
@@ -468,8 +398,6 @@ def main() -> None:
             "advisor_member": args.advisor_member,
             "advisor_layer": args.advisor_layer,
             "tiger_bg_zip": (str(tiger_bg_zip) if tiger_bg_zip else None),
-            "data_root": str(pathlib.Path(args.data_root).expanduser().resolve()),
-            "statefp": str(args.statefp),
         },
         "summary": summary,
         "note": "Head-to-head compares normalized BG age×sex distributions (not absolute counts).",
