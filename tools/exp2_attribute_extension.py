@@ -605,6 +605,284 @@ def _cosine_from_dists(p: dict[str, float], q: dict[str, float]) -> float | None
     return c if np.isfinite(c) else None
 
 
+def _income_edges_default() -> list[float]:
+    # Keep consistent with existing Exp2 evaluation bins.
+    return [0.0, 10_000.0, 25_000.0, 50_000.0, 75_000.0, 100_000.0, 150_000.0, 250_000.0, 10_000_000.0]
+
+
+def _build_dist_targets_by_puma(
+    *,
+    df: Any,
+    puma_col: str,
+    wcol: str,
+    income_edges: list[float],
+    copula_bins: int,
+) -> dict[str, dict[str, Any]]:
+    pd = _require("pandas")
+    np = _require("numpy")
+
+    d = df[[puma_col, wcol, "AGEP", "PINCP"]].copy()
+    d[puma_col] = d[puma_col].astype(str)
+    d[wcol] = pd.to_numeric(d[wcol], errors="coerce").fillna(0.0).clip(lower=0.0)
+    d["AGEP"] = pd.to_numeric(d["AGEP"], errors="coerce").fillna(0.0).clip(lower=0.0, upper=99.0)
+    d["PINCP"] = pd.to_numeric(d["PINCP"], errors="coerce").fillna(0.0).clip(lower=0.0)
+    d = d[d[wcol] > 0].copy()
+    if d.empty:
+        raise RuntimeError("distributional targets require non-empty weighted training rows")
+
+    d["age_idx"] = d["AGEP"].astype(int).map(_age_to_p12_idx).astype(int)
+    inc_codes = pd.cut(d["PINCP"], bins=income_edges, include_lowest=True, right=False, labels=False)
+    d["inc_bin"] = pd.to_numeric(inc_codes, errors="coerce").fillna(-1).astype(int)
+
+    out: dict[str, dict[str, Any]] = {}
+    k_inc = len(income_edges) - 1
+    for puma, g in d.groupby(puma_col, sort=False):
+        w = g[wcol].to_numpy(dtype=float)
+        age = g["age_idx"].to_numpy(dtype=int)
+        inc = g["inc_bin"].to_numpy(dtype=int)
+        valid = (inc >= 0) & (inc < k_inc) & np.isfinite(w) & (w > 0)
+        if not bool(valid.any()):
+            continue
+
+        wv = w[valid]
+        agev = age[valid]
+        incv = inc[valid]
+
+        marg = np.bincount(incv, weights=wv, minlength=k_inc).astype(float)
+        marg = marg / max(float(marg.sum()), 1e-12)
+
+        joint = np.zeros((23, k_inc), dtype=float)
+        np.add.at(joint, (agev, incv), wv)
+        joint = joint / max(float(joint.sum()), 1e-12)
+
+        u = _weighted_rank(g["AGEP"].to_numpy(dtype=float), g[wcol].to_numpy(dtype=float))
+        v = _weighted_rank(g["PINCP"].to_numpy(dtype=float), g[wcol].to_numpy(dtype=float))
+        cop = _copula_hist2d(u=u, v=v, w=g[wcol].to_numpy(dtype=float), bins=int(copula_bins))
+
+        out[str(puma)] = {
+            "income_marginal": marg.tolist(),
+            "age_income_joint": joint.tolist(),
+            "age_income_copula": np.asarray(cop, dtype=float).tolist(),
+        }
+    if not out:
+        raise RuntimeError("distributional targets are empty after grouping; check puma/wcol columns")
+    return out
+
+
+def _fit_with_distribution_loss(
+    *,
+    model: Any,
+    x_train: Any,
+    cond_train: Any,
+    train_df: Any,
+    puma_col: str,
+    wcol: str,
+    income_mu: float,
+    income_sd: float,
+    epochs: int,
+    batch_size: int,
+    device: str | None,
+    log_every: int,
+    dist_mode: str,
+    lambda_max: float,
+    lambda_copula_max: float,
+    warmup_steps: int,
+    sigma: float,
+    copula_bins: int,
+    min_group_n: int,
+    seed: int,
+) -> dict[str, float]:
+    torch = _require("torch")
+    np = _require("numpy")
+    pd = _require("pandas")
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    if str(dist_mode) not in {"none", "marginal", "joint", "joint_copula"}:
+        raise ValueError("dist_mode must be one of: none, marginal, joint, joint_copula")
+
+    # Baseline path.
+    if str(dist_mode) == "none" or (float(lambda_max) <= 0 and float(lambda_copula_max) <= 0):
+        x_t = torch.as_tensor(x_train, dtype=torch.float32)
+        c_t = torch.as_tensor(cond_train, dtype=torch.float32)
+        return model.fit(
+            x=x_t,
+            cond=c_t,
+            epochs=int(epochs),
+            batch_size=int(batch_size),
+            device=device,
+            log_every=int(log_every),
+        )
+
+    random.seed(int(seed))
+    np.random.seed(int(seed))
+    torch.manual_seed(int(seed))
+    if str(device).startswith("cuda"):
+        torch.cuda.manual_seed_all(int(seed))
+
+    x = torch.as_tensor(x_train, dtype=torch.float32, device=device)
+    cond = torch.as_tensor(cond_train, dtype=torch.float32, device=device)
+    if x.ndim != 2 or x.shape[0] != cond.shape[0]:
+        raise ValueError("x_train/cond_train shape mismatch")
+
+    d = train_df.copy()
+    d[puma_col] = d[puma_col].astype(str)
+    puma_arr = d[puma_col].to_numpy(dtype=object)
+    age_idx_all = d["AGEP"].astype(int).map(_age_to_p12_idx).to_numpy(dtype=int)
+
+    income_edges = _income_edges_default()
+    targets = _build_dist_targets_by_puma(
+        df=d,
+        puma_col=puma_col,
+        wcol=wcol,
+        income_edges=income_edges,
+        copula_bins=int(copula_bins),
+    )
+    target_income_t = {k: torch.tensor(v["income_marginal"], dtype=torch.float32, device=device) for k, v in targets.items()}
+    target_joint_t = {k: torch.tensor(v["age_income_joint"], dtype=torch.float32, device=device) for k, v in targets.items()}
+    target_cop_t = {k: torch.tensor(v["age_income_copula"], dtype=torch.float32, device=device) for k, v in targets.items()}
+
+    # Income bin centers in z-space.
+    e = np.asarray(income_edges, dtype=float)
+    centers_raw = 0.5 * (e[:-1] + e[1:])
+    centers_z = ((np.log1p(centers_raw) - float(income_mu)) / max(float(income_sd), 1e-6)).astype(np.float32)
+    centers_t = torch.tensor(centers_z, dtype=torch.float32, device=device).reshape(1, -1)
+
+    # Copula histogram centers in [0,1].
+    b = int(copula_bins)
+    bins01 = torch.linspace(0.5 / b, 1.0 - 0.5 / b, steps=b, dtype=torch.float32, device=device).reshape(1, -1)
+
+    model._init_model(device=device)  # noqa: SLF001
+    net = model._net  # noqa: SLF001
+    schedule = model._schedule  # noqa: SLF001
+    if net is None or schedule is None:
+        raise RuntimeError("failed to initialize diffusion model")
+    net.train()
+
+    optim = torch.optim.AdamW(net.parameters(), lr=model.config.lr, weight_decay=model.config.weight_decay)
+    mse = torch.nn.MSELoss()
+    n = int(x.shape[0])
+    total_steps = max((n + int(batch_size) - 1) // int(batch_size), 1) * int(epochs)
+    warmup = max(int(warmup_steps), 0)
+    sigma = max(float(sigma), 1e-4)
+    sigma_cop = 0.08
+    min_group_n = max(int(min_group_n), 2)
+
+    last_eps = float("nan")
+    last_dist = float("nan")
+    step_id = 0
+
+    for _ in range(int(epochs)):
+        idx_perm = torch.randperm(n, device=device)
+        for start in range(0, n, int(batch_size)):
+            batch_idx = idx_perm[start : start + int(batch_size)]
+            x0 = x[batch_idx]
+            c = cond[batch_idx]
+            batch_idx_np = batch_idx.detach().cpu().numpy()
+            batch_puma = puma_arr[batch_idx_np]
+            batch_age_idx = age_idx_all[batch_idx_np]
+
+            t = torch.randint(0, int(model.config.timesteps), (x0.shape[0],), device=device)
+            noise = torch.randn_like(x0)
+            sqrt_acp = schedule["sqrt_alpha_cumprod"][t].unsqueeze(1)
+            sqrt_om = schedule["sqrt_one_minus_alpha_cumprod"][t].unsqueeze(1)
+            x_t = sqrt_acp * x0 + sqrt_om * noise
+
+            eps_pred = net(x_t, t, c)
+            eps_loss = mse(eps_pred, noise)
+
+            # x0 prediction from epsilon parameterization.
+            x0_pred = (x_t - sqrt_om * eps_pred) / (sqrt_acp + 1e-12)
+            z_income = x0_pred[:, 0]
+
+            dist_loss_acc = torch.tensor(0.0, device=device)
+            group_cnt = 0
+            unique_p = sorted({str(x) for x in batch_puma.tolist()})
+            for p in unique_p:
+                if p not in target_income_t:
+                    continue
+                mask_np = (batch_puma == p)
+                if int(mask_np.sum()) < min_group_n:
+                    continue
+                mask_t = torch.as_tensor(mask_np, device=device, dtype=torch.bool)
+                z_p = z_income[mask_t]
+                age_idx_p = torch.as_tensor(batch_age_idx[mask_np], device=device, dtype=torch.long)
+
+                # Income marginal (soft bins).
+                w_inc = torch.exp(-((z_p.reshape(-1, 1) - centers_t) ** 2) / (2.0 * sigma * sigma))
+                p_inc = w_inc.sum(dim=0)
+                p_inc = p_inc / (p_inc.sum() + 1e-12)
+
+                # Age × income joint (age hard one-hot, income soft bins).
+                age_oh = torch.nn.functional.one_hot(age_idx_p.clamp(min=0, max=22), num_classes=23).to(dtype=torch.float32)
+                w_inc_row = w_inc / (w_inc.sum(dim=1, keepdim=True) + 1e-12)
+                p_joint = age_oh.transpose(0, 1) @ w_inc_row
+                p_joint = p_joint / (p_joint.sum() + 1e-12)
+
+                # Copula proxy on (rank-age, rank-income) with soft histogram.
+                age_u = ((age_idx_p.to(dtype=torch.float32) + 0.5) / 23.0).reshape(-1, 1)
+                inc_u = torch.sigmoid(z_p).reshape(-1, 1)
+                w_u = torch.exp(-((age_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
+                w_v = torch.exp(-((inc_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
+                p_cop = w_u.transpose(0, 1) @ w_v
+                p_cop = p_cop / (p_cop.sum() + 1e-12)
+
+                if dist_mode == "marginal":
+                    l_g = 0.5 * torch.abs(p_inc - target_income_t[p]).sum()
+                elif dist_mode == "joint":
+                    l_g = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
+                else:  # joint_copula
+                    l_joint = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
+                    l_cop = 0.5 * torch.abs(p_cop - target_cop_t[p]).sum()
+                    l_g = l_joint + l_cop
+
+                dist_loss_acc = dist_loss_acc + l_g
+                group_cnt += 1
+
+            if group_cnt > 0:
+                dist_loss = dist_loss_acc / float(group_cnt)
+            else:
+                dist_loss = torch.tensor(0.0, device=device)
+
+            if total_steps <= warmup:
+                ramp = 1.0 if step_id >= warmup else 0.0
+            else:
+                ramp = min(max((step_id - warmup) / float(total_steps - warmup), 0.0), 1.0)
+            lam = float(lambda_max) * float(ramp)
+            lam_cop = float(lambda_copula_max) * float(ramp)
+
+            if dist_mode == "joint_copula":
+                # dist_loss already includes joint+copula equally; split by scalar weights.
+                # Keep one scalar in logs for simplicity.
+                total_loss = eps_loss + (lam + lam_cop) * dist_loss
+            else:
+                total_loss = eps_loss + lam * dist_loss
+
+            optim.zero_grad(set_to_none=True)
+            total_loss.backward()
+            if model.config.grad_clip is not None:
+                torch.nn.utils.clip_grad_norm_(net.parameters(), model.config.grad_clip)
+            optim.step()
+
+            step_id += 1
+            last_eps = float(eps_loss.detach().cpu().item())
+            last_dist = float(dist_loss.detach().cpu().item())
+            if int(log_every) > 0 and step_id % int(log_every) == 0:
+                print(
+                    f"[train] step={step_id} eps_loss={last_eps:.6f} dist_loss={last_dist:.6f} "
+                    f"mode={dist_mode} lambda={lam:.4f}"
+                )
+
+    return {
+        "loss": float(last_eps + last_dist),
+        "eps_loss": float(last_eps),
+        "dist_loss": float(last_dist),
+        "dist_mode": str(dist_mode),
+        "lambda_max": float(lambda_max),
+        "lambda_copula_max": float(lambda_copula_max),
+    }
+
+
 def main() -> None:
     pd = _require("pandas")
     np = _require("numpy")
@@ -643,6 +921,24 @@ def main() -> None:
     ap.add_argument("--batch_size", type=int, default=4096)
     ap.add_argument("--hidden_dims", default="512,512")
     ap.add_argument("--lr", type=float, default=1e-3)
+    # Route A - Stage 1: distributional training loss.
+    ap.add_argument("--dist_loss_mode", choices=["none", "marginal", "joint", "joint_copula"], default="none")
+    ap.add_argument("--dist_loss_lambda", type=float, default=0.0, help="Lambda max for marginal/joint distribution loss.")
+    ap.add_argument(
+        "--dist_loss_lambda_copula",
+        type=float,
+        default=0.0,
+        help="Extra lambda max for copula term (used by dist_loss_mode=joint_copula).",
+    )
+    ap.add_argument("--dist_loss_warmup_steps", type=int, default=0, help="Warmup steps with lambda=0 before ramping.")
+    ap.add_argument("--dist_loss_sigma", type=float, default=0.35, help="Gaussian width for soft income bins in dist loss.")
+    ap.add_argument("--dist_loss_copula_bins", type=int, default=10, help="2D copula histogram bins for dist loss.")
+    ap.add_argument("--dist_loss_min_group_n", type=int, default=24, help="Minimum rows per PUMA-in-batch to compute dist loss.")
+    # Route A - Stage 0: sampling diagnostics.
+    ap.add_argument("--sample_sampler", choices=["ddpm", "ddim"], default="ddpm")
+    ap.add_argument("--sample_num_steps", type=int, default=None, help="Optional sampling steps override (<= timesteps).")
+    ap.add_argument("--sample_eta", type=float, default=0.0, help="DDIM stochasticity eta (0=deterministic).")
+    ap.add_argument("--sample_multiplier", type=int, default=1, help="Per-PUMA oversampling multiplier during evaluation.")
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log_every", type=int, default=200)
@@ -878,10 +1174,6 @@ def main() -> None:
                         esr_cats=enc_target.esr_cats,
                     )
 
-                    # Torch tensors.
-                    x_t = torch.as_tensor(x_train, dtype=torch.float32)
-                    c_t = torch.as_tensor(cond_train, dtype=torch.float32)
-
                     cfg = TabDDPMConfig(
                         timesteps=int(args.timesteps),
                         hidden_dims=hidden_dims,
@@ -893,13 +1185,27 @@ def main() -> None:
                         seed=int(args.seed),
                         config=cfg,
                     )
-                    train_summary = model.fit(
-                        x=x_t,
-                        cond=c_t,
+                    train_summary = _fit_with_distribution_loss(
+                        model=model,
+                        x_train=x_train,
+                        cond_train=cond_train,
+                        train_df=train_df2,
+                        puma_col="PUMA",
+                        wcol="PWGTP",
+                        income_mu=float(enc.income_mean),
+                        income_sd=float(enc.income_std),
                         epochs=int(args.epochs),
                         batch_size=int(args.batch_size),
                         device=args.device,
                         log_every=int(args.log_every),
+                        dist_mode=str(args.dist_loss_mode),
+                        lambda_max=float(args.dist_loss_lambda),
+                        lambda_copula_max=float(args.dist_loss_lambda_copula),
+                        warmup_steps=int(args.dist_loss_warmup_steps),
+                        sigma=float(args.dist_loss_sigma),
+                        copula_bins=int(args.dist_loss_copula_bins),
+                        min_group_n=int(args.dist_loss_min_group_n),
+                        seed=int(args.seed),
                     )
 
                     fold_dir.mkdir(parents=True, exist_ok=True)
@@ -938,14 +1244,61 @@ def main() -> None:
                 by_fold_metrics[str(fold)] = {"note": "empty eval fold", "eval_scope": eval_scope, "n_eval": 0}
                 continue
 
-            c_eval_t = torch.as_tensor(cond_eval, dtype=torch.float32)
-            x_hat_t = model.sample(n=n_eval, cond=c_eval_t, device=args.device)
-            x_hat = x_hat_t.detach().cpu().numpy()
-            gen = _decode_samples(x_hat=x_hat, enc_target=enc, decode_meta=decode_meta)
-            syn = eval_df2.reset_index(drop=True).copy()
-            syn["PINCP"] = gen["PINCP"].to_numpy(dtype=float)
-            syn["SCHL"] = gen["SCHL"].astype(str)
-            syn["ESR"] = gen["ESR"].astype(str)
+            sample_mult = max(int(args.sample_multiplier), 1)
+            rng_eval = np.random.default_rng(int(args.seed) + int(fold) * 1009 + 17)
+            # For sample_multiplier>1, generate per-PUMA with replacement and weight rescaling,
+            # so we can diagnose sampling variance without changing the reference distribution.
+            if sample_mult == 1:
+                c_eval_t = torch.as_tensor(cond_eval, dtype=torch.float32)
+                x_hat_t = model.sample(
+                    n=n_eval,
+                    cond=c_eval_t,
+                    device=args.device,
+                    sampler=str(args.sample_sampler),
+                    num_steps=args.sample_num_steps,
+                    eta=float(args.sample_eta),
+                )
+                x_hat = x_hat_t.detach().cpu().numpy()
+                gen = _decode_samples(x_hat=x_hat, enc_target=enc, decode_meta=decode_meta)
+                syn = eval_df2.reset_index(drop=True).copy()
+                syn["PINCP"] = gen["PINCP"].to_numpy(dtype=float)
+                syn["SCHL"] = gen["SCHL"].astype(str)
+                syn["ESR"] = gen["ESR"].astype(str)
+            else:
+                syn_parts = []
+                eval_tmp = eval_df2.reset_index(drop=True).copy()
+                cond_arr = np.asarray(cond_eval, dtype=np.float32)
+                for puma in sorted(eval_pumas):
+                    m = eval_tmp["PUMA"].astype(str).to_numpy() == str(puma)
+                    if not bool(m.any()):
+                        continue
+                    sub = eval_tmp.loc[m].reset_index(drop=True)
+                    cond_sub = cond_arr[m]
+                    n_src = int(sub.shape[0])
+                    n_gen = int(n_src * sample_mult)
+                    idx = rng_eval.choice(n_src, size=n_gen, replace=True)
+                    cond_gen = cond_sub[idx]
+                    c_gen_t = torch.as_tensor(cond_gen, dtype=torch.float32)
+                    x_hat_t = model.sample(
+                        n=n_gen,
+                        cond=c_gen_t,
+                        device=args.device,
+                        sampler=str(args.sample_sampler),
+                        num_steps=args.sample_num_steps,
+                        eta=float(args.sample_eta),
+                    )
+                    gen = _decode_samples(x_hat=x_hat_t.detach().cpu().numpy(), enc_target=enc, decode_meta=decode_meta)
+                    out = sub.iloc[idx].reset_index(drop=True).copy()
+                    out["PINCP"] = gen["PINCP"].to_numpy(dtype=float)
+                    out["SCHL"] = gen["SCHL"].astype(str)
+                    out["ESR"] = gen["ESR"].astype(str)
+                    # Keep expected total weights comparable to reference.
+                    out["PWGTP"] = pd.to_numeric(out["PWGTP"], errors="coerce").fillna(0.0).clip(lower=0.0) / float(sample_mult)
+                    syn_parts.append(out)
+                if not syn_parts:
+                    by_fold_metrics[str(fold)] = {"note": "empty synthetic parts", "eval_scope": eval_scope, "n_eval": n_eval}
+                    continue
+                syn = pd.concat(syn_parts, axis=0, ignore_index=True)
 
             ref = eval_df2.reset_index(drop=True).copy()
             ref["SCHL"] = ref["SCHL"].astype(str)
@@ -1012,6 +1365,10 @@ def main() -> None:
 
             by_fold_metrics[str(fold)] = {
                 "eval_scope": eval_scope,
+                "sample_sampler": str(args.sample_sampler),
+                "sample_num_steps": int(args.sample_num_steps) if args.sample_num_steps is not None else None,
+                "sample_eta": float(args.sample_eta),
+                "sample_multiplier": int(sample_mult),
                 "n_eval_rows": int(n_eval),
                 "n_eval_pumas": int(len(eval_pumas)),
                 "n_test_rows": int(n_eval),

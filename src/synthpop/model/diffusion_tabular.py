@@ -244,10 +244,26 @@ class DiffusionTabularModel:
 
         return {"loss": last_loss}
 
-    def sample(self, *, n: int, cond: Any | None = None, device: str | None = None) -> Any:
+    def sample(
+        self,
+        *,
+        n: int,
+        cond: Any | None = None,
+        device: str | None = None,
+        sampler: str = "ddpm",
+        num_steps: int | None = None,
+        eta: float = 0.0,
+    ) -> Any:
         torch = _require_torch()
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+        sampler = str(sampler).lower().strip()
+        if sampler not in {"ddpm", "ddim"}:
+            raise ValueError("sampler must be one of: ddpm, ddim")
+        if num_steps is not None and int(num_steps) <= 0:
+            raise ValueError("num_steps must be > 0 when provided")
+        if float(eta) < 0:
+            raise ValueError("eta must be >= 0")
 
         self._init_model(device=device)
         assert self._net is not None
@@ -269,24 +285,67 @@ class DiffusionTabularModel:
             x_t = torch.randn((int(n), self.input_dim), device=device)
             betas = self._schedule["betas"]
             alphas = self._schedule["alphas"]
+            alpha_cumprod = self._schedule["alpha_cumprod"]
             posterior_variance = self._schedule["posterior_variance"]
             sqrt_one_minus_alpha_cumprod = self._schedule["sqrt_one_minus_alpha_cumprod"]
-
-            for step in reversed(range(self.config.timesteps)):
+            timesteps = int(self.config.timesteps)
+            if num_steps is None:
+                num_steps = timesteps
+            num_steps = int(num_steps)
+            if num_steps > timesteps:
+                raise ValueError(f"num_steps ({num_steps}) cannot exceed trained timesteps ({timesteps})")
+            if num_steps == timesteps:
+                step_schedule = list(reversed(range(timesteps)))
+            else:
+                # Uniformly subsample denoising steps from [T-1 .. 0].
+                idx = torch.linspace(float(timesteps - 1), 0.0, steps=int(num_steps), device=device)
+                step_schedule = idx.round().to(dtype=torch.long).tolist()
+                # Remove accidental duplicates while preserving order.
+                seen: set[int] = set()
+                tmp: list[int] = []
+                for s in step_schedule:
+                    si = int(s)
+                    if si in seen:
+                        continue
+                    seen.add(si)
+                    tmp.append(si)
+                step_schedule = tmp
+            for i, step in enumerate(step_schedule):
+                step = int(step)
                 t = torch.full((int(n),), step, device=device, dtype=torch.long)
                 eps_pred = self._net(x_t, t, cond)
 
-                beta_t = betas[step]
-                alpha_t = alphas[step]
-                sqrt_om = sqrt_one_minus_alpha_cumprod[step]
-                model_mean = (1.0 / torch.sqrt(alpha_t)) * (x_t - (beta_t / sqrt_om) * eps_pred)
-
-                if step == 0:
-                    x_t = model_mean
+                # Standard DDPM update for the full-step schedule.
+                if sampler == "ddpm" and len(step_schedule) == timesteps:
+                    beta_t = betas[step]
+                    alpha_t = alphas[step]
+                    sqrt_om = sqrt_one_minus_alpha_cumprod[step]
+                    model_mean = (1.0 / torch.sqrt(alpha_t)) * (x_t - (beta_t / sqrt_om) * eps_pred)
+                    if step == 0:
+                        x_t = model_mean
+                        continue
+                    var_t = posterior_variance[step]
+                    noise = torch.randn_like(x_t)
+                    x_t = model_mean + torch.sqrt(var_t) * noise
                     continue
 
-                var_t = posterior_variance[step]
-                noise = torch.randn_like(x_t)
-                x_t = model_mean + torch.sqrt(var_t) * noise
+                # Generalized DDIM-style update (supports skip-step and deterministic sampling).
+                prev_step = int(step_schedule[i + 1]) if i + 1 < len(step_schedule) else -1
+                alpha_bar_t = alpha_cumprod[step]
+                if prev_step >= 0:
+                    alpha_bar_prev = alpha_cumprod[prev_step]
+                else:
+                    alpha_bar_prev = torch.tensor(1.0, device=device, dtype=alpha_bar_t.dtype)
+
+                x0_pred = (x_t - torch.sqrt(1.0 - alpha_bar_t) * eps_pred) / (torch.sqrt(alpha_bar_t) + 1e-12)
+                sigma_t = float(eta) * torch.sqrt((1.0 - alpha_bar_prev) / (1.0 - alpha_bar_t)) * torch.sqrt(
+                    1.0 - alpha_bar_t / (alpha_bar_prev + 1e-12)
+                )
+                c_t = torch.sqrt(torch.clamp(1.0 - alpha_bar_prev - sigma_t * sigma_t, min=0.0))
+                if prev_step < 0:
+                    noise = torch.zeros_like(x_t)
+                else:
+                    noise = torch.randn_like(x_t)
+                x_t = torch.sqrt(alpha_bar_prev) * x0_pred + c_t * eps_pred + sigma_t * noise
 
             return x_t.detach().cpu()
