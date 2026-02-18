@@ -1,0 +1,56 @@
+{
+  "created_utc": "2026-02-18T12:14:22Z",
+  "n_rows": 199992,
+  "n_tracts_overlap": 2904,
+  "n_pumas_overlap": 68,
+  "tract_mean_tvd_global_to_diffusion": {
+    "PINCP_16p_bin": {
+      "before": 0.19569026551621774,
+      "after": 0.19225616307803203,
+      "delta": -0.0034341024381857044
+    },
+    "ESR_16p": {
+      "before": 0.10174556129931162,
+      "after": 0.09666815205141958,
+      "delta": -0.005077409247892031
+    },
+    "SCHL_25p": {
+      "before": 0.39173246841969916,
+      "after": 0.3960150595045802,
+      "delta": 0.004282591084881049
+    }
+  },
+  "puma_mean_metric_global_to_diffusion": {
+    "tvd_income_bin": {
+      "before": 0.07030486419104118,
+      "after": 0.061922382371823036,
+      "delta": -0.008382481819218142
+    },
+    "tvd_schl": {
+      "before": 0.1235087701798709,
+      "after": 0.11240402491797497,
+      "delta": -0.011104745261895935
+    },
+    "tvd_esr": {
+      "before": 0.042833187887291235,
+      "after": 0.029894249575880005,
+      "delta": -0.01293893831141123
+    },
+    "copula_tvd_age_income": {
+      "before": 0.1416619527065612,
+      "after": 0.14460403457516224,
+      "delta": 0.0029420818686010375
+    },
+    "joint_tvd_age_income_bin": {
+      "before": 0.17337530096613446,
+      "after": 0.17158295025839881,
+      "delta": -0.001792350707735646
+    },
+    "puma_cosine_age_income_bin_joint": {
+      "before": 0.9536690786568307,
+      "after": 0.9547836497955522,
+      "delta": 0.0011145711387214874
+    }
+  },
+  "note": "delta = diffusion - global. For TVD lower is better, for cosine higher is better."
+}

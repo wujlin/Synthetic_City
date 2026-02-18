@@ -1,0 +1,583 @@
+{
+  "created_utc": "2026-02-18T12:14:26Z",
+  "inputs": {
+    "exp2_run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_attrdiff_mi_puma20_20260218T095102Z",
+    "condition": "demo_race_puma",
+    "pums_zip": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2022_5-Year/csv_pmi.zip",
+    "member": "psam_p26.csv",
+    "pums_year": 2022,
+    "n_folds": 5,
+    "seed": 0,
+    "bins": 10
+  },
+  "by_fold": {
+    "0": {
+      "n_test_pumas": 14,
+      "by_puma": {
+        "100": {
+          "baseline_copula_tvd_age_income": 0.11195453869819018,
+          "baseline_joint_tvd_age_income_bin": 0.1506030465935859,
+          "diffusion_copula_tvd_age_income": 0.13739356328474525,
+          "diffusion_joint_tvd_age_income_bin": 0.14042430365132053
+        },
+        "1100": {
+          "baseline_copula_tvd_age_income": 0.08633228077498926,
+          "baseline_joint_tvd_age_income_bin": 0.1176146109528359,
+          "diffusion_copula_tvd_age_income": 0.11237591979850857,
+          "diffusion_joint_tvd_age_income_bin": 0.13064842708281893
+        },
+        "2901": {
+          "baseline_copula_tvd_age_income": 0.127598880126975,
+          "baseline_joint_tvd_age_income_bin": 0.16261803440512107,
+          "diffusion_copula_tvd_age_income": 0.15940760195520537,
+          "diffusion_joint_tvd_age_income_bin": 0.17465528562048588
+        },
+        "3003": {
+          "baseline_copula_tvd_age_income": 0.14771351624440013,
+          "baseline_joint_tvd_age_income_bin": 0.12978404916420538,
+          "diffusion_copula_tvd_age_income": 0.16210291658926249,
+          "diffusion_joint_tvd_age_income_bin": 0.1452721530744938
+        },
+        "3202": {
+          "baseline_copula_tvd_age_income": 0.12222375485166609,
+          "baseline_joint_tvd_age_income_bin": 0.15081002386645942,
+          "diffusion_copula_tvd_age_income": 0.161415270018622,
+          "diffusion_joint_tvd_age_income_bin": 0.17258845437616388
+        },
+        "3204": {
+          "baseline_copula_tvd_age_income": 0.10943881189182578,
+          "baseline_joint_tvd_age_income_bin": 0.147356136965327,
+          "diffusion_copula_tvd_age_income": 0.13488191203507285,
+          "diffusion_joint_tvd_age_income_bin": 0.16281289775137886
+        },
+        "3205": {
+          "baseline_copula_tvd_age_income": 0.15580104939416528,
+          "baseline_joint_tvd_age_income_bin": 0.1739636850911344,
+          "diffusion_copula_tvd_age_income": 0.18551431991896122,
+          "diffusion_joint_tvd_age_income_bin": 0.17354268348835067
+        },
+        "3212": {
+          "baseline_copula_tvd_age_income": 0.20352163747251267,
+          "baseline_joint_tvd_age_income_bin": 0.2574048422466349,
+          "diffusion_copula_tvd_age_income": 0.20130548302872062,
+          "diffusion_joint_tvd_age_income_bin": 0.1806788511749347
+        },
+        "3300": {
+          "baseline_copula_tvd_age_income": 0.1146737158483866,
+          "baseline_joint_tvd_age_income_bin": 0.16753529147369237,
+          "diffusion_copula_tvd_age_income": 0.12848400069942295,
+          "diffusion_joint_tvd_age_income_bin": 0.16303549571603426
+        },
+        "400": {
+          "baseline_copula_tvd_age_income": 0.13003177521315387,
+          "baseline_joint_tvd_age_income_bin": 0.13473426574846498,
+          "diffusion_copula_tvd_age_income": 0.12459106718550914,
+          "diffusion_joint_tvd_age_income_bin": 0.13216708564344504
+        },
+        "500": {
+          "baseline_copula_tvd_age_income": 0.12021416616683091,
+          "baseline_joint_tvd_age_income_bin": 0.155177551816673,
+          "diffusion_copula_tvd_age_income": 0.14119404843428998,
+          "diffusion_joint_tvd_age_income_bin": 0.14539625225673908
+        },
+        "600": {
+          "baseline_copula_tvd_age_income": 0.11577840451209635,
+          "baseline_joint_tvd_age_income_bin": 0.13122776220960042,
+          "diffusion_copula_tvd_age_income": 0.11014062363525201,
+          "diffusion_joint_tvd_age_income_bin": 0.11376539435758581
+        },
+        "801": {
+          "baseline_copula_tvd_age_income": 0.1316975874436588,
+          "baseline_joint_tvd_age_income_bin": 0.16092675042113108,
+          "diffusion_copula_tvd_age_income": 0.14495705604779852,
+          "diffusion_joint_tvd_age_income_bin": 0.16946735920154804
+        },
+        "900": {
+          "baseline_copula_tvd_age_income": 0.11506067773839376,
+          "baseline_joint_tvd_age_income_bin": 0.16444580871532732,
+          "diffusion_copula_tvd_age_income": 0.15013989466754443,
+          "diffusion_joint_tvd_age_income_bin": 0.16947827518104014
+        }
+      },
+      "summary": {
+        "baseline_copula_tvd_age_income": {
+          "mean": 0.12800291402694605,
+          "max": 0.20352163747251267,
+          "n": 14
+        },
+        "baseline_joint_tvd_age_income_bin": {
+          "mean": 0.15744298997644232,
+          "max": 0.2574048422466349,
+          "n": 14
+        },
+        "diffusion_copula_tvd_age_income": {
+          "mean": 0.1467074055213511,
+          "max": 0.20130548302872062,
+          "n": 14
+        },
+        "diffusion_joint_tvd_age_income_bin": {
+          "mean": 0.15528092275545283,
+          "max": 0.1806788511749347,
+          "n": 14
+        }
+      }
+    },
+    "1": {
+      "n_test_pumas": 17,
+      "by_puma": {
+        "1001": {
+          "baseline_copula_tvd_age_income": 0.18521587125921027,
+          "baseline_joint_tvd_age_income_bin": 0.19445816745767605,
+          "diffusion_copula_tvd_age_income": 0.19039814904077895,
+          "diffusion_joint_tvd_age_income_bin": 0.207847295864263
+        },
+        "1600": {
+          "baseline_copula_tvd_age_income": 0.11579645401968587,
+          "baseline_joint_tvd_age_income_bin": 0.15668007180777307,
+          "diffusion_copula_tvd_age_income": 0.10307398015925974,
+          "diffusion_joint_tvd_age_income_bin": 0.1329240624582944
+        },
+        "1702": {
+          "baseline_copula_tvd_age_income": 0.14908719812041935,
+          "baseline_joint_tvd_age_income_bin": 0.15945773184893197,
+          "diffusion_copula_tvd_age_income": 0.2043246372018026,
+          "diffusion_joint_tvd_age_income_bin": 0.17488733617232397
+        },
+        "1703": {
+          "baseline_copula_tvd_age_income": 0.19638310510716228,
+          "baseline_joint_tvd_age_income_bin": 0.25219187936871157,
+          "diffusion_copula_tvd_age_income": 0.21477985734970773,
+          "diffusion_joint_tvd_age_income_bin": 0.1999249208988041
+        },
+        "1801": {
+          "baseline_copula_tvd_age_income": 0.17356690706966416,
+          "baseline_joint_tvd_age_income_bin": 0.18624754307402328,
+          "diffusion_copula_tvd_age_income": 0.14326926092000877,
+          "diffusion_joint_tvd_age_income_bin": 0.15872816782164245
+        },
+        "1900": {
+          "baseline_copula_tvd_age_income": 0.11765094149523525,
+          "baseline_joint_tvd_age_income_bin": 0.12827274600422273,
+          "diffusion_copula_tvd_age_income": 0.11147834855190183,
+          "diffusion_joint_tvd_age_income_bin": 0.13383003753291134
+        },
+        "2200": {
+          "baseline_copula_tvd_age_income": 0.09843928143574573,
+          "baseline_joint_tvd_age_income_bin": 0.13753777298314782,
+          "diffusion_copula_tvd_age_income": 0.1352190237797246,
+          "diffusion_joint_tvd_age_income_bin": 0.15404255319148935
+        },
+        "2300": {
+          "baseline_copula_tvd_age_income": 0.09283228367991088,
+          "baseline_joint_tvd_age_income_bin": 0.12576708278011034,
+          "diffusion_copula_tvd_age_income": 0.15364375697655874,
+          "diffusion_joint_tvd_age_income_bin": 0.1591054058363897
+        },
+        "2600": {
+          "baseline_copula_tvd_age_income": 0.11909750841197471,
+          "baseline_joint_tvd_age_income_bin": 0.1244469147097772,
+          "diffusion_copula_tvd_age_income": 0.16116950966198781,
+          "diffusion_joint_tvd_age_income_bin": 0.15100396550638887
+        },
+        "2702": {
+          "baseline_copula_tvd_age_income": 0.2826161010620659,
+          "baseline_joint_tvd_age_income_bin": 0.39150464761213544,
+          "diffusion_copula_tvd_age_income": 0.27065399208518626,
+          "diffusion_joint_tvd_age_income_bin": 0.2911345926318796
+        },
+        "2703": {
+          "baseline_copula_tvd_age_income": 0.12019320374690177,
+          "baseline_joint_tvd_age_income_bin": 0.1680574199459634,
+          "diffusion_copula_tvd_age_income": 0.16244913776399927,
+          "diffusion_joint_tvd_age_income_bin": 0.18151521023057546
+        },
+        "2800": {
+          "baseline_copula_tvd_age_income": 0.09258401861468211,
+          "baseline_joint_tvd_age_income_bin": 0.14734438284186785,
+          "diffusion_copula_tvd_age_income": 0.11867644022300229,
+          "diffusion_joint_tvd_age_income_bin": 0.1292071030353087
+        },
+        "2904": {
+          "baseline_copula_tvd_age_income": 0.11309867487943479,
+          "baseline_joint_tvd_age_income_bin": 0.178180754218156,
+          "diffusion_copula_tvd_age_income": 0.18220460065723673,
+          "diffusion_joint_tvd_age_income_bin": 0.1825975139305615
+        },
+        "3002": {
+          "baseline_copula_tvd_age_income": 0.1134162712550341,
+          "baseline_joint_tvd_age_income_bin": 0.16602051531214856,
+          "diffusion_copula_tvd_age_income": 0.1372281399281963,
+          "diffusion_joint_tvd_age_income_bin": 0.17244755659733557
+        },
+        "3201": {
+          "baseline_copula_tvd_age_income": 0.11148823646795501,
+          "baseline_joint_tvd_age_income_bin": 0.19672226084646166,
+          "diffusion_copula_tvd_age_income": 0.15289969424992605,
+          "diffusion_joint_tvd_age_income_bin": 0.1655981852253674
+        },
+        "3208": {
+          "baseline_copula_tvd_age_income": 0.18595312605061048,
+          "baseline_joint_tvd_age_income_bin": 0.2294978832540296,
+          "diffusion_copula_tvd_age_income": 0.20760667903525049,
+          "diffusion_joint_tvd_age_income_bin": 0.18189239332096477
+        },
+        "802": {
+          "baseline_copula_tvd_age_income": 0.17939733345396128,
+          "baseline_joint_tvd_age_income_bin": 0.17897899452426444,
+          "diffusion_copula_tvd_age_income": 0.16266359844671366,
+          "diffusion_joint_tvd_age_income_bin": 0.17309075219329786
+        }
+      },
+      "summary": {
+        "baseline_copula_tvd_age_income": {
+          "mean": 0.14393038330174435,
+          "max": 0.2826161010620659,
+          "n": 17
+        },
+        "baseline_joint_tvd_age_income_bin": {
+          "mean": 0.18360980991702358,
+          "max": 0.39150464761213544,
+          "n": 17
+        },
+        "diffusion_copula_tvd_age_income": {
+          "mean": 0.16539640035477893,
+          "max": 0.27065399208518626,
+          "n": 17
+        },
+        "diffusion_joint_tvd_age_income_bin": {
+          "mean": 0.17351629720281167,
+          "max": 0.2911345926318796,
+          "n": 17
+        }
+      }
+    },
+    "2": {
+      "n_test_pumas": 11,
+      "by_puma": {
+        "1003": {
+          "baseline_copula_tvd_age_income": 0.15772469485427543,
+          "baseline_joint_tvd_age_income_bin": 0.17191174491191713,
+          "diffusion_copula_tvd_age_income": 0.12375919654326753,
+          "diffusion_joint_tvd_age_income_bin": 0.18457316361088405
+        },
+        "1200": {
+          "baseline_copula_tvd_age_income": 0.13018103711117146,
+          "baseline_joint_tvd_age_income_bin": 0.14246554472345063,
+          "diffusion_copula_tvd_age_income": 0.15080951820925945,
+          "diffusion_joint_tvd_age_income_bin": 0.13998980751891488
+        },
+        "1400": {
+          "baseline_copula_tvd_age_income": 0.08347845517025232,
+          "baseline_joint_tvd_age_income_bin": 0.1223082902341133,
+          "diffusion_copula_tvd_age_income": 0.10778800967049686,
+          "diffusion_joint_tvd_age_income_bin": 0.14896911417162415
+        },
+        "1500": {
+          "baseline_copula_tvd_age_income": 0.09768964794007062,
+          "baseline_joint_tvd_age_income_bin": 0.11810278230015883,
+          "diffusion_copula_tvd_age_income": 0.13331855710090318,
+          "diffusion_joint_tvd_age_income_bin": 0.15359893611126502
+        },
+        "200": {
+          "baseline_copula_tvd_age_income": 0.16670357745416084,
+          "baseline_joint_tvd_age_income_bin": 0.159788786487291,
+          "diffusion_copula_tvd_age_income": 0.14406710644189266,
+          "diffusion_joint_tvd_age_income_bin": 0.13270624643700626
+        },
+        "2101": {
+          "baseline_copula_tvd_age_income": 0.12929765470498802,
+          "baseline_joint_tvd_age_income_bin": 0.15247772059515413,
+          "diffusion_copula_tvd_age_income": 0.16448611716819303,
+          "diffusion_joint_tvd_age_income_bin": 0.1752434946939962
+        },
+        "2906": {
+          "baseline_copula_tvd_age_income": 0.1056167386292344,
+          "baseline_joint_tvd_age_income_bin": 0.23629843586096244,
+          "diffusion_copula_tvd_age_income": 0.17477315720286,
+          "diffusion_joint_tvd_age_income_bin": 0.2353714450607586
+        },
+        "2907": {
+          "baseline_copula_tvd_age_income": 0.12788885197956848,
+          "baseline_joint_tvd_age_income_bin": 0.19508636671880444,
+          "diffusion_copula_tvd_age_income": 0.17712414478685454,
+          "diffusion_joint_tvd_age_income_bin": 0.27893105666335305
+        },
+        "2908": {
+          "baseline_copula_tvd_age_income": 0.19325530552798237,
+          "baseline_joint_tvd_age_income_bin": 0.21398116032721054,
+          "diffusion_copula_tvd_age_income": 0.13614355663757965,
+          "diffusion_joint_tvd_age_income_bin": 0.1943540224854337
+        },
+        "3100": {
+          "baseline_copula_tvd_age_income": 0.11989206318137291,
+          "baseline_joint_tvd_age_income_bin": 0.1426129993901955,
+          "diffusion_copula_tvd_age_income": 0.15053908355795145,
+          "diffusion_joint_tvd_age_income_bin": 0.14561994609164422
+        },
+        "3206": {
+          "baseline_copula_tvd_age_income": 0.1191967177954807,
+          "baseline_joint_tvd_age_income_bin": 0.17905624978472978,
+          "diffusion_copula_tvd_age_income": 0.1659280122602825,
+          "diffusion_joint_tvd_age_income_bin": 0.19873255187839123
+        }
+      },
+      "summary": {
+        "baseline_copula_tvd_age_income": {
+          "mean": 0.1300840676680507,
+          "max": 0.19325530552798237,
+          "n": 11
+        },
+        "baseline_joint_tvd_age_income_bin": {
+          "mean": 0.16673546193945343,
+          "max": 0.23629843586096244,
+          "n": 11
+        },
+        "diffusion_copula_tvd_age_income": {
+          "mean": 0.14806695087086735,
+          "max": 0.17712414478685454,
+          "n": 11
+        },
+        "diffusion_joint_tvd_age_income_bin": {
+          "mean": 0.18073543497484285,
+          "max": 0.27893105666335305,
+          "n": 11
+        }
+      }
+    },
+    "3": {
+      "n_test_pumas": 16,
+      "by_puma": {
+        "1002": {
+          "baseline_copula_tvd_age_income": 0.15071080111481325,
+          "baseline_joint_tvd_age_income_bin": 0.18368954196541137,
+          "diffusion_copula_tvd_age_income": 0.15706513747978235,
+          "diffusion_joint_tvd_age_income_bin": 0.15565358035583
+        },
+        "1004": {
+          "baseline_copula_tvd_age_income": 0.13199750142959402,
+          "baseline_joint_tvd_age_income_bin": 0.17786018752443186,
+          "diffusion_copula_tvd_age_income": 0.2016796875,
+          "diffusion_joint_tvd_age_income_bin": 0.185546875
+        },
+        "1300": {
+          "baseline_copula_tvd_age_income": 0.18259008977589927,
+          "baseline_joint_tvd_age_income_bin": 0.22022263367529132,
+          "diffusion_copula_tvd_age_income": 0.12936893203883493,
+          "diffusion_joint_tvd_age_income_bin": 0.14067961165048543
+        },
+        "1802": {
+          "baseline_copula_tvd_age_income": 0.13384069420211017,
+          "baseline_joint_tvd_age_income_bin": 0.20267813602347684,
+          "diffusion_copula_tvd_age_income": 0.21135038782097607,
+          "diffusion_joint_tvd_age_income_bin": 0.21419280242809655
+        },
+        "2400": {
+          "baseline_copula_tvd_age_income": 0.10335749488166132,
+          "baseline_joint_tvd_age_income_bin": 0.11677585218308845,
+          "diffusion_copula_tvd_age_income": 0.1524436151756195,
+          "diffusion_joint_tvd_age_income_bin": 0.15859766277128548
+        },
+        "2500": {
+          "baseline_copula_tvd_age_income": 0.10669408194574677,
+          "baseline_joint_tvd_age_income_bin": 0.11994224879081211,
+          "diffusion_copula_tvd_age_income": 0.15582340981702003,
+          "diffusion_joint_tvd_age_income_bin": 0.14827185593958755
+        },
+        "2902": {
+          "baseline_copula_tvd_age_income": 0.11392198328047147,
+          "baseline_joint_tvd_age_income_bin": 0.1846351696513655,
+          "diffusion_copula_tvd_age_income": 0.16445035460992907,
+          "diffusion_joint_tvd_age_income_bin": 0.1844710401891253
+        },
+        "2905": {
+          "baseline_copula_tvd_age_income": 0.15407003213828097,
+          "baseline_joint_tvd_age_income_bin": 0.2036819688586644,
+          "diffusion_copula_tvd_age_income": 0.20836027537940738,
+          "diffusion_joint_tvd_age_income_bin": 0.19497166330683502
+        },
+        "300": {
+          "baseline_copula_tvd_age_income": 0.1468842823626996,
+          "baseline_joint_tvd_age_income_bin": 0.18393178940542976,
+          "diffusion_copula_tvd_age_income": 0.13056413346388493,
+          "diffusion_joint_tvd_age_income_bin": 0.1451005498230022
+        },
+        "3001": {
+          "baseline_copula_tvd_age_income": 0.12665385905547652,
+          "baseline_joint_tvd_age_income_bin": 0.1874654814328304,
+          "diffusion_copula_tvd_age_income": 0.15706051873198848,
+          "diffusion_joint_tvd_age_income_bin": 0.19634683844719444
+        },
+        "3004": {
+          "baseline_copula_tvd_age_income": 0.18091566797810035,
+          "baseline_joint_tvd_age_income_bin": 0.18291505649709772,
+          "diffusion_copula_tvd_age_income": 0.16537973536342215,
+          "diffusion_joint_tvd_age_income_bin": 0.16081203552655426
+        },
+        "3005": {
+          "baseline_copula_tvd_age_income": 0.14887828833519692,
+          "baseline_joint_tvd_age_income_bin": 0.14601139834383847,
+          "diffusion_copula_tvd_age_income": 0.1844870458009144,
+          "diffusion_joint_tvd_age_income_bin": 0.16347156493141896
+        },
+        "3207": {
+          "baseline_copula_tvd_age_income": 0.13454188292119343,
+          "baseline_joint_tvd_age_income_bin": 0.1541103332885041,
+          "diffusion_copula_tvd_age_income": 0.18199346131276717,
+          "diffusion_joint_tvd_age_income_bin": 0.18228686394500798
+        },
+        "3210": {
+          "baseline_copula_tvd_age_income": 0.20330602353321164,
+          "baseline_joint_tvd_age_income_bin": 0.25095952589456066,
+          "diffusion_copula_tvd_age_income": 0.1889931980437349,
+          "diffusion_joint_tvd_age_income_bin": 0.17381527910506495
+        },
+        "3211": {
+          "baseline_copula_tvd_age_income": 0.16211815109717112,
+          "baseline_joint_tvd_age_income_bin": 0.2143674653175649,
+          "diffusion_copula_tvd_age_income": 0.19682915286322764,
+          "diffusion_joint_tvd_age_income_bin": 0.1840511121628017
+        },
+        "3213": {
+          "baseline_copula_tvd_age_income": 0.18051198522163633,
+          "baseline_joint_tvd_age_income_bin": 0.2096325668001293,
+          "diffusion_copula_tvd_age_income": 0.21866093538289028,
+          "diffusion_joint_tvd_age_income_bin": 0.21034434425080595
+        }
+      },
+      "summary": {
+        "baseline_copula_tvd_age_income": {
+          "mean": 0.14756205120457894,
+          "max": 0.20330602353321164,
+          "n": 16
+        },
+        "baseline_joint_tvd_age_income_bin": {
+          "mean": 0.18367995972828108,
+          "max": 0.25095952589456066,
+          "n": 16
+        },
+        "diffusion_copula_tvd_age_income": {
+          "mean": 0.175281873799025,
+          "max": 0.21866093538289028,
+          "n": 16
+        },
+        "diffusion_joint_tvd_age_income_bin": {
+          "mean": 0.17491335498956848,
+          "max": 0.21419280242809655,
+          "n": 16
+        }
+      }
+    },
+    "4": {
+      "n_test_pumas": 10,
+      "by_puma": {
+        "1701": {
+          "baseline_copula_tvd_age_income": 0.12333018848807194,
+          "baseline_joint_tvd_age_income_bin": 0.1376150041211638,
+          "diffusion_copula_tvd_age_income": 0.13193783698065337,
+          "diffusion_joint_tvd_age_income_bin": 0.1557599464354935
+        },
+        "1704": {
+          "baseline_copula_tvd_age_income": 0.0883193098411812,
+          "baseline_joint_tvd_age_income_bin": 0.12438393482444163,
+          "diffusion_copula_tvd_age_income": 0.10447719060523938,
+          "diffusion_joint_tvd_age_income_bin": 0.1574074074074074
+        },
+        "2000": {
+          "baseline_copula_tvd_age_income": 0.10670312128059314,
+          "baseline_joint_tvd_age_income_bin": 0.12237508376877007,
+          "diffusion_copula_tvd_age_income": 0.12887404225986904,
+          "diffusion_joint_tvd_age_income_bin": 0.13287732972772343
+        },
+        "2102": {
+          "baseline_copula_tvd_age_income": 0.18420200450927843,
+          "baseline_joint_tvd_age_income_bin": 0.21878669794673195,
+          "diffusion_copula_tvd_age_income": 0.19774590163934422,
+          "diffusion_joint_tvd_age_income_bin": 0.2529456967213115
+        },
+        "2701": {
+          "baseline_copula_tvd_age_income": 0.11688256939554433,
+          "baseline_joint_tvd_age_income_bin": 0.18304282751667253,
+          "diffusion_copula_tvd_age_income": 0.17813310285220396,
+          "diffusion_joint_tvd_age_income_bin": 0.19416594641313742
+        },
+        "2903": {
+          "baseline_copula_tvd_age_income": 0.1180051226105109,
+          "baseline_joint_tvd_age_income_bin": 0.19812210581035344,
+          "diffusion_copula_tvd_age_income": 0.1543250523795271,
+          "diffusion_joint_tvd_age_income_bin": 0.16258605208021548
+        },
+        "3006": {
+          "baseline_copula_tvd_age_income": 0.10884476609241606,
+          "baseline_joint_tvd_age_income_bin": 0.14694626069654604,
+          "diffusion_copula_tvd_age_income": 0.16639418710263398,
+          "diffusion_joint_tvd_age_income_bin": 0.14990009082652134
+        },
+        "3203": {
+          "baseline_copula_tvd_age_income": 0.19261092789807768,
+          "baseline_joint_tvd_age_income_bin": 0.18922352231106254,
+          "diffusion_copula_tvd_age_income": 0.18217612599635072,
+          "diffusion_joint_tvd_age_income_bin": 0.1726367681423861
+        },
+        "3209": {
+          "baseline_copula_tvd_age_income": 0.21428502443801353,
+          "baseline_joint_tvd_age_income_bin": 0.21645961489024387,
+          "diffusion_copula_tvd_age_income": 0.19865260171970572,
+          "diffusion_joint_tvd_age_income_bin": 0.14515557131459977
+        },
+        "700": {
+          "baseline_copula_tvd_age_income": 0.1136278035409588,
+          "baseline_joint_tvd_age_income_bin": 0.1463395743160431,
+          "diffusion_copula_tvd_age_income": 0.14797705782049295,
+          "diffusion_joint_tvd_age_income_bin": 0.15101534645791348
+        }
+      },
+      "summary": {
+        "baseline_copula_tvd_age_income": {
+          "mean": 0.1366810838094646,
+          "max": 0.21428502443801353,
+          "n": 10
+        },
+        "baseline_joint_tvd_age_income_bin": {
+          "mean": 0.1683294626202029,
+          "max": 0.21878669794673195,
+          "n": 10
+        },
+        "diffusion_copula_tvd_age_income": {
+          "mean": 0.15906930993560203,
+          "max": 0.19865260171970572,
+          "n": 10
+        },
+        "diffusion_joint_tvd_age_income_bin": {
+          "mean": 0.16744501555267094,
+          "max": 0.2529456967213115,
+          "n": 10
+        }
+      }
+    }
+  },
+  "overall": {
+    "baseline_copula_tvd_age_income": {
+      "mean": 0.13725210000215693,
+      "max": 0.14756205120457894,
+      "n_folds": 5
+    },
+    "baseline_joint_tvd_age_income_bin": {
+      "mean": 0.17195953683628068,
+      "max": 0.18367995972828108,
+      "n_folds": 5
+    },
+    "diffusion_copula_tvd_age_income": {
+      "mean": 0.15890438809632487,
+      "max": 0.175281873799025,
+      "n_folds": 5
+    },
+    "diffusion_joint_tvd_age_income_bin": {
+      "mean": 0.17037820509506937,
+      "max": 0.18073543497484285,
+      "n_folds": 5
+    },
+    "copula_tvd_improvement": -0.021652288094167943,
+    "joint_tvd_improvement": 0.001581331741211306
+  },
+  "note": "If copula_tvd_improvement > 0, diffusion captures age-income dependence better than train-average baseline."
+}
