@@ -137,7 +137,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="exp3_validation")
     ap.add_argument("--synthetic_path", required=True, help="Synthetic microdata (csv/parquet).")
     ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--pums_year", type=int, default=2023)
+    ap.add_argument("--pums_year", type=int, default=2022)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
     ap.add_argument("--pums_person_zip", default=None, help="Override PUMS person zip path.")
@@ -204,12 +204,16 @@ def main() -> None:
             data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
         )
     member = _find_first_csv_in_zip(pums_zip)
-    usecols = ["PUMA", "PWGTP", "AGEP", "SEX", "PINCP", "ESR"]
+    usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "SEX", "PINCP", "ESR"]
     with zipfile.ZipFile(pums_zip) as zf, zf.open(member) as f:
         ref = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
-    if "PUMA" not in ref.columns:
-        raise SystemExit("PUMS reference missing PUMA column.")
+    if int(args.pums_year) >= 2022:
+        if "PUMA20" not in ref.columns:
+            raise SystemExit(f"PUMS {int(args.pums_year)} requires PUMA20, but it is missing in reference.")
+        ref["PUMA"] = ref["PUMA20"]
+    elif "PUMA" not in ref.columns:
+        raise SystemExit("Legacy PUMS reference missing PUMA column.")
     ref["puma"] = ref["PUMA"].astype(str)
     if "puma" not in syn.columns and str(args.puma_group_col) in syn.columns:
         syn["puma"] = syn[str(args.puma_group_col)].astype(str)

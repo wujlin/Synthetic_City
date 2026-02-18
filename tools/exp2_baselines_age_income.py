@@ -217,9 +217,10 @@ def main() -> None:
 
     ap = argparse.ArgumentParser(prog="exp2_baselines_age_income")
     ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--pums_year", type=int, default=2023)
+    ap.add_argument("--pums_year", type=int, default=2022)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
+    ap.add_argument("--pums_person_zip", default=None, help="Optional override for PUMS person zip.")
     ap.add_argument("--n_rows", type=int, default=None, help="Optional cap for faster iteration.")
     ap.add_argument("--seed", type=int, default=0, help="Fold split seed (must match Exp2).")
     ap.add_argument("--n_folds", type=int, default=5)
@@ -244,19 +245,27 @@ def main() -> None:
     if len(income_edges) < 3:
         raise SystemExit("--income_edges must have at least 3 numbers.")
 
-    pums_zip = _resolve_pums_person_zip(
-        data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+    pums_zip = (
+        pathlib.Path(str(args.pums_person_zip)).expanduser().resolve()
+        if args.pums_person_zip
+        else _resolve_pums_person_zip(
+            data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+        )
     )
+    if not pums_zip.exists():
+        raise SystemExit(f"pums_person_zip not found: {pums_zip}")
     member = _find_first_csv_in_zip(pums_zip)
     usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "PINCP"]
     with zipfile.ZipFile(pums_zip) as zf, zf.open(member) as f:
         df = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
-    # Prefer PUMA20 (2022+).
-    if "PUMA20" in df.columns:
+    # Keep geography boundary-consistent with selected PUMS release.
+    if int(args.pums_year) >= 2022:
+        if "PUMA20" not in df.columns:
+            raise SystemExit(f"PUMS {int(args.pums_year)} requires PUMA20, but it is missing.")
         df["PUMA"] = df["PUMA20"]
-    if "PUMA" not in df.columns:
-        raise SystemExit("PUMS missing PUMA/PUMA20.")
+    elif "PUMA" not in df.columns:
+        raise SystemExit("Legacy PUMS requires PUMA, but it is missing.")
 
     # Clean.
     puma_num = pd.to_numeric(df["PUMA"], errors="coerce")
@@ -349,4 +358,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

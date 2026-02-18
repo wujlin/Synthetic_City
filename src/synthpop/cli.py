@@ -191,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_stage.set_defaults(func=_cmd_detroit_stage_tiger)
 
     p_stage_pums = det_sub.add_parser("stage-pums", help="Copy/symlink PUMS zips into canonical folder.")
-    p_stage_pums.add_argument("--pums_year", default="2023")
+    p_stage_pums.add_argument("--pums_year", default="2022")
     p_stage_pums.add_argument("--pums_period", default="5-Year")
     p_stage_pums.add_argument("--statefp", default=STATEFP_MI, help="State FIPS (MI=26).")
     p_stage_pums.add_argument(
@@ -201,7 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_stage_pums.add_argument(
         "--dst_dir",
-        default=str(data_root() / "detroit" / "raw" / "pums" / "pums_2023_5-Year"),
+        default=str(data_root() / "detroit" / "raw" / "pums" / "pums_2022_5-Year"),
         help="Destination PUMS directory (canonical layout).",
     )
     p_stage_pums.add_argument("--mode", choices=["copy", "symlink"], default="copy", help="Default: copy (non-destructive).")
@@ -226,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_poc_train = det_sub.add_parser("poc-train", help="PoC train (TabDDPM-style) on PUMS person subset.")
     p_poc_train.add_argument("--data_root", default=str(data_root()))
-    p_poc_train.add_argument("--pums_year", default="2023")
+    p_poc_train.add_argument("--pums_year", default="2022")
     p_poc_train.add_argument("--pums_period", default="5-Year")
     p_poc_train.add_argument("--statefp", default=STATEFP_MI)
     p_poc_train.add_argument("--n_rows", default="200000")
@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_poc_sample = det_sub.add_parser("poc-sample", help="PoC sample: load checkpoint and generate samples.")
     p_poc_sample.add_argument("--data_root", default=str(data_root()), help="Data root (used to locate latest run if --out_dir is omitted).")
-    p_poc_sample.add_argument("--pums_year", default="2023", help="Kept for wrapper parity (not used in sample).")
+    p_poc_sample.add_argument("--pums_year", default="2022", help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--pums_period", default="5-Year", help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--statefp", default=STATEFP_MI, help="Kept for wrapper parity (not used in sample).")
     p_poc_sample.add_argument("--n_rows", default="200000", help="Kept for wrapper parity (not used in sample).")

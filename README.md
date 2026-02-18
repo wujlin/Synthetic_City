@@ -101,7 +101,7 @@ Download P0 public data (TIGER/ACS/PUMS/OSM) and register SafeGraph (local symli
 ```bash
 python tools/detroit_fetch_public_data.py tiger --out_root "$RAW_ROOT/synthetic_city/data"
 python tools/detroit_fetch_public_data.py acs --out_root "$RAW_ROOT/synthetic_city/data" --acs_year 2023 --tables "B01001,B19001,B23025"
-python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_city/data" --pums_year 2023
+python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_city/data" --pums_year 2022
 python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_city/data" --region michigan
 python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
 ```
@@ -113,9 +113,9 @@ Some environments (campus networks, transparent proxies, or flaky upstream route
 **PUMS (required for external validation):**
 
 - Target directory:
-  - `$DATA_ROOT/detroit/raw/pums/pums_2023_5-Year/`
+  - `$DATA_ROOT/detroit/raw/pums/pums_2022_5-Year/`
 - Download one of the following filename pairs from:
-  - `https://www2.census.gov/programs-surveys/acs/data/pums/2023/5-Year/`
+  - `https://www2.census.gov/programs-surveys/acs/data/pums/2022/5-Year/`
   - Preferred: `psam_p26.zip` + `psam_h26.zip`
   - Alternative: `csv_pmi.zip` + `csv_hmi.zip`
 

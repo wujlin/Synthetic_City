@@ -595,9 +595,10 @@ def main() -> None:
 
     ap = argparse.ArgumentParser(prog="exp2_attribute_extension")
     ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--pums_year", type=int, default=2023)
+    ap.add_argument("--pums_year", type=int, default=2022)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
+    ap.add_argument("--pums_person_zip", default=None, help="Optional override for PUMS person zip (recommended for strict reproducibility).")
     ap.add_argument("--buildings_csv", default=None, help="Optional building features CSV for built-context conditions.")
     ap.add_argument("--mode", choices=["train_eval", "eval_only"], default="train_eval")
     ap.add_argument(
@@ -655,9 +656,15 @@ def main() -> None:
         },
     )
 
-    person_zip = _resolve_pums_person_zip(
-        data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+    person_zip = (
+        pathlib.Path(str(args.pums_person_zip)).expanduser().resolve()
+        if args.pums_person_zip
+        else _resolve_pums_person_zip(
+            data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+        )
     )
+    if not person_zip.exists():
+        raise SystemExit(f"pums_person_zip not found: {person_zip}")
     member = _find_first_csv_in_zip(person_zip)
 
     usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR", "RAC1P"]
@@ -665,14 +672,19 @@ def main() -> None:
         # Read the full file first (no head bias), then sample later if --n_rows is set.
         df = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
-    # Prefer PUMA20 (PUMS 2022+); fall back to legacy PUMA if present.
-    if "PUMA20" in df.columns:
+    # Keep geography boundary-consistent with the selected PUMS release.
+    if int(args.pums_year) >= 2022:
+        if "PUMA20" not in df.columns:
+            raise SystemExit(
+                f"PUMS {int(args.pums_year)} requires PUMA20, but column is missing "
+                f"(zip={person_zip} member={member})."
+            )
         puma_col = "PUMA20"
         df["PUMA"] = df["PUMA20"]
     elif "PUMA" in df.columns:
         puma_col = "PUMA"
     else:
-        raise SystemExit(f"PUMS missing PUMA columns (need PUMA or PUMA20) (zip={person_zip} member={member})")
+        raise SystemExit(f"PUMS missing legacy PUMA column (zip={person_zip} member={member})")
 
     missing = [c for c in ["PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR"] if c not in df.columns]
     if missing:

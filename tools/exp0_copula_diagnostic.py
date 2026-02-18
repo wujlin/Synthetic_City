@@ -199,12 +199,12 @@ def main() -> None:
 
     p = argparse.ArgumentParser(prog="exp0_copula_diagnostic")
     p.add_argument("--data_root", default=str(default_data_root()), help="Project data root (RAW_ROOT layout).")
-    p.add_argument("--pums_year", type=int, default=2023)
+    p.add_argument("--pums_year", type=int, default=2022)
     p.add_argument("--pums_period", default="5-Year")
     p.add_argument("--statefp", default="26")
     p.add_argument("--pums_person_zip", default=None, help="Override PUMS person zip path (psam_pXX.zip).")
     p.add_argument("--n_rows", type=int, default=None, help="Optional row cap for quick smoke runs.")
-    p.add_argument("--group_col", default="PUMA")
+    p.add_argument("--group_col", default="PUMA20")
     p.add_argument("--x_col", default="AGEP")
     p.add_argument("--y_col", default="PINCP")
     p.add_argument("--weight_col", default="PWGTP")
@@ -445,4 +445,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

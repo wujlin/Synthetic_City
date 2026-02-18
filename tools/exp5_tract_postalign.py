@@ -644,10 +644,12 @@ def _load_pums_reference(*, data_root: pathlib.Path, pums_year: int, pums_period
     with zipfile.ZipFile(pzip) as zf, zf.open(member) as f:
         ref = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
-    if "PUMA20" in ref.columns:
+    if int(pums_year) >= 2022:
+        if "PUMA20" not in ref.columns:
+            raise SystemExit(f"PUMS {int(pums_year)} requires PUMA20, but it is missing in reference.")
         ref["PUMA"] = ref["PUMA20"]
-    if "PUMA" not in ref.columns:
-        raise SystemExit("PUMS reference missing PUMA/PUMA20")
+    elif "PUMA" not in ref.columns:
+        raise SystemExit("Legacy PUMS reference missing PUMA column.")
     puma_num = pd.to_numeric(ref["PUMA"], errors="coerce")
     ref = ref[puma_num.notna() & (puma_num != -9)].copy()
     ref[puma_col_out] = ref["PUMA"].astype(str)
@@ -692,7 +694,7 @@ def main() -> None:
     ap.add_argument("--synthetic_path", required=True, help="Exp4 synthetic sample file (csv/csv.gz/parquet).")
     ap.add_argument("--acs_targets_long", required=True, help="Tract-level ACS targets_long (csv/parquet).")
     ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--pums_year", type=int, default=2023)
+    ap.add_argument("--pums_year", type=int, default=2022)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
     ap.add_argument("--pums_person_zip", default=None, help="Optional override for PUMS person zip.")

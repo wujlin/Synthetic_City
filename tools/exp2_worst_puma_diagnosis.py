@@ -94,9 +94,10 @@ def main() -> None:
     ap.add_argument("--pumas", default=None, help="Optional comma-separated PUMAs to diagnose (overrides worst-k).")
     ap.add_argument("--with_pums_profile", action="store_true", help="If set, load PUMS and add per-PUMA stats.")
     ap.add_argument("--data_root", default=str(default_data_root()))
-    ap.add_argument("--pums_year", type=int, default=2023)
+    ap.add_argument("--pums_year", type=int, default=2022)
     ap.add_argument("--pums_period", default="5-Year")
     ap.add_argument("--statefp", default="26")
+    ap.add_argument("--pums_person_zip", default=None, help="Optional override for PUMS person zip.")
     ap.add_argument("--n_rows", type=int, default=None, help="Optional cap when reading PUMS for profiling.")
     ap.add_argument(
         "--income_edges",
@@ -188,18 +189,26 @@ def main() -> None:
     if bool(args.with_pums_profile) and selected:
         pd = _require("pandas")
         data_root = pathlib.Path(args.data_root).expanduser().resolve()
-        pums_zip = _resolve_pums_person_zip(
-            data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+        pums_zip = (
+            pathlib.Path(str(args.pums_person_zip)).expanduser().resolve()
+            if args.pums_person_zip
+            else _resolve_pums_person_zip(
+                data_root=data_root, pums_year=int(args.pums_year), pums_period=str(args.pums_period), statefp=str(args.statefp)
+            )
         )
+        if not pums_zip.exists():
+            raise SystemExit(f"pums_person_zip not found: {pums_zip}")
         member = _find_first_csv_in_zip(pums_zip)
         usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "PINCP", "SCHL", "ESR", "SEX", "RAC1P"]
         with zipfile.ZipFile(pums_zip) as zf, zf.open(member) as f:
             df = pd.read_csv(f, usecols=lambda c: c in set(usecols), low_memory=False)
 
-        if "PUMA20" in df.columns:
+        if int(args.pums_year) >= 2022:
+            if "PUMA20" not in df.columns:
+                raise SystemExit(f"PUMS {int(args.pums_year)} requires PUMA20, but it is missing for profiling.")
             df["PUMA"] = df["PUMA20"]
-        if "PUMA" not in df.columns:
-            raise SystemExit("PUMS missing PUMA/PUMA20 for profiling.")
+        elif "PUMA" not in df.columns:
+            raise SystemExit("Legacy PUMS requires PUMA for profiling, but it is missing.")
 
         puma_num = pd.to_numeric(df["PUMA"], errors="coerce")
         df = df[puma_num.notna() & (puma_num != -9)].copy()
