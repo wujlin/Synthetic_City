@@ -1,0 +1,581 @@
+{
+  "by_puma": {
+    "100": {
+      "tvd_income_bin": 0.060816856689276944,
+      "tvd_schl": 0.0823441544110834,
+      "tvd_esr": 0.015546906280657687,
+      "copula_tvd_age_income": 0.13548403400134665,
+      "joint_tvd_age_income_bin": 0.1507639745658157,
+      "puma_cosine_age_income_bin_joint": 0.9551548420316154
+    },
+    "1001": {
+      "tvd_income_bin": 0.10322642629819939,
+      "tvd_schl": 0.1321167458409616,
+      "tvd_esr": 0.029305341738453044,
+      "copula_tvd_age_income": 0.15148697282391593,
+      "joint_tvd_age_income_bin": 0.1975039179910387,
+      "puma_cosine_age_income_bin_joint": 0.9502967194949915
+    },
+    "1002": {
+      "tvd_income_bin": 0.08676453837459573,
+      "tvd_schl": 0.09282978290477188,
+      "tvd_esr": 0.05314141494115027,
+      "copula_tvd_age_income": 0.18096262410333872,
+      "joint_tvd_age_income_bin": 0.16841453568405484,
+      "puma_cosine_age_income_bin_joint": 0.9508286402906538
+    },
+    "1003": {
+      "tvd_income_bin": 0.06499503112686425,
+      "tvd_schl": 0.08337976185894845,
+      "tvd_esr": 0.027642760725355587,
+      "copula_tvd_age_income": 0.1217567999258564,
+      "joint_tvd_age_income_bin": 0.16879214770236722,
+      "puma_cosine_age_income_bin_joint": 0.9597590201286367
+    },
+    "1004": {
+      "tvd_income_bin": 0.03829086490898298,
+      "tvd_schl": 0.09611900845864661,
+      "tvd_esr": 0.02497571539869409,
+      "copula_tvd_age_income": 0.13952590151365257,
+      "joint_tvd_age_income_bin": 0.177972135313613,
+      "puma_cosine_age_income_bin_joint": 0.9621475649218348
+    },
+    "1100": {
+      "tvd_income_bin": 0.04666740281319712,
+      "tvd_schl": 0.13140731570966616,
+      "tvd_esr": 0.027191105171519445,
+      "copula_tvd_age_income": 0.11536911216311035,
+      "joint_tvd_age_income_bin": 0.1268267689766939,
+      "puma_cosine_age_income_bin_joint": 0.9743910220689402
+    },
+    "1200": {
+      "tvd_income_bin": 0.06670089878893515,
+      "tvd_schl": 0.07166040089480069,
+      "tvd_esr": 0.024598551210806712,
+      "copula_tvd_age_income": 0.14958461639968282,
+      "joint_tvd_age_income_bin": 0.155021490386271,
+      "puma_cosine_age_income_bin_joint": 0.9639784531863241
+    },
+    "1300": {
+      "tvd_income_bin": 0.028455985851950763,
+      "tvd_schl": 0.06548507597358069,
+      "tvd_esr": 0.04318818349153642,
+      "copula_tvd_age_income": 0.11669144981412638,
+      "joint_tvd_age_income_bin": 0.1433099938643664,
+      "puma_cosine_age_income_bin_joint": 0.9689058050849714
+    },
+    "1400": {
+      "tvd_income_bin": 0.07515762432590095,
+      "tvd_schl": 0.1121770954381507,
+      "tvd_esr": 0.008835704357981883,
+      "copula_tvd_age_income": 0.118186885397949,
+      "joint_tvd_age_income_bin": 0.14670649916038248,
+      "puma_cosine_age_income_bin_joint": 0.9683546774701619
+    },
+    "1500": {
+      "tvd_income_bin": 0.07957974559341054,
+      "tvd_schl": 0.06790741983494855,
+      "tvd_esr": 0.013546205141992068,
+      "copula_tvd_age_income": 0.1402989017474035,
+      "joint_tvd_age_income_bin": 0.16013280138896585,
+      "puma_cosine_age_income_bin_joint": 0.962431764343481
+    },
+    "1600": {
+      "tvd_income_bin": 0.0870020716191503,
+      "tvd_schl": 0.11452167709388474,
+      "tvd_esr": 0.026368459521274448,
+      "copula_tvd_age_income": 0.1250956231078102,
+      "joint_tvd_age_income_bin": 0.17864672586534308,
+      "puma_cosine_age_income_bin_joint": 0.9496263409889871
+    },
+    "1701": {
+      "tvd_income_bin": 0.05260538530739417,
+      "tvd_schl": 0.08194717885398818,
+      "tvd_esr": 0.014470595040761852,
+      "copula_tvd_age_income": 0.14497723043043761,
+      "joint_tvd_age_income_bin": 0.16545189068212965,
+      "puma_cosine_age_income_bin_joint": 0.9621435744098386
+    },
+    "1702": {
+      "tvd_income_bin": 0.051471643475992396,
+      "tvd_schl": 0.06816746152203788,
+      "tvd_esr": 0.03474163949850958,
+      "copula_tvd_age_income": 0.15622483687783495,
+      "joint_tvd_age_income_bin": 0.18858094442093146,
+      "puma_cosine_age_income_bin_joint": 0.9471724822936636
+    },
+    "1703": {
+      "tvd_income_bin": 0.08636568735011926,
+      "tvd_schl": 0.11918787569662011,
+      "tvd_esr": 0.047031983702374824,
+      "copula_tvd_age_income": 0.2035343938394594,
+      "joint_tvd_age_income_bin": 0.21736850409326952,
+      "puma_cosine_age_income_bin_joint": 0.9377586567988089
+    },
+    "1704": {
+      "tvd_income_bin": 0.07365785749932091,
+      "tvd_schl": 0.09896714171104416,
+      "tvd_esr": 0.007657074181464444,
+      "copula_tvd_age_income": 0.0998876033632131,
+      "joint_tvd_age_income_bin": 0.15282626925919607,
+      "puma_cosine_age_income_bin_joint": 0.9671536417399137
+    },
+    "1801": {
+      "tvd_income_bin": 0.061655700970624304,
+      "tvd_schl": 0.11867601611649622,
+      "tvd_esr": 0.02079376644707561,
+      "copula_tvd_age_income": 0.13439171450086151,
+      "joint_tvd_age_income_bin": 0.1529892572656302,
+      "puma_cosine_age_income_bin_joint": 0.9614265468428659
+    },
+    "1802": {
+      "tvd_income_bin": 0.08378115597366934,
+      "tvd_schl": 0.12270705318833659,
+      "tvd_esr": 0.044800512714951224,
+      "copula_tvd_age_income": 0.17719761570028952,
+      "joint_tvd_age_income_bin": 0.22606320467283034,
+      "puma_cosine_age_income_bin_joint": 0.9302005047593169
+    },
+    "1900": {
+      "tvd_income_bin": 0.06106285046646907,
+      "tvd_schl": 0.11161991478522383,
+      "tvd_esr": 0.009488911369358035,
+      "copula_tvd_age_income": 0.1166163158000954,
+      "joint_tvd_age_income_bin": 0.14159986869702096,
+      "puma_cosine_age_income_bin_joint": 0.9657650729952962
+    },
+    "200": {
+      "tvd_income_bin": 0.042953554000828564,
+      "tvd_schl": 0.07333383895077104,
+      "tvd_esr": 0.049300312223432174,
+      "copula_tvd_age_income": 0.15524279105676564,
+      "joint_tvd_age_income_bin": 0.15368097424084387,
+      "puma_cosine_age_income_bin_joint": 0.9645028179015209
+    },
+    "2000": {
+      "tvd_income_bin": 0.07346332495098847,
+      "tvd_schl": 0.09574428035454598,
+      "tvd_esr": 0.023078517003087957,
+      "copula_tvd_age_income": 0.12455003055282632,
+      "joint_tvd_age_income_bin": 0.1445363833436556,
+      "puma_cosine_age_income_bin_joint": 0.9748923161033192
+    },
+    "2101": {
+      "tvd_income_bin": 0.0656628032941836,
+      "tvd_schl": 0.10613556053694999,
+      "tvd_esr": 0.01815133083538282,
+      "copula_tvd_age_income": 0.1320391797643714,
+      "joint_tvd_age_income_bin": 0.1696236986115956,
+      "puma_cosine_age_income_bin_joint": 0.9568455845680779
+    },
+    "2102": {
+      "tvd_income_bin": 0.07164472740040576,
+      "tvd_schl": 0.08290994698752416,
+      "tvd_esr": 0.07145677631780756,
+      "copula_tvd_age_income": 0.1887697139802192,
+      "joint_tvd_age_income_bin": 0.23520684615755408,
+      "puma_cosine_age_income_bin_joint": 0.896391745579928
+    },
+    "2200": {
+      "tvd_income_bin": 0.06462911894917966,
+      "tvd_schl": 0.14016995175392447,
+      "tvd_esr": 0.012437270401999684,
+      "copula_tvd_age_income": 0.14307351074705288,
+      "joint_tvd_age_income_bin": 0.1708657428173192,
+      "puma_cosine_age_income_bin_joint": 0.9628643320458818
+    },
+    "2300": {
+      "tvd_income_bin": 0.04050417549076324,
+      "tvd_schl": 0.09730746625543485,
+      "tvd_esr": 0.028234091044261722,
+      "copula_tvd_age_income": 0.13503106770920734,
+      "joint_tvd_age_income_bin": 0.14926806690518668,
+      "puma_cosine_age_income_bin_joint": 0.9685092410653112
+    },
+    "2400": {
+      "tvd_income_bin": 0.04994552769918298,
+      "tvd_schl": 0.08367239056128918,
+      "tvd_esr": 0.02363396775326336,
+      "copula_tvd_age_income": 0.12913070401696097,
+      "joint_tvd_age_income_bin": 0.1492160631333369,
+      "puma_cosine_age_income_bin_joint": 0.9666874308424452
+    },
+    "2500": {
+      "tvd_income_bin": 0.028869983597043056,
+      "tvd_schl": 0.07350282506801468,
+      "tvd_esr": 0.012501274488046752,
+      "copula_tvd_age_income": 0.10681672085105655,
+      "joint_tvd_age_income_bin": 0.12513744151115852,
+      "puma_cosine_age_income_bin_joint": 0.9726473143052021
+    },
+    "2600": {
+      "tvd_income_bin": 0.03062212518227359,
+      "tvd_schl": 0.06937358999064394,
+      "tvd_esr": 0.02304444217893408,
+      "copula_tvd_age_income": 0.155850021697635,
+      "joint_tvd_age_income_bin": 0.1412920739498527,
+      "puma_cosine_age_income_bin_joint": 0.9720241809965098
+    },
+    "2701": {
+      "tvd_income_bin": 0.04647615554354589,
+      "tvd_schl": 0.09522769441479971,
+      "tvd_esr": 0.026257972377382928,
+      "copula_tvd_age_income": 0.13000950149350995,
+      "joint_tvd_age_income_bin": 0.19635109481788152,
+      "puma_cosine_age_income_bin_joint": 0.9507391030167287
+    },
+    "2702": {
+      "tvd_income_bin": 0.11837870318491213,
+      "tvd_schl": 0.23980432150317135,
+      "tvd_esr": 0.05126393671201312,
+      "copula_tvd_age_income": 0.23864771970087664,
+      "joint_tvd_age_income_bin": 0.27968358884857536,
+      "puma_cosine_age_income_bin_joint": 0.8411008715015645
+    },
+    "2703": {
+      "tvd_income_bin": 0.04320591567791693,
+      "tvd_schl": 0.15339226165447897,
+      "tvd_esr": 0.039560401130643026,
+      "copula_tvd_age_income": 0.14216925376946404,
+      "joint_tvd_age_income_bin": 0.16356562796726734,
+      "puma_cosine_age_income_bin_joint": 0.9632676261122799
+    },
+    "2800": {
+      "tvd_income_bin": 0.03592464129248217,
+      "tvd_schl": 0.07901721083926848,
+      "tvd_esr": 0.011968001624698368,
+      "copula_tvd_age_income": 0.11474345462691717,
+      "joint_tvd_age_income_bin": 0.143798039207258,
+      "puma_cosine_age_income_bin_joint": 0.968313120303679
+    },
+    "2901": {
+      "tvd_income_bin": 0.033137160357747414,
+      "tvd_schl": 0.12399918399510193,
+      "tvd_esr": 0.02480017671650464,
+      "copula_tvd_age_income": 0.13773555393815715,
+      "joint_tvd_age_income_bin": 0.16941799429811252,
+      "puma_cosine_age_income_bin_joint": 0.9618950066112654
+    },
+    "2902": {
+      "tvd_income_bin": 0.08217111704664211,
+      "tvd_schl": 0.12737944403859616,
+      "tvd_esr": 0.01273031889528098,
+      "copula_tvd_age_income": 0.12034796416359744,
+      "joint_tvd_age_income_bin": 0.17259522215119877,
+      "puma_cosine_age_income_bin_joint": 0.9555120915576517
+    },
+    "2903": {
+      "tvd_income_bin": 0.0288462205223473,
+      "tvd_schl": 0.10997291742071706,
+      "tvd_esr": 0.029756182797387204,
+      "copula_tvd_age_income": 0.13433299157840964,
+      "joint_tvd_age_income_bin": 0.17452804224328305,
+      "puma_cosine_age_income_bin_joint": 0.9540218987834621
+    },
+    "2904": {
+      "tvd_income_bin": 0.03284228574006812,
+      "tvd_schl": 0.09939475290728478,
+      "tvd_esr": 0.03813077192845735,
+      "copula_tvd_age_income": 0.13859180839914928,
+      "joint_tvd_age_income_bin": 0.19584116938099838,
+      "puma_cosine_age_income_bin_joint": 0.9292685670837274
+    },
+    "2905": {
+      "tvd_income_bin": 0.06674574614307834,
+      "tvd_schl": 0.16578037103334983,
+      "tvd_esr": 0.046860236136516735,
+      "copula_tvd_age_income": 0.16526323932546436,
+      "joint_tvd_age_income_bin": 0.17959068994473754,
+      "puma_cosine_age_income_bin_joint": 0.9498832196583006
+    },
+    "2906": {
+      "tvd_income_bin": 0.18884561051740953,
+      "tvd_schl": 0.27728476122210255,
+      "tvd_esr": 0.039104267072042766,
+      "copula_tvd_age_income": 0.13356569561028492,
+      "joint_tvd_age_income_bin": 0.2364531503469842,
+      "puma_cosine_age_income_bin_joint": 0.929712178487017
+    },
+    "2907": {
+      "tvd_income_bin": 0.16761833580028113,
+      "tvd_schl": 0.16468612661207288,
+      "tvd_esr": 0.057504470378297284,
+      "copula_tvd_age_income": 0.14906569505836254,
+      "joint_tvd_age_income_bin": 0.2431020068215366,
+      "puma_cosine_age_income_bin_joint": 0.9039026029349727
+    },
+    "2908": {
+      "tvd_income_bin": 0.06581446591295095,
+      "tvd_schl": 0.15138131348894027,
+      "tvd_esr": 0.029067533863365087,
+      "copula_tvd_age_income": 0.1300658924177018,
+      "joint_tvd_age_income_bin": 0.15892171712887188,
+      "puma_cosine_age_income_bin_joint": 0.9517997332799566
+    },
+    "300": {
+      "tvd_income_bin": 0.05512598107219386,
+      "tvd_schl": 0.07009649579364625,
+      "tvd_esr": 0.017341350668708254,
+      "copula_tvd_age_income": 0.11684300481745576,
+      "joint_tvd_age_income_bin": 0.1513206473548579,
+      "puma_cosine_age_income_bin_joint": 0.9638818479579988
+    },
+    "3001": {
+      "tvd_income_bin": 0.035983076011274005,
+      "tvd_schl": 0.10782624147628521,
+      "tvd_esr": 0.011385959205586021,
+      "copula_tvd_age_income": 0.14271723579696716,
+      "joint_tvd_age_income_bin": 0.16928447394333454,
+      "puma_cosine_age_income_bin_joint": 0.9485833491955821
+    },
+    "3002": {
+      "tvd_income_bin": 0.05329213939332981,
+      "tvd_schl": 0.0628348074452357,
+      "tvd_esr": 0.03163568426382764,
+      "copula_tvd_age_income": 0.11259780280186087,
+      "joint_tvd_age_income_bin": 0.1488912855221024,
+      "puma_cosine_age_income_bin_joint": 0.9677228786233228
+    },
+    "3003": {
+      "tvd_income_bin": 0.057053824058728685,
+      "tvd_schl": 0.10354771973399295,
+      "tvd_esr": 0.029961436875007016,
+      "copula_tvd_age_income": 0.1503065692861214,
+      "joint_tvd_age_income_bin": 0.14992674030180558,
+      "puma_cosine_age_income_bin_joint": 0.9682222644524991
+    },
+    "3004": {
+      "tvd_income_bin": 0.07935279477447238,
+      "tvd_schl": 0.18335606584781441,
+      "tvd_esr": 0.03528929307600727,
+      "copula_tvd_age_income": 0.16514235371551658,
+      "joint_tvd_age_income_bin": 0.19373588250632146,
+      "puma_cosine_age_income_bin_joint": 0.93505570164666
+    },
+    "3005": {
+      "tvd_income_bin": 0.05238249278309176,
+      "tvd_schl": 0.08743041601235409,
+      "tvd_esr": 0.03177552426755452,
+      "copula_tvd_age_income": 0.17834356468052068,
+      "joint_tvd_age_income_bin": 0.16452108333692156,
+      "puma_cosine_age_income_bin_joint": 0.9594371314282811
+    },
+    "3006": {
+      "tvd_income_bin": 0.05521731304502682,
+      "tvd_schl": 0.11260513464530031,
+      "tvd_esr": 0.010929549394049155,
+      "copula_tvd_age_income": 0.12492744232069884,
+      "joint_tvd_age_income_bin": 0.1576753507780147,
+      "puma_cosine_age_income_bin_joint": 0.9607824738147025
+    },
+    "3100": {
+      "tvd_income_bin": 0.05480584476518163,
+      "tvd_schl": 0.11186591919479767,
+      "tvd_esr": 0.011758580947266088,
+      "copula_tvd_age_income": 0.1140500233119493,
+      "joint_tvd_age_income_bin": 0.14725402731840076,
+      "puma_cosine_age_income_bin_joint": 0.9670029328961826
+    },
+    "3201": {
+      "tvd_income_bin": 0.031639635259205545,
+      "tvd_schl": 0.10806688694628723,
+      "tvd_esr": 0.02982277340552398,
+      "copula_tvd_age_income": 0.13038601593804916,
+      "joint_tvd_age_income_bin": 0.1710328929111442,
+      "puma_cosine_age_income_bin_joint": 0.9512944737843442
+    },
+    "3202": {
+      "tvd_income_bin": 0.06687937791698809,
+      "tvd_schl": 0.10371013611961696,
+      "tvd_esr": 0.04453417794503791,
+      "copula_tvd_age_income": 0.13228115284822706,
+      "joint_tvd_age_income_bin": 0.15934823091247668,
+      "puma_cosine_age_income_bin_joint": 0.9601920809008468
+    },
+    "3203": {
+      "tvd_income_bin": 0.08366250964134996,
+      "tvd_schl": 0.16219769271192216,
+      "tvd_esr": 0.03063322260238522,
+      "copula_tvd_age_income": 0.18855283599973177,
+      "joint_tvd_age_income_bin": 0.16162186374275278,
+      "puma_cosine_age_income_bin_joint": 0.971463458631812
+    },
+    "3204": {
+      "tvd_income_bin": 0.045144569817130616,
+      "tvd_schl": 0.11656525151331289,
+      "tvd_esr": 0.036580926900770305,
+      "copula_tvd_age_income": 0.14937521712810148,
+      "joint_tvd_age_income_bin": 0.16303975471246607,
+      "puma_cosine_age_income_bin_joint": 0.9610784190128762
+    },
+    "3205": {
+      "tvd_income_bin": 0.05690932028605555,
+      "tvd_schl": 0.13267228636894646,
+      "tvd_esr": 0.05389661947517459,
+      "copula_tvd_age_income": 0.18258849062111743,
+      "joint_tvd_age_income_bin": 0.17869843237073094,
+      "puma_cosine_age_income_bin_joint": 0.9551479604682181
+    },
+    "3206": {
+      "tvd_income_bin": 0.09582105176182736,
+      "tvd_schl": 0.09332450623716546,
+      "tvd_esr": 0.02863618864993675,
+      "copula_tvd_age_income": 0.13745695449577372,
+      "joint_tvd_age_income_bin": 0.20569244686514498,
+      "puma_cosine_age_income_bin_joint": 0.9336037068845681
+    },
+    "3207": {
+      "tvd_income_bin": 0.03166966490071094,
+      "tvd_schl": 0.16391527306645892,
+      "tvd_esr": 0.027502015850104953,
+      "copula_tvd_age_income": 0.12675153652613302,
+      "joint_tvd_age_income_bin": 0.16073994624422897,
+      "puma_cosine_age_income_bin_joint": 0.9624747499920209
+    },
+    "3208": {
+      "tvd_income_bin": 0.050816326530612244,
+      "tvd_schl": 0.10199443413729128,
+      "tvd_esr": 0.034823747680890534,
+      "copula_tvd_age_income": 0.1716048237476809,
+      "joint_tvd_age_income_bin": 0.17562152133580705,
+      "puma_cosine_age_income_bin_joint": 0.9616800469068786
+    },
+    "3209": {
+      "tvd_income_bin": 0.053695615765330384,
+      "tvd_schl": 0.09905869041034612,
+      "tvd_esr": 0.054062465387128195,
+      "copula_tvd_age_income": 0.19965899465581716,
+      "joint_tvd_age_income_bin": 0.15493471421561902,
+      "puma_cosine_age_income_bin_joint": 0.9719276317925506
+    },
+    "3210": {
+      "tvd_income_bin": 0.0284989472433441,
+      "tvd_schl": 0.16788342228636421,
+      "tvd_esr": 0.033664874640300366,
+      "copula_tvd_age_income": 0.16202717532188138,
+      "joint_tvd_age_income_bin": 0.19940820236372714,
+      "puma_cosine_age_income_bin_joint": 0.9466623878052982
+    },
+    "3211": {
+      "tvd_income_bin": 0.03982686945231871,
+      "tvd_schl": 0.12278504804416074,
+      "tvd_esr": 0.036933231677049164,
+      "copula_tvd_age_income": 0.1830814577202711,
+      "joint_tvd_age_income_bin": 0.19793991805166927,
+      "puma_cosine_age_income_bin_joint": 0.9337307978633351
+    },
+    "3212": {
+      "tvd_income_bin": 0.03749178029204141,
+      "tvd_schl": 0.14236945169712795,
+      "tvd_esr": 0.035664104051832506,
+      "copula_tvd_age_income": 0.1851859104535345,
+      "joint_tvd_age_income_bin": 0.16664104051832512,
+      "puma_cosine_age_income_bin_joint": 0.9573133072094365
+    },
+    "3213": {
+      "tvd_income_bin": 0.1126684648159034,
+      "tvd_schl": 0.17785131428241663,
+      "tvd_esr": 0.019377209027866577,
+      "copula_tvd_age_income": 0.15840659718990188,
+      "joint_tvd_age_income_bin": 0.21675175499840377,
+      "puma_cosine_age_income_bin_joint": 0.9510877364687688
+    },
+    "3300": {
+      "tvd_income_bin": 0.038314223553526455,
+      "tvd_schl": 0.07677040296467455,
+      "tvd_esr": 0.0530265835659403,
+      "copula_tvd_age_income": 0.12175330188981526,
+      "joint_tvd_age_income_bin": 0.17882821933684814,
+      "puma_cosine_age_income_bin_joint": 0.9510509748176517
+    },
+    "400": {
+      "tvd_income_bin": 0.07486278986265585,
+      "tvd_schl": 0.09706864630597681,
+      "tvd_esr": 0.007612411004869642,
+      "copula_tvd_age_income": 0.12054982269323682,
+      "joint_tvd_age_income_bin": 0.13753150627887437,
+      "puma_cosine_age_income_bin_joint": 0.9703723243944519
+    },
+    "500": {
+      "tvd_income_bin": 0.046348438951277604,
+      "tvd_schl": 0.13471340234760304,
+      "tvd_esr": 0.022047726962021702,
+      "copula_tvd_age_income": 0.12834887802018247,
+      "joint_tvd_age_income_bin": 0.14247123136694492,
+      "puma_cosine_age_income_bin_joint": 0.9710585060258103
+    },
+    "600": {
+      "tvd_income_bin": 0.029847650543537538,
+      "tvd_schl": 0.07792194306753933,
+      "tvd_esr": 0.04540670568526142,
+      "copula_tvd_age_income": 0.14681106770574637,
+      "joint_tvd_age_income_bin": 0.13457494085545263,
+      "puma_cosine_age_income_bin_joint": 0.9734085816820982
+    },
+    "700": {
+      "tvd_income_bin": 0.07265735144527907,
+      "tvd_schl": 0.06724135854222908,
+      "tvd_esr": 0.029141445747320565,
+      "copula_tvd_age_income": 0.14765691014169943,
+      "joint_tvd_age_income_bin": 0.1581492038861522,
+      "puma_cosine_age_income_bin_joint": 0.9686982659832583
+    },
+    "801": {
+      "tvd_income_bin": 0.09112893096134311,
+      "tvd_schl": 0.07356688047960702,
+      "tvd_esr": 0.012470307003028556,
+      "copula_tvd_age_income": 0.11744889603122632,
+      "joint_tvd_age_income_bin": 0.18996852580605905,
+      "puma_cosine_age_income_bin_joint": 0.9506400560910991
+    },
+    "802": {
+      "tvd_income_bin": 0.028427940035076395,
+      "tvd_schl": 0.11100099057305986,
+      "tvd_esr": 0.0421624709301537,
+      "copula_tvd_age_income": 0.16838949349852816,
+      "joint_tvd_age_income_bin": 0.17093155333919574,
+      "puma_cosine_age_income_bin_joint": 0.9618778123544747
+    },
+    "900": {
+      "tvd_income_bin": 0.06500287585322753,
+      "tvd_schl": 0.09310895325872286,
+      "tvd_esr": 0.03290306988669828,
+      "copula_tvd_age_income": 0.13787330653823499,
+      "joint_tvd_age_income_bin": 0.1900085582620145,
+      "puma_cosine_age_income_bin_joint": 0.9571036683875851
+    }
+  },
+  "summary": {
+    "tvd_income_bin": {
+      "mean": 0.0619277533313283,
+      "max": 0.18884561051740953,
+      "n_pumas": 68
+    },
+    "tvd_schl": {
+      "mean": 0.11241236854988866,
+      "max": 0.27728476122210255,
+      "n_pumas": 68
+    },
+    "tvd_esr": {
+      "mean": 0.029899216758676822,
+      "max": 0.07145677631780756,
+      "n_pumas": 68
+    },
+    "copula_tvd_age_income": {
+      "mean": 0.14460929379212287,
+      "max": 0.23864771970087664,
+      "n_pumas": 68
+    },
+    "joint_tvd_age_income_bin": {
+      "mean": 0.17159103695960182,
+      "max": 0.27968358884857536,
+      "n_pumas": 68
+    },
+    "puma_cosine_age_income_bin_joint": {
+      "mean": 0.9547769388244369,
+      "min": 0.8411008715015645,
+      "max": 0.9748923161033192,
+      "n_pumas": 68
+    }
+  }
+}
