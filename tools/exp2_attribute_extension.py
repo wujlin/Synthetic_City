@@ -42,7 +42,7 @@ import pathlib
 import random
 import sys
 import zipfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -227,12 +227,13 @@ class _Encoder:
     cond_cols: list[str]
     age_depth: int
     sex_depth: int
-    race_cats: list[str] | None
+    race_cats: list[str] | None = None
+    puma_id_cats: list[str] | None = None
     # target
-    income_mean: float
-    income_std: float
-    schl_cats: list[str]
-    esr_cats: list[str]
+    income_mean: float = 0.0
+    income_std: float = 1.0
+    schl_cats: list[str] = field(default_factory=list)
+    esr_cats: list[str] = field(default_factory=list)
 
 
 def _build_puma_stats(*, df: Any, puma_col: str, wcol: str) -> tuple[dict[str, "Any"], list[str]]:
@@ -385,6 +386,8 @@ def _encode_condition(
     df: Any,
     puma_col: str,
     use_race: bool,
+    use_puma_id: bool,
+    puma_id_cats_global: list[str] | None,
     use_area_stats: bool,
     area_stats: dict[str, "Any"] | None,
     area_stat_cols: list[str] | None,
@@ -404,6 +407,7 @@ def _encode_condition(
     cond_cols = [f"age_{i}" for i in range(23)] + ["sex_m", "sex_f"]
 
     race_cats: list[str] | None = None
+    puma_id_cats: list[str] | None = None
     if use_race:
         race = pd.to_numeric(df.get("RAC1P"), errors="coerce").fillna(-1).astype(int)
         if not race_cats_global:
@@ -421,6 +425,21 @@ def _encode_condition(
         race_oh = np.eye(len(race_cats), dtype=np.float32)[race_cat.codes[mask_np]]
         cond_parts.append(race_oh)
         cond_cols += [f"race_{c}" for c in race_cats]
+
+    if use_puma_id:
+        p = df[puma_col].astype(str)
+        if not puma_id_cats_global:
+            raise RuntimeError("use_puma_id requested but puma_id_cats_global is None/empty")
+        puma_cat = pd.Categorical(p, categories=puma_id_cats_global, ordered=False)
+        mask = (puma_cat.codes >= 0)
+        mask_np = np.asarray(mask, dtype=bool)
+        if not bool(mask_np.all()):
+            df = df.loc[mask_np].copy()
+            cond_parts = [part[mask_np] for part in cond_parts]
+        puma_id_cats = [str(x) for x in puma_cat.categories.tolist()]
+        puma_oh = np.eye(len(puma_id_cats), dtype=np.float32)[puma_cat.codes[mask_np]]
+        cond_parts.append(puma_oh)
+        cond_cols += [f"puma_id_{c}" for c in puma_id_cats]
 
     if use_area_stats:
         if area_stats is None or area_stat_cols is None:
@@ -440,6 +459,7 @@ def _encode_condition(
         age_depth=23,
         sex_depth=2,
         race_cats=race_cats,
+        puma_id_cats=puma_id_cats,
         income_mean=0.0,
         income_std=1.0,
         schl_cats=[],
@@ -485,6 +505,7 @@ def _encode_targets(*, df: Any) -> tuple[Any, _Encoder, Any]:
         age_depth=23,
         sex_depth=2,
         race_cats=None,
+        puma_id_cats=None,
         income_mean=mu,
         income_std=sd,
         schl_cats=schl_cats,
@@ -612,7 +633,7 @@ def main() -> None:
         default="demo_only",
         help=(
             "Comma-separated condition sets: "
-            "demo_only, demo_race, demo_puma, demo_race_puma, demo_race_puma_built"
+            "demo_only, demo_race, demo_puma, demo_race_puma, demo_race_puma_built, demo_race_puma_id"
         ),
     )
     ap.add_argument("--n_folds", type=int, default=5)
@@ -724,6 +745,8 @@ def main() -> None:
     if "RAC1P" in df.columns:
         rc = sorted({int(x) for x in df["RAC1P"].to_numpy(dtype=int).tolist() if int(x) >= 0})
         race_cats_global = rc if rc else None
+    # Global PUMA categories for stable one-hot in puma_id diagnostic.
+    puma_id_cats_global = sorted(df["PUMA"].astype(str).unique().tolist())
 
     # PUMA stats for "puma" conditions.
     puma_stats, puma_stat_cols = _build_puma_stats(df=df, puma_col="PUMA", wcol="PWGTP")
@@ -742,9 +765,11 @@ def main() -> None:
     metrics_by_condition: dict[str, Any] = {}
     for cond_id in conditions:
         use_race = "race" in cond_id
-        use_puma_stats = "puma" in cond_id
+        use_puma_id = "puma_id" in cond_id
+        use_puma_stats = ("puma" in cond_id) and (not use_puma_id)
         use_built_stats = "built" in cond_id
         use_area_stats = use_puma_stats or use_built_stats
+        eval_scope = "train" if use_puma_id else "holdout"
         area_stats = None
         area_stat_cols = None
         if use_area_stats:
@@ -824,6 +849,8 @@ def main() -> None:
                         df=train_df,
                         puma_col="PUMA",
                         use_race=use_race,
+                        use_puma_id=use_puma_id,
+                        puma_id_cats_global=puma_id_cats_global,
                         use_area_stats=use_area_stats,
                         area_stats=area_stats,
                         area_stat_cols=area_stat_cols,
@@ -844,6 +871,7 @@ def main() -> None:
                         age_depth=enc_cond.age_depth,
                         sex_depth=enc_cond.sex_depth,
                         race_cats=enc_cond.race_cats,
+                        puma_id_cats=enc_cond.puma_id_cats,
                         income_mean=enc_target.income_mean,
                         income_std=enc_target.income_std,
                         schl_cats=enc_target.schl_cats,
@@ -883,36 +911,43 @@ def main() -> None:
             assert model is not None
             assert enc is not None
             assert decode_meta is not None
+            eval_df = train_df if eval_scope == "train" else test_df
+            eval_pumas = set(eval_df["PUMA"].astype(str).unique().tolist())
             race_eval = race_cats_global
             if use_race and enc.race_cats:
                 try:
                     race_eval = [int(x) for x in enc.race_cats]
                 except Exception:
                     race_eval = race_cats_global
-            test_df2, cond_test, _ = _encode_condition(
-                df=test_df,
+            puma_id_eval = puma_id_cats_global
+            if use_puma_id and enc.puma_id_cats:
+                puma_id_eval = [str(x) for x in enc.puma_id_cats]
+            eval_df2, cond_eval, _ = _encode_condition(
+                df=eval_df,
                 puma_col="PUMA",
                 use_race=use_race,
+                use_puma_id=use_puma_id,
+                puma_id_cats_global=puma_id_eval,
                 use_area_stats=use_area_stats,
                 area_stats=area_stats,
                 area_stat_cols=area_stat_cols,
                 race_cats_global=race_eval,
             )
-            n_test = int(test_df2.shape[0])
-            if n_test == 0:
-                by_fold_metrics[str(fold)] = {"note": "empty test fold", "n_test": 0}
+            n_eval = int(eval_df2.shape[0])
+            if n_eval == 0:
+                by_fold_metrics[str(fold)] = {"note": "empty eval fold", "eval_scope": eval_scope, "n_eval": 0}
                 continue
 
-            c_test_t = torch.as_tensor(cond_test, dtype=torch.float32)
-            x_hat_t = model.sample(n=n_test, cond=c_test_t, device=args.device)
+            c_eval_t = torch.as_tensor(cond_eval, dtype=torch.float32)
+            x_hat_t = model.sample(n=n_eval, cond=c_eval_t, device=args.device)
             x_hat = x_hat_t.detach().cpu().numpy()
             gen = _decode_samples(x_hat=x_hat, enc_target=enc, decode_meta=decode_meta)
-            syn = test_df2.reset_index(drop=True).copy()
+            syn = eval_df2.reset_index(drop=True).copy()
             syn["PINCP"] = gen["PINCP"].to_numpy(dtype=float)
             syn["SCHL"] = gen["SCHL"].astype(str)
             syn["ESR"] = gen["ESR"].astype(str)
 
-            ref = test_df2.reset_index(drop=True).copy()
+            ref = eval_df2.reset_index(drop=True).copy()
             ref["SCHL"] = ref["SCHL"].astype(str)
             ref["ESR"] = ref["ESR"].astype(str)
 
@@ -923,7 +958,7 @@ def main() -> None:
             ref["PINCP_bin"] = pd.cut(ref["PINCP"], bins=income_edges, include_lowest=True, right=False).astype(str)
 
             per_puma = {}
-            for puma in sorted(test_pumas):
+            for puma in sorted(eval_pumas):
                 s_p = syn[syn["PUMA"] == str(puma)]
                 r_p = ref[ref["PUMA"] == str(puma)]
                 if s_p.empty or r_p.empty:
@@ -976,8 +1011,11 @@ def main() -> None:
                 return {"mean": float(arr.mean()), "min": float(arr.min()), "max": float(arr.max())}
 
             by_fold_metrics[str(fold)] = {
-                "n_test_rows": int(n_test),
-                "n_test_pumas": int(len(test_pumas)),
+                "eval_scope": eval_scope,
+                "n_eval_rows": int(n_eval),
+                "n_eval_pumas": int(len(eval_pumas)),
+                "n_test_rows": int(n_eval),
+                "n_test_pumas": int(len(eval_pumas)),
                 "by_puma": per_puma,
                 "summary": {
                     "tvd_income_bin": _agg("tvd_income_bin"),
