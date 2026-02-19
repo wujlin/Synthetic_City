@@ -1,0 +1,42 @@
+{
+  "created_utc": "2026-02-19T15:59:35Z",
+  "pums_dir": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year",
+  "variables_csv": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/detroit/raw/census/acs/acs5_2023/acs5_2023_B19037_variables.csv",
+  "statefps": [
+    "26",
+    "06"
+  ],
+  "n_states": 2,
+  "n_puma_units": 349,
+  "n_long_rows": 22336,
+  "outputs": {
+    "wide_csv": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_us_puma_b19037_smoke/puma_b19037_joint_wide.csv",
+    "long_csv": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_us_puma_b19037_smoke/puma_b19037_joint_long.csv",
+    "schema_json": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_us_puma_b19037_smoke/b19037_schema.json"
+  },
+  "by_state": [
+    {
+      "statefp": "26",
+      "person_zip": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year/csv_pmi.zip",
+      "household_zip": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year/csv_hmi.zip",
+      "householder_method": "SPORDER==1",
+      "n_joined_rows": 206202,
+      "n_valid_rows": 206202,
+      "n_pumas": 68
+    },
+    {
+      "statefp": "06",
+      "person_zip": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year/csv_pca.zip",
+      "household_zip": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year/csv_hca.zip",
+      "householder_method": "SPORDER==1",
+      "n_joined_rows": 655358,
+      "n_valid_rows": 655358,
+      "n_pumas": 281
+    }
+  ],
+  "notes": [
+    "puma_uid = statefp(2) + puma5(5) to avoid cross-state PUMA code collisions.",
+    "Householder age uses RELP==0 when available, else SPORDER==1 fallback.",
+    "Bins follow ACS B19037 variables.csv parsing."
+  ]
+}
