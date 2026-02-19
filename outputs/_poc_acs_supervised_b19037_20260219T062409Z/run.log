@@ -1,0 +1,33 @@
+[warn] dropped 8 tracts with empty B19037 totals (total_households==0).
+[warn] RELP not available in PUMS person file; using SPORDER==1 as householder proxy (zip=/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year/psam_p26.zip member=psam_p26.csv)
+[train] step=200 loss=0.603715
+[train] step=400 loss=0.501647
+[train] step=600 loss=0.471474
+[train] step=800 loss=0.408332
+[train] step=1000 loss=0.398914
+[train] step=200 loss=0.599869
+[train] step=400 loss=0.497587
+[train] step=600 loss=0.468168
+[train] step=800 loss=0.407302
+[train] step=1000 loss=0.395715
+[train] step=200 loss=0.531385
+[train] step=400 loss=0.532266
+[train] step=600 loss=0.430169
+[train] step=800 loss=0.440378
+[train] step=1000 loss=0.405079
+[train] step=200 loss=0.527893
+[train] step=400 loss=0.528716
+[train] step=600 loss=0.422044
+[train] step=800 loss=0.433233
+[train] step=1000 loss=0.404940
+[train] step=200 loss=0.580703
+[train] step=400 loss=0.563737
+[train] step=600 loss=0.491097
+[train] step=800 loss=0.443521
+[train] step=1000 loss=0.381879
+[train] step=200 loss=0.577734
+[train] step=400 loss=0.556642
+[train] step=600 loss=0.490423
+[train] step=800 loss=0.438767
+[train] step=1000 loss=0.372287
+[ok] wrote: /home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/outputs/runs/_poc_acs_supervised_b19037_20260219T062409Z
