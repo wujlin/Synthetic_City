@@ -35,6 +35,8 @@ class TabDDPMConfig:
     beta_end: float = 0.02
     hidden_dims: tuple[int, ...] = (256, 256)
     time_embed_dim: int = 128
+    condition_injection: str = "concat"  # concat | film
+    film_hidden_dim: int = 128
     lr: float = 1e-3
     weight_decay: float = 1e-4
     grad_clip: float | None = 1.0
@@ -90,6 +92,90 @@ class _DenoiserMLP(_torch_module_base()):
         return self.net(inp)
 
 
+class _FiLMDenoiserMLP(_torch_module_base()):
+    """
+    FiLM conditioning:
+    - t embedding is concatenated with x_t at input.
+    - cond is mapped to per-layer (gamma, beta), modulating each hidden layer:
+        h_l <- (1 + gamma_l) * h_l + beta_l
+    """
+
+    def __init__(
+        self,
+        *,
+        input_dim: int,
+        cond_dim: int,
+        hidden_dims: tuple[int, ...],
+        time_embed_dim: int,
+        film_hidden_dim: int = 128,
+    ) -> None:
+        torch = _require_torch()
+        nn = torch.nn
+        if hasattr(super(), "__init__"):
+            super().__init__()  # type: ignore[misc]
+
+        if len(hidden_dims) == 0:
+            raise ValueError("hidden_dims must be non-empty for FiLM denoiser")
+
+        self.input_dim = int(input_dim)
+        self.cond_dim = int(cond_dim)
+        self.time_embed_dim = int(time_embed_dim)
+        self.hidden_dims = tuple(int(x) for x in hidden_dims)
+
+        self.hidden_layers = nn.ModuleList()
+        dim_in = self.input_dim + self.time_embed_dim
+        for dim_out in self.hidden_dims:
+            self.hidden_layers.append(nn.Linear(dim_in, dim_out))
+            dim_in = dim_out
+        self.out = nn.Linear(dim_in, self.input_dim)
+        self.act = nn.SiLU()
+
+        self._film_slices: list[tuple[int, int]] = []
+        if self.cond_dim > 0:
+            total = int(sum(self.hidden_dims))
+            self.cond_net = nn.Sequential(
+                nn.Linear(self.cond_dim, int(film_hidden_dim)),
+                nn.SiLU(),
+                nn.Linear(int(film_hidden_dim), int(film_hidden_dim)),
+                nn.SiLU(),
+                nn.Linear(int(film_hidden_dim), 2 * total),
+            )
+            start = 0
+            for d in self.hidden_dims:
+                self._film_slices.append((start, start + int(d)))
+                start += int(d)
+        else:
+            self.cond_net = None
+
+    def forward(self, x_t: Any, t: Any, cond: Any | None) -> Any:  # type: ignore[override]
+        torch = _require_torch()
+        t_emb = _sinusoidal_time_embedding(t, dim=self.time_embed_dim)
+        h = torch.cat([x_t, t_emb], dim=1)
+
+        if self.cond_dim > 0:
+            if cond is None:
+                raise ValueError("cond is required when cond_dim>0")
+            assert self.cond_net is not None
+            film = self.cond_net(cond)
+            split = film.shape[1] // 2
+            gamma_all = film[:, :split]
+            beta_all = film[:, split:]
+        else:
+            gamma_all = None
+            beta_all = None
+
+        for i, layer in enumerate(self.hidden_layers):
+            h = layer(h)
+            if gamma_all is not None and beta_all is not None:
+                s0, s1 = self._film_slices[i]
+                gamma = gamma_all[:, s0:s1]
+                beta = beta_all[:, s0:s1]
+                # Keep modulation numerically stable around identity.
+                h = (1.0 + 0.1 * gamma) * h + 0.1 * beta
+            h = self.act(h)
+        return self.out(h)
+
+
 class DiffusionTabularModel:
     def __init__(self, *, input_dim: int, cond_dim: int = 0, seed: int = 0, config: TabDDPMConfig | None = None) -> None:
         self.input_dim = int(input_dim)
@@ -97,18 +183,30 @@ class DiffusionTabularModel:
         self.seed = int(seed)
         self.config = config or TabDDPMConfig()
 
-        self._net: _DenoiserMLP | None = None
+        self._net: Any | None = None
         self._schedule: dict[str, Any] | None = None
 
     def _init_model(self, *, device: Any) -> None:
         torch = _require_torch()
         if self._net is None:
-            self._net = _DenoiserMLP(
-                input_dim=self.input_dim,
-                cond_dim=self.cond_dim,
-                hidden_dims=self.config.hidden_dims,
-                time_embed_dim=self.config.time_embed_dim,
-            )
+            mode = str(getattr(self.config, "condition_injection", "concat")).lower().strip()
+            if mode == "concat":
+                self._net = _DenoiserMLP(
+                    input_dim=self.input_dim,
+                    cond_dim=self.cond_dim,
+                    hidden_dims=self.config.hidden_dims,
+                    time_embed_dim=self.config.time_embed_dim,
+                )
+            elif mode == "film":
+                self._net = _FiLMDenoiserMLP(
+                    input_dim=self.input_dim,
+                    cond_dim=self.cond_dim,
+                    hidden_dims=self.config.hidden_dims,
+                    time_embed_dim=self.config.time_embed_dim,
+                    film_hidden_dim=int(getattr(self.config, "film_hidden_dim", 128)),
+                )
+            else:
+                raise ValueError("TabDDPMConfig.condition_injection must be one of: concat, film")
         self._net.to(device)
 
         if self._schedule is None:
@@ -161,12 +259,24 @@ class DiffusionTabularModel:
         self.seed = int(payload.get("seed", 0))
         self.config = TabDDPMConfig(**dict(payload.get("config", {})))
 
-        self._net = _DenoiserMLP(
-            input_dim=self.input_dim,
-            cond_dim=self.cond_dim,
-            hidden_dims=self.config.hidden_dims,
-            time_embed_dim=self.config.time_embed_dim,
-        )
+        mode = str(getattr(self.config, "condition_injection", "concat")).lower().strip()
+        if mode == "concat":
+            self._net = _DenoiserMLP(
+                input_dim=self.input_dim,
+                cond_dim=self.cond_dim,
+                hidden_dims=self.config.hidden_dims,
+                time_embed_dim=self.config.time_embed_dim,
+            )
+        elif mode == "film":
+            self._net = _FiLMDenoiserMLP(
+                input_dim=self.input_dim,
+                cond_dim=self.cond_dim,
+                hidden_dims=self.config.hidden_dims,
+                time_embed_dim=self.config.time_embed_dim,
+                film_hidden_dim=int(getattr(self.config, "film_hidden_dim", 128)),
+            )
+        else:
+            raise ValueError("TabDDPMConfig.condition_injection must be one of: concat, film")
         self._net.load_state_dict(payload["state_dict"])
         self._schedule = None
 

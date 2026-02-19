@@ -691,11 +691,10 @@ def _fit_with_distribution_loss(
     copula_bins: int,
     min_group_n: int,
     seed: int,
+    dist_loss_low_t_max: int | None = None,
 ) -> dict[str, float]:
     torch = _require("torch")
     np = _require("numpy")
-    pd = _require("pandas")
-
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     if str(dist_mode) not in {"none", "marginal", "joint", "joint_copula"}:
@@ -791,56 +790,64 @@ def _fit_with_distribution_loss(
             eps_pred = net(x_t, t, c)
             eps_loss = mse(eps_pred, noise)
 
-            # x0 prediction from epsilon parameterization.
-            x0_pred = (x_t - sqrt_om * eps_pred) / (sqrt_acp + 1e-12)
-            z_income = x0_pred[:, 0]
+            low_t_on = (
+                dist_loss_low_t_max is None
+                or int(dist_loss_low_t_max) < 0
+                or int(t.max().detach().cpu().item()) <= int(dist_loss_low_t_max)
+            )
+            if low_t_on:
+                # x0 prediction from epsilon parameterization.
+                x0_pred = (x_t - sqrt_om * eps_pred) / (sqrt_acp + 1e-12)
+                z_income = x0_pred[:, 0]
 
-            dist_loss_acc = torch.tensor(0.0, device=device)
-            group_cnt = 0
-            unique_p = sorted({str(x) for x in batch_puma.tolist()})
-            for p in unique_p:
-                if p not in target_income_t:
-                    continue
-                mask_np = (batch_puma == p)
-                if int(mask_np.sum()) < min_group_n:
-                    continue
-                mask_t = torch.as_tensor(mask_np, device=device, dtype=torch.bool)
-                z_p = z_income[mask_t]
-                age_idx_p = torch.as_tensor(batch_age_idx[mask_np], device=device, dtype=torch.long)
+                dist_loss_acc = torch.tensor(0.0, device=device)
+                group_cnt = 0
+                unique_p = sorted({str(x) for x in batch_puma.tolist()})
+                for p in unique_p:
+                    if p not in target_income_t:
+                        continue
+                    mask_np = (batch_puma == p)
+                    if int(mask_np.sum()) < min_group_n:
+                        continue
+                    mask_t = torch.as_tensor(mask_np, device=device, dtype=torch.bool)
+                    z_p = z_income[mask_t]
+                    age_idx_p = torch.as_tensor(batch_age_idx[mask_np], device=device, dtype=torch.long)
 
-                # Income marginal (soft bins).
-                w_inc = torch.exp(-((z_p.reshape(-1, 1) - centers_t) ** 2) / (2.0 * sigma * sigma))
-                p_inc = w_inc.sum(dim=0)
-                p_inc = p_inc / (p_inc.sum() + 1e-12)
+                    # Income marginal (soft bins).
+                    w_inc = torch.exp(-((z_p.reshape(-1, 1) - centers_t) ** 2) / (2.0 * sigma * sigma))
+                    p_inc = w_inc.sum(dim=0)
+                    p_inc = p_inc / (p_inc.sum() + 1e-12)
 
-                # Age × income joint (age hard one-hot, income soft bins).
-                age_oh = torch.nn.functional.one_hot(age_idx_p.clamp(min=0, max=22), num_classes=23).to(dtype=torch.float32)
-                w_inc_row = w_inc / (w_inc.sum(dim=1, keepdim=True) + 1e-12)
-                p_joint = age_oh.transpose(0, 1) @ w_inc_row
-                p_joint = p_joint / (p_joint.sum() + 1e-12)
+                    # Age × income joint (age hard one-hot, income soft bins).
+                    age_oh = torch.nn.functional.one_hot(age_idx_p.clamp(min=0, max=22), num_classes=23).to(dtype=torch.float32)
+                    w_inc_row = w_inc / (w_inc.sum(dim=1, keepdim=True) + 1e-12)
+                    p_joint = age_oh.transpose(0, 1) @ w_inc_row
+                    p_joint = p_joint / (p_joint.sum() + 1e-12)
 
-                # Copula proxy on (rank-age, rank-income) with soft histogram.
-                age_u = ((age_idx_p.to(dtype=torch.float32) + 0.5) / 23.0).reshape(-1, 1)
-                inc_u = torch.sigmoid(z_p).reshape(-1, 1)
-                w_u = torch.exp(-((age_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
-                w_v = torch.exp(-((inc_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
-                p_cop = w_u.transpose(0, 1) @ w_v
-                p_cop = p_cop / (p_cop.sum() + 1e-12)
+                    # Copula proxy on (rank-age, rank-income) with soft histogram.
+                    age_u = ((age_idx_p.to(dtype=torch.float32) + 0.5) / 23.0).reshape(-1, 1)
+                    inc_u = torch.sigmoid(z_p).reshape(-1, 1)
+                    w_u = torch.exp(-((age_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
+                    w_v = torch.exp(-((inc_u - bins01) ** 2) / (2.0 * sigma_cop * sigma_cop))
+                    p_cop = w_u.transpose(0, 1) @ w_v
+                    p_cop = p_cop / (p_cop.sum() + 1e-12)
 
-                if dist_mode == "marginal":
-                    l_g = 0.5 * torch.abs(p_inc - target_income_t[p]).sum()
-                elif dist_mode == "joint":
-                    l_g = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
-                else:  # joint_copula
-                    l_joint = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
-                    l_cop = 0.5 * torch.abs(p_cop - target_cop_t[p]).sum()
-                    l_g = l_joint + l_cop
+                    if dist_mode == "marginal":
+                        l_g = 0.5 * torch.abs(p_inc - target_income_t[p]).sum()
+                    elif dist_mode == "joint":
+                        l_g = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
+                    else:  # joint_copula
+                        l_joint = 0.5 * torch.abs(p_joint - target_joint_t[p]).sum()
+                        l_cop = 0.5 * torch.abs(p_cop - target_cop_t[p]).sum()
+                        l_g = l_joint + l_cop
 
-                dist_loss_acc = dist_loss_acc + l_g
-                group_cnt += 1
+                    dist_loss_acc = dist_loss_acc + l_g
+                    group_cnt += 1
 
-            if group_cnt > 0:
-                dist_loss = dist_loss_acc / float(group_cnt)
+                if group_cnt > 0:
+                    dist_loss = dist_loss_acc / float(group_cnt)
+                else:
+                    dist_loss = torch.tensor(0.0, device=device)
             else:
                 dist_loss = torch.tensor(0.0, device=device)
 
@@ -880,6 +887,7 @@ def _fit_with_distribution_loss(
         "dist_mode": str(dist_mode),
         "lambda_max": float(lambda_max),
         "lambda_copula_max": float(lambda_copula_max),
+        "dist_loss_low_t_max": None if dist_loss_low_t_max is None else int(dist_loss_low_t_max),
     }
 
 
@@ -918,9 +926,12 @@ def main() -> None:
     ap.add_argument("--fold_split", choices=["hash"], default="hash")
     ap.add_argument("--timesteps", type=int, default=200)
     ap.add_argument("--epochs", type=int, default=2000)
+    ap.add_argument("--phase1_epochs", type=int, default=0, help="Optional eps-only warmup epochs before phase2.")
     ap.add_argument("--batch_size", type=int, default=4096)
     ap.add_argument("--hidden_dims", default="512,512")
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--condition_injection", choices=["concat", "film"], default="concat")
+    ap.add_argument("--film_hidden_dim", type=int, default=128)
     # Route A - Stage 1: distributional training loss.
     ap.add_argument("--dist_loss_mode", choices=["none", "marginal", "joint", "joint_copula"], default="none")
     ap.add_argument("--dist_loss_lambda", type=float, default=0.0, help="Lambda max for marginal/joint distribution loss.")
@@ -934,6 +945,12 @@ def main() -> None:
     ap.add_argument("--dist_loss_sigma", type=float, default=0.35, help="Gaussian width for soft income bins in dist loss.")
     ap.add_argument("--dist_loss_copula_bins", type=int, default=10, help="2D copula histogram bins for dist loss.")
     ap.add_argument("--dist_loss_min_group_n", type=int, default=24, help="Minimum rows per PUMA-in-batch to compute dist loss.")
+    ap.add_argument(
+        "--dist_loss_low_t_max",
+        type=int,
+        default=None,
+        help="If set, compute distribution loss only when max(t) <= this value (e.g., 50 for T=1000).",
+    )
     # Route A - Stage 0: sampling diagnostics.
     ap.add_argument("--sample_sampler", choices=["ddpm", "ddim"], default="ddpm")
     ap.add_argument("--sample_num_steps", type=int, default=None, help="Optional sampling steps override (<= timesteps).")
@@ -1177,6 +1194,8 @@ def main() -> None:
                     cfg = TabDDPMConfig(
                         timesteps=int(args.timesteps),
                         hidden_dims=hidden_dims,
+                        condition_injection=str(args.condition_injection),
+                        film_hidden_dim=int(args.film_hidden_dim),
                         lr=float(args.lr),
                     )
                     model = DiffusionTabularModel(
@@ -1185,7 +1204,35 @@ def main() -> None:
                         seed=int(args.seed),
                         config=cfg,
                     )
-                    train_summary = _fit_with_distribution_loss(
+                    phase1_epochs = int(args.phase1_epochs)
+                    if phase1_epochs > 0:
+                        phase1_summary = _fit_with_distribution_loss(
+                            model=model,
+                            x_train=x_train,
+                            cond_train=cond_train,
+                            train_df=train_df2,
+                            puma_col="PUMA",
+                            wcol="PWGTP",
+                            income_mu=float(enc.income_mean),
+                            income_sd=float(enc.income_std),
+                            epochs=phase1_epochs,
+                            batch_size=int(args.batch_size),
+                            device=args.device,
+                            log_every=int(args.log_every),
+                            dist_mode="none",
+                            lambda_max=0.0,
+                            lambda_copula_max=0.0,
+                            warmup_steps=0,
+                            sigma=float(args.dist_loss_sigma),
+                            copula_bins=int(args.dist_loss_copula_bins),
+                            min_group_n=int(args.dist_loss_min_group_n),
+                            dist_loss_low_t_max=None,
+                            seed=int(args.seed),
+                        )
+                    else:
+                        phase1_summary = None
+
+                    phase2_summary = _fit_with_distribution_loss(
                         model=model,
                         x_train=x_train,
                         cond_train=cond_train,
@@ -1205,8 +1252,17 @@ def main() -> None:
                         sigma=float(args.dist_loss_sigma),
                         copula_bins=int(args.dist_loss_copula_bins),
                         min_group_n=int(args.dist_loss_min_group_n),
+                        dist_loss_low_t_max=args.dist_loss_low_t_max,
                         seed=int(args.seed),
                     )
+                    if phase1_summary is not None:
+                        train_summary = {
+                            "phase1": phase1_summary,
+                            "phase2": phase2_summary,
+                            "loss": float(phase2_summary.get("loss", float("nan"))),
+                        }
+                    else:
+                        train_summary = phase2_summary
 
                     fold_dir.mkdir(parents=True, exist_ok=True)
                     model.save(fold_dir / "model.pt")
