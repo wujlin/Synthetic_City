@@ -35,6 +35,60 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# 50-state mapping (excludes DC/territories) for all-state PUMS downloads.
+_STATEFP_TO_POSTAL_50: dict[str, str] = {
+    "01": "al",
+    "02": "ak",
+    "04": "az",
+    "05": "ar",
+    "06": "ca",
+    "08": "co",
+    "09": "ct",
+    "10": "de",
+    "12": "fl",
+    "13": "ga",
+    "15": "hi",
+    "16": "id",
+    "17": "il",
+    "18": "in",
+    "19": "ia",
+    "20": "ks",
+    "21": "ky",
+    "22": "la",
+    "23": "me",
+    "24": "md",
+    "25": "ma",
+    "26": "mi",
+    "27": "mn",
+    "28": "ms",
+    "29": "mo",
+    "30": "mt",
+    "31": "ne",
+    "32": "nv",
+    "33": "nh",
+    "34": "nj",
+    "35": "nm",
+    "36": "ny",
+    "37": "nc",
+    "38": "nd",
+    "39": "oh",
+    "40": "ok",
+    "41": "or",
+    "42": "pa",
+    "44": "ri",
+    "45": "sc",
+    "46": "sd",
+    "47": "tn",
+    "48": "tx",
+    "49": "ut",
+    "50": "vt",
+    "51": "va",
+    "53": "wa",
+    "54": "wv",
+    "55": "wi",
+    "56": "wy",
+}
+
 
 def _utc_now_iso() -> str:
     return _dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -576,85 +630,118 @@ def _cmd_pums(args: argparse.Namespace) -> None:
     out_root = pathlib.Path(args.out_root).resolve()
     year = int(args.pums_year)
     period = args.pums_period
-    state = str(args.statefp).zfill(2)
+    base_url = f"https://www2.census.gov/programs-surveys/acs/data/pums/{year}/{period}/"
 
-    # Detroit v0 only needs Michigan (MI=26). Keep it explicit to avoid silent mistakes.
-    state_postal_lower = "mi" if state == "26" else None
-    if state_postal_lower is None:
+    # Resolve target states:
+    # 1) --all_states (50 states) has highest priority.
+    # 2) --statefps comma-list.
+    # 3) fallback to legacy --statefp (default 26).
+    if bool(getattr(args, "all_states", False)):
+        states = sorted(_STATEFP_TO_POSTAL_50.keys())
+    elif getattr(args, "statefps", None):
+        raw = [x.strip() for x in str(args.statefps).split(",") if x.strip()]
+        if not raw:
+            raise SystemExit("--statefps provided but empty.")
+        states = [str(x).zfill(2) for x in raw]
+    else:
+        states = [str(args.statefp).zfill(2)]
+
+    unsupported = [s for s in states if s not in _STATEFP_TO_POSTAL_50]
+    if unsupported:
         raise SystemExit(
-            f"Unsupported --statefp={args.statefp}. This detroit helper currently only supports MI (26)."
+            f"Unsupported state FIPS in --statefp/--statefps: {unsupported}. "
+            "This command currently supports 50 states only (no DC/territories)."
         )
 
-    base_url = f"https://www2.census.gov/programs-surveys/acs/data/pums/{year}/{period}/"
-    candidates = [
-        # Older naming (common in older releases / mirrors)
-        f"psam_h{state}.zip",
-        f"psam_p{state}.zip",
-        # Newer naming seen in some recent releases (postal abbreviation)
-        f"csv_h{state_postal_lower}.zip",
-        f"csv_p{state_postal_lower}.zip",
-    ]
-
-    out_dir = out_root / "detroit" / "raw" / "pums" / f"pums_{year}_{period}"
+    # Keep legacy Detroit path for MI-only calls; otherwise use a US-level folder.
+    use_legacy_mi_path = (len(states) == 1 and states[0] == "26" and not bool(getattr(args, "all_states", False)) and not getattr(args, "statefps", None))
+    if use_legacy_mi_path:
+        out_dir = out_root / "detroit" / "raw" / "pums" / f"pums_{year}_{period}"
+    else:
+        out_dir = out_root / "us" / "raw" / "pums" / f"pums_{year}_{period}"
     _ensure_dir(out_dir)
-    _write_json(
-        out_dir / "pums_source.metadata.json",
-        {
-            "dataset": "ACS PUMS",
-            "year": year,
-            "period": period,
-            "statefp": state,
-            "base_url": base_url,
-            "download_utc": _utc_now_iso(),
-            "license": "Public microdata sample (US Census). Follow non-identification principle.",
-            "note": "File naming may change across years; script tries psam_hXX/psam_pXX and csv_h{state}/csv_p{state}.",
-        },
-    )
 
-    missing = []
-    downloaded = []
-    failed = []
-    for name in candidates:
-        url = base_url + name
-        if _http_head(url) is None:
-            missing.append(url)
-            continue
-        try:
-            _download(url, out_dir / name, overwrite=args.overwrite)
-            downloaded.append(url)
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                missing.append(url)
-                continue
-            if e.code == 403:
-                failed.append({"url": url, "code": int(e.code), "reason": "forbidden"})
-                print(f"[warn] GET 403: {url}", file=sys.stderr)
-                continue
-            raise
-        except (urllib.error.URLError, ssl.SSLError, ConnectionResetError, TimeoutError) as e:
-            failed.append({"url": url, "reason": str(e)})
-            print(f"[warn] download failed: {url}; err={e}", file=sys.stderr)
-            continue
+    report: dict[str, object] = {
+        "dataset": "ACS PUMS",
+        "year": int(year),
+        "period": str(period),
+        "states_requested": states,
+        "base_url": base_url,
+        "download_utc": _utc_now_iso(),
+        "license": "Public microdata sample (US Census). Follow non-identification principle.",
+        "note": "Per state, downloader tries psam_* first then csv_* fallback.",
+        "states": {},
+    }
 
-    if not downloaded and failed:
-        print("[error] Failed to download PUMS from www2.census.gov.", file=sys.stderr)
+    n_ok_states = 0
+    for state in states:
+        postal = _STATEFP_TO_POSTAL_50[state]
+        st_report: dict[str, object] = {"statefp": state, "postal": postal, "files": {}, "ok": False}
+
+        # Try legacy naming first, then postal naming.
+        # Person
+        person_candidates = [f"psam_p{state}.zip", f"csv_p{postal}.zip"]
+        hh_candidates = [f"psam_h{state}.zip", f"csv_h{postal}.zip"]
+
+        def _download_first(candidates: list[str], kind: str) -> tuple[str | None, list[dict[str, object]]]:
+            errors: list[dict[str, object]] = []
+            for name in candidates:
+                url = base_url + name
+                exists = _http_head(url)
+                if exists is None:
+                    continue
+                try:
+                    _download(url, out_dir / name, overwrite=args.overwrite)
+                    return name, errors
+                except urllib.error.HTTPError as e:
+                    if e.code == 404:
+                        continue
+                    errors.append({"url": url, "kind": kind, "code": int(e.code), "reason": "http_error"})
+                    print(f"[warn] {state} {kind} GET {e.code}: {url}", file=sys.stderr)
+                    continue
+                except (urllib.error.URLError, ssl.SSLError, ConnectionResetError, TimeoutError) as e:
+                    errors.append({"url": url, "kind": kind, "reason": str(e)})
+                    print(f"[warn] {state} {kind} download failed: {url}; err={e}", file=sys.stderr)
+                    continue
+            return None, errors
+
+        person_name, person_err = _download_first(person_candidates, kind="person")
+        hh_name, hh_err = _download_first(hh_candidates, kind="household")
+
+        st_report["files"] = {
+            "person": person_name,
+            "household": hh_name,
+            "person_candidates": person_candidates,
+            "household_candidates": hh_candidates,
+            "errors": person_err + hh_err,
+        }
+        st_report["ok"] = bool(person_name and hh_name)
+        if st_report["ok"]:
+            n_ok_states += 1
+            print(f"[ok] state={state} files: person={person_name}, household={hh_name}", file=sys.stderr)
+        else:
+            print(f"[warn] state={state} incomplete: person={person_name}, household={hh_name}", file=sys.stderr)
+
+        report["states"][state] = st_report
+
+    report["states_ok"] = int(n_ok_states)
+    report["states_total"] = int(len(states))
+    _write_json(out_dir / "pums_source.metadata.json", report)
+    _write_json(out_dir / "pums_download_report.json", report)
+
+    if n_ok_states == 0:
+        print("[error] Failed to download any complete state pair from www2.census.gov.", file=sys.stderr)
         print("[hint] Try setting proxy env vars (see docs/WORKSTATION_GUIDE.md):", file=sys.stderr)
         print('  export http_proxy="http://127.0.0.1:7890"', file=sys.stderr)
         print('  export https_proxy="http://127.0.0.1:7890"', file=sys.stderr)
-        print("[hint] If it still fails, download manually and place files under:", file=sys.stderr)
+        print("[hint] If still blocked, download manually and place files under:", file=sys.stderr)
         print(f"  {out_dir}", file=sys.stderr)
-        print("[hint] Expected filenames (one of these pairs):", file=sys.stderr)
-        print(f"  - psam_p{state}.zip + psam_h{state}.zip", file=sys.stderr)
-        print(f"  - csv_p{state_postal_lower}.zip + csv_h{state_postal_lower}.zip", file=sys.stderr)
         raise SystemExit(2)
 
-    if missing:
-        print("[warn] Some expected PUMS files not found (404):", file=sys.stderr)
-        for url in missing:
-            print(f"  - {url}", file=sys.stderr)
+    if n_ok_states < len(states):
         print(
-            "[hint] open the directory in a browser and confirm filenames; "
-            "then download manually or extend candidates list.",
+            f"[warn] Completed {n_ok_states}/{len(states)} states. "
+            "See pums_download_report.json for missing states/files.",
             file=sys.stderr,
         )
 
@@ -816,11 +903,21 @@ def main() -> None:
     )
     p_acs.set_defaults(func=_cmd_acs)
 
-    p_pums = sub.add_parser("pums", help="Download ACS PUMS (MI state files).")
+    p_pums = sub.add_parser("pums", help="Download ACS PUMS (MI by default, supports all 50 states).")
     _add_common_after(p_pums)
     p_pums.add_argument("--pums_year", default="2023", help="PUMS release year (end-year).")
     p_pums.add_argument("--pums_period", default="5-Year", help='Usually "5-Year".')
-    p_pums.add_argument("--statefp", default="26", help="State FIPS (MI=26).")
+    p_pums.add_argument("--statefp", default="26", help="Single state FIPS (legacy default: MI=26).")
+    p_pums.add_argument(
+        "--statefps",
+        default=None,
+        help="Optional comma-separated state FIPS list, e.g. 26,06,12 (overrides --statefp).",
+    )
+    p_pums.add_argument(
+        "--all_states",
+        action="store_true",
+        help="Download all 50 U.S. states (excludes DC/territories).",
+    )
     p_pums.set_defaults(func=_cmd_pums)
 
     p_osm = sub.add_parser("osm", help="Download Geofabrik OSM PBF.")
