@@ -318,7 +318,7 @@ def main() -> None:
         help="Directory containing US PUMS person zips (csv_p??.zip).",
     )
     ap.add_argument("--statefps", default="all", help='Comma-separated state FIPS or "all".')
-    ap.add_argument("--alpha", type=float, default=0.5, help="Laplace smoothing alpha per joint cell.")
+    ap.add_argument("--alpha", type=float, default=1.0, help="Laplace smoothing alpha per joint cell.")
     ap.add_argument(
         "--heterogeneity_warn_threshold",
         type=float,
@@ -476,4 +476,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

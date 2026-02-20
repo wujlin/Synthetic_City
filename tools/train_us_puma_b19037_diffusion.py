@@ -251,7 +251,8 @@ def main() -> None:
     p_age = p_age / np.maximum(p_age.sum(axis=1, keepdims=True), 1e-12)
     p_inc = p_inc / np.maximum(p_inc.sum(axis=1, keepdims=True), 1e-12)
 
-    x_all = np.log(np.clip(p_joint, 0.0, None) + 1e-6).astype(np.float32)
+    # Work in log-prob space, then z-score per training fold to match DDPM's N(0,1) operating regime.
+    x_log_all = np.log(np.clip(p_joint, 0.0, None) + 1e-6).astype(np.float32)
     cond_marg = np.concatenate([p_age, p_inc], axis=1).astype(np.float32)
 
     # Build folds.
@@ -291,7 +292,11 @@ def main() -> None:
         cond_fold_metrics: dict[str, Any] = {}
 
         for fold_name, train_idx, test_idx in folds:
-            x_train = x_all[train_idx]
+            x_train_log = x_log_all[train_idx]
+            x_mean = x_train_log.mean(axis=0, dtype=np.float64).astype(np.float32)
+            x_std = x_train_log.std(axis=0, dtype=np.float64).astype(np.float32)
+            x_std = np.where(x_std < 1e-6, 1.0, x_std).astype(np.float32)
+            x_train = ((x_train_log - x_mean.reshape(1, -1)) / x_std.reshape(1, -1)).astype(np.float32)
             x_test_true = p_joint[test_idx]
             tot_train = totals[train_idx]
             tot_test = totals[test_idx]
@@ -367,7 +372,9 @@ def main() -> None:
                 else:
                     c = np.repeat(cond_test[j : j + 1], repeats=n_eval, axis=0).astype(np.float32)
                     z = model.sample(n=n_eval, cond=torch.from_numpy(c), device=args.device).numpy()
-                p_draws = _softmax_rows(z.astype(np.float64))
+                # Inverse z-score back to log-prob space before simplex projection.
+                logp = z.astype(np.float64) * x_std.reshape(1, -1).astype(np.float64) + x_mean.reshape(1, -1).astype(np.float64)
+                p_draws = _softmax_rows(logp)
                 p_hat_raw = np.mean(p_draws, axis=0)
                 p_hat_raw = p_hat_raw / max(float(p_hat_raw.sum()), 1e-12)
 
@@ -469,6 +476,7 @@ def main() -> None:
         "film_hidden_dim": int(args.film_hidden_dim),
         "n_eval_joint_samples": int(args.n_eval_joint_samples),
         "posthoc_ipf_policy": str(args.posthoc_ipf_policy),
+        "x_representation": "logp + per-fold z-score",
         "seed": int(args.seed),
         "device": args.device,
     }
