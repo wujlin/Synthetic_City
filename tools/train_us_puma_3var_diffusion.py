@@ -2,18 +2,18 @@
 from __future__ import annotations
 
 """
-Train 5-variable distribution-level diffusion on US PUMA joints and evaluate on Michigan.
+Train 3-variable distribution-level diffusion on US PUMA joints and evaluate on Michigan.
 
 Input:
-- puma_5var_joint_wide.csv from tools/build_us_puma_5var_joint.py
+- puma_3var_joint_wide.csv from tools/build_us_puma_3var_joint.py
 
 Core setup:
 - Train on non-MI PUMAs, test on MI PUMAs (leave_mi_out by default)
 - Condition ablation:
   - none
-  - marginal (all 5 marginals concatenated)
+  - marginal (age + income + education marginals)
   - pairwise (all pairwise 2D marginals derived from joint)
-  - marginal_pairwise (marginal + pairwise)
+  - marginal_pairwise
 - Report raw and post-hoc-IPF metrics for fair comparison with IPF baseline
 """
 
@@ -191,7 +191,7 @@ def _pairwise_from_joint(
         for j in range(i + 1, d):
             keep = {i, j}
             reduce_axes = tuple(ax + 1 for ax in range(d) if ax not in keep)
-            m = tab.sum(axis=reduce_axes)  # (n, shape[i], shape[j])
+            m = tab.sum(axis=reduce_axes)
             m = m.reshape(n, -1)
             m = m / np.maximum(m.sum(axis=1, keepdims=True), 1e-12)
             m = m.astype(np.float32)
@@ -217,8 +217,8 @@ def _apply_posthoc_ipf(*, policy: str, cond_name: str) -> bool:
 def main() -> None:
     torch = _require_torch()
 
-    ap = argparse.ArgumentParser(prog="train_us_puma_5var_diffusion")
-    ap.add_argument("--joint_wide_csv", required=True, help="Path to puma_5var_joint_wide.csv")
+    ap = argparse.ArgumentParser(prog="train_us_puma_3var_diffusion")
+    ap.add_argument("--joint_wide_csv", required=True, help="Path to puma_3var_joint_wide.csv")
     ap.add_argument(
         "--conditions",
         default="none,marginal",
@@ -255,7 +255,7 @@ def main() -> None:
     if not in_path.exists():
         raise SystemExit(f"joint_wide_csv not found: {in_path}")
 
-    run_id = f"_us_puma_5var_diffusion_{_dt.datetime.now(_dt.UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    run_id = f"_us_puma_3var_diffusion_{_dt.datetime.now(_dt.UTC).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir = pathlib.Path(args.out_dir).expanduser().resolve() if args.out_dir else (_REPO_ROOT / "outputs" / run_id)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "metrics").mkdir(parents=True, exist_ok=True)
@@ -269,10 +269,8 @@ def main() -> None:
     p_joint_cols = sorted([c for c in df.columns if c.startswith("p_joint_")], key=lambda x: int(x.split("_")[-1]))
     var_specs = [
         ("age", "p_age_"),
-        ("sex", "p_sex_"),
         ("income", "p_income_"),
         ("schl", "p_schl_"),
-        ("esr", "p_esr_"),
     ]
     marg_cols_by_var: dict[str, list[str]] = {}
     for vn, pref in var_specs:
@@ -304,7 +302,6 @@ def main() -> None:
         arr = arr / np.maximum(arr.sum(axis=1, keepdims=True), 1e-12)
         marg_by_var[vn] = arr
 
-    # Work in log-prob space, then z-score per training fold to match DDPM's N(0,1) operating regime.
     x_log_all = np.log(np.clip(p_joint, 0.0, None) + 1e-6).astype(np.float32)
     cond_marg = np.concatenate([marg_by_var[vn] for vn, _ in var_specs], axis=1).astype(np.float32)
     cond_pairwise, pair_dims = _pairwise_from_joint(
@@ -388,7 +385,6 @@ def main() -> None:
                 fit_kwargs["cond"] = torch.from_numpy(cond_train)
             model.fit(**fit_kwargs)
 
-            # Build train seed for IPF baseline (weighted mean joint).
             seed_counts = np.zeros((K,), dtype=float)
             for i, idx in enumerate(train_idx):
                 w = float(max(totals[train_idx][i], 0.0))
@@ -401,7 +397,6 @@ def main() -> None:
 
             ind_tvd_vals: list[float] = []
             ipf_tvd_vals: list[float] = []
-
             tvd_joint_vals: list[float] = []
             cos_vals: list[float] = []
             raw_tvd_joint_vals: list[float] = []
@@ -429,7 +424,7 @@ def main() -> None:
                 else:
                     c = np.repeat(cond_test[j : j + 1], repeats=n_eval, axis=0).astype(np.float32)
                     z = model.sample(n=n_eval, cond=torch.from_numpy(c), device=args.device).numpy()
-                # Inverse z-score back to log-prob space before simplex projection.
+
                 logp = z.astype(np.float64) * x_std.reshape(1, -1).astype(np.float64) + x_mean.reshape(1, -1).astype(np.float64)
                 p_draws = _softmax_rows(logp)
                 p_hat_raw = np.mean(p_draws, axis=0)
@@ -504,7 +499,7 @@ def main() -> None:
         "n_rows_total": int(df.shape[0]),
         "n_mi_rows": int(is_mi.sum()),
         "n_non_mi_rows": int((~is_mi).sum()),
-        "shape": {"age": shape[0], "sex": shape[1], "income": shape[2], "schl": shape[3], "esr": shape[4]},
+        "shape": {"age": shape[0], "income": shape[1], "schl": shape[2]},
         "K_joint_dim": int(K),
         "eval_mode": str(args.eval_mode),
         "n_folds": int(len(folds)),
