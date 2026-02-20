@@ -1,0 +1,211 @@
+{
+  "by_condition": {
+    "marginal": {
+      "overall": {
+        "tvd_joint": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "cosine_joint": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_joint_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "cosine_joint_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_age": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_age_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_sex": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_sex_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_income": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_income_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_schl": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_schl_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_esr": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        },
+        "tvd_esr_raw": {
+          "mean": NaN,
+          "std": NaN,
+          "max": NaN,
+          "p90": NaN,
+          "n": 1
+        }
+      },
+      "by_fold": {
+        "leave_mi_out": {
+          "n_train": 2388,
+          "n_test": 68,
+          "posthoc_ipf_applied": true,
+          "tvd_joint": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "cosine_joint": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_joint_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "cosine_joint_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_age": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_age_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_sex": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_sex_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_income": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_income_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_schl": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_schl_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_esr": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          },
+          "tvd_esr_raw": {
+            "mean": NaN,
+            "std": NaN,
+            "max": NaN,
+            "p90": NaN,
+            "n": 68
+          }
+        }
+      }
+    }
+  }
+}
