@@ -5,13 +5,17 @@ from __future__ import annotations
 Build US-wide PUMA-level 5-variable person-joint distributions from PUMS.
 
 Variables (person-level):
-- age: 4 bins [0-24, 25-44, 45-64, 65+]
+- age: 2 or 4 bins (configurable)
 - sex: 2 bins [male, female]
-- income (PINCP): 4 bins [<25k, 25-50k, 50-100k, 100k+]
-- education (SCHL): 4 bins [<HS, HS/GED, Some College, BA+]
-- employment (ESR): 4 bins [Employed, Unemployed, Armed, NILF]
+- income (PINCP): 2 or 4 bins (configurable)
+- education (SCHL): 2 or 4 bins (configurable)
+- employment (ESR): 2 or 4 bins (configurable)
 
-Joint size: 4 * 2 * 4 * 4 * 4 = 512 cells.
+Joint size: age_bins * 2 * income_bins * schl_bins * esr_bins
+Example:
+- 4*2*4*4*4 = 512 (default)
+- 2*2*2*2*2 = 32 (P5 coarse)
+- 4*2*4*2*2 = 128 (P5 mid)
 
 Outputs:
 - puma_5var_joint_wide.csv
@@ -90,9 +94,16 @@ def _resolve_person_zip(*, pums_dir: pathlib.Path, statefp: str) -> pathlib.Path
     return out
 
 
-def _bin_age(age: np.ndarray) -> np.ndarray:
-    # 0:[0,25), 1:[25,45), 2:[45,65), 3:[65,inf)
-    return np.where(age < 25, 0, np.where(age < 45, 1, np.where(age < 65, 2, 3))).astype(np.int16)
+def _age_edges_labels(n_bins: int) -> tuple[np.ndarray, list[str]]:
+    if int(n_bins) == 2:
+        return np.asarray([45.0], dtype=float), ["0-44", "45+"]
+    if int(n_bins) == 4:
+        return np.asarray([25.0, 45.0, 65.0], dtype=float), ["0-24", "25-44", "45-64", "65+"]
+    raise ValueError(f"Unsupported age_bins={n_bins}; expected 2 or 4.")
+
+
+def _bin_age(age: np.ndarray, *, edges: np.ndarray) -> np.ndarray:
+    return np.searchsorted(edges, age, side="right").astype(np.int16)
 
 
 def _bin_sex(sex: np.ndarray) -> np.ndarray:
@@ -102,40 +113,74 @@ def _bin_sex(sex: np.ndarray) -> np.ndarray:
     return out
 
 
-def _bin_income(inc: np.ndarray) -> np.ndarray:
-    # [<25k, 25-50k, 50-100k, 100k+]
-    return np.searchsorted(np.asarray([25000.0, 50000.0, 100000.0], dtype=float), inc, side="right").astype(np.int16)
+def _income_edges_labels(n_bins: int) -> tuple[np.ndarray, list[str]]:
+    if int(n_bins) == 2:
+        return np.asarray([50000.0], dtype=float), ["<50k", "50k+"]
+    if int(n_bins) == 4:
+        return np.asarray([25000.0, 50000.0, 100000.0], dtype=float), ["<25k", "25k-50k", "50k-100k", "100k+"]
+    raise ValueError(f"Unsupported income_bins={n_bins}; expected 2 or 4.")
 
 
-def _bin_schl(schl: np.ndarray, age: np.ndarray) -> np.ndarray:
+def _bin_income(inc: np.ndarray, *, edges: np.ndarray) -> np.ndarray:
+    return np.searchsorted(edges, inc, side="right").astype(np.int16)
+
+
+def _schl_labels(n_bins: int) -> list[str]:
+    if int(n_bins) == 2:
+        return ["<SomeCollege", "SomeCollege+"]
+    if int(n_bins) == 4:
+        return ["<HS", "HS/GED", "SomeCollege", "BA+"]
+    raise ValueError(f"Unsupported schl_bins={n_bins}; expected 2 or 4.")
+
+
+def _bin_schl(schl: np.ndarray, age: np.ndarray, *, n_bins: int) -> np.ndarray:
     # PUMS SCHL rough mapping:
-    # <HS: <=15, HS/GED:16-17, SomeCollege:18-20, BA+:>=21
+    # 4-bin: <HS(<=15), HS/GED(16-17), SomeCollege(18-20), BA+(>=21)
+    # 2-bin: <SomeCollege(<18), SomeCollege+(>=18)
     out = np.full(schl.shape, -1, dtype=np.int16)
     m = np.isfinite(schl)
     s = schl[m]
-    out_m = np.where(s <= 15, 0, np.where(s <= 17, 1, np.where(s <= 20, 2, 3))).astype(np.int16)
+    if int(n_bins) == 4:
+        out_m = np.where(s <= 15, 0, np.where(s <= 17, 1, np.where(s <= 20, 2, 3))).astype(np.int16)
+    elif int(n_bins) == 2:
+        out_m = np.where(s >= 18, 1, 0).astype(np.int16)
+    else:
+        raise ValueError(f"Unsupported schl_bins={n_bins}; expected 2 or 4.")
     out[m] = out_m
-    # Missing SCHL fallback to <HS (especially children).
     out[~m] = 0
-    # Guard for impossible ages.
     out[~np.isfinite(age)] = -1
     return out
 
 
-def _bin_esr(esr: np.ndarray, age: np.ndarray) -> np.ndarray:
-    # ESR mapping:
-    # employed: 1,2 -> 0
-    # unemployed: 3 -> 1
-    # armed: 4,5 -> 2
-    # NILF: 6 or missing/other -> 3
-    out = np.full(esr.shape, 3, dtype=np.int16)
-    out[(esr == 1) | (esr == 2)] = 0
-    out[esr == 3] = 1
-    out[(esr == 4) | (esr == 5)] = 2
-    out[esr == 6] = 3
-    # For children, enforce NILF.
-    out[np.isfinite(age) & (age < 16)] = 3
-    return out
+def _esr_labels(n_bins: int) -> list[str]:
+    if int(n_bins) == 2:
+        return ["LaborForce", "NILF"]
+    if int(n_bins) == 4:
+        return ["Employed", "Unemployed", "Armed", "NILF"]
+    raise ValueError(f"Unsupported esr_bins={n_bins}; expected 2 or 4.")
+
+
+def _bin_esr(esr: np.ndarray, age: np.ndarray, *, n_bins: int) -> np.ndarray:
+    if int(n_bins) == 4:
+        # employed: 1,2 -> 0
+        # unemployed: 3 -> 1
+        # armed: 4,5 -> 2
+        # NILF: 6 or missing/other -> 3
+        out = np.full(esr.shape, 3, dtype=np.int16)
+        out[(esr == 1) | (esr == 2)] = 0
+        out[esr == 3] = 1
+        out[(esr == 4) | (esr == 5)] = 2
+        out[esr == 6] = 3
+        out[np.isfinite(age) & (age < 16)] = 3
+        return out
+    if int(n_bins) == 2:
+        # LaborForce: ESR in 1..5 ; NILF: ESR=6 or missing/other
+        out = np.full(esr.shape, 1, dtype=np.int16)
+        labor = (esr == 1) | (esr == 2) | (esr == 3) | (esr == 4) | (esr == 5)
+        out[labor] = 0
+        out[np.isfinite(age) & (age < 16)] = 1
+        return out
+    raise ValueError(f"Unsupported esr_bins={n_bins}; expected 2 or 4.")
 
 
 def _aggregate_state(
@@ -144,6 +189,10 @@ def _aggregate_state(
     person_zip: pathlib.Path,
     alpha: float,
     shape: tuple[int, int, int, int, int],
+    age_edges: np.ndarray,
+    income_edges: np.ndarray,
+    schl_bins: int,
+    esr_bins: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     member = _find_csv_member(person_zip)
     usecols = ["PUMA", "PUMA20", "PWGTP", "AGEP", "SEX", "PINCP", "SCHL", "ESR"]
@@ -167,11 +216,11 @@ def _aggregate_state(
     schl = pd.to_numeric(df["SCHL"], errors="coerce").to_numpy(dtype=float) if "SCHL" in df.columns else np.full(age.shape, np.nan)
     esr = pd.to_numeric(df["ESR"], errors="coerce").to_numpy(dtype=float) if "ESR" in df.columns else np.full(age.shape, np.nan)
 
-    age_b = _bin_age(age)
+    age_b = _bin_age(age, edges=age_edges)
     sex_b = _bin_sex(sex)
-    inc_b = _bin_income(inc)
-    schl_b = _bin_schl(schl, age)
-    esr_b = _bin_esr(esr, age)
+    inc_b = _bin_income(inc, edges=income_edges)
+    schl_b = _bin_schl(schl, age, n_bins=int(schl_bins))
+    esr_b = _bin_esr(esr, age, n_bins=int(esr_bins))
 
     valid = (
         puma.notna().to_numpy(dtype=bool)
@@ -318,6 +367,10 @@ def main() -> None:
         help="Directory containing US PUMS person zips (csv_p??.zip).",
     )
     ap.add_argument("--statefps", default="all", help='Comma-separated state FIPS or "all".')
+    ap.add_argument("--age_bins", type=int, choices=[2, 4], default=4, help="Age bins: 2 or 4.")
+    ap.add_argument("--income_bins", type=int, choices=[2, 4], default=4, help="Income bins: 2 or 4.")
+    ap.add_argument("--schl_bins", type=int, choices=[2, 4], default=4, help="Education bins: 2 or 4.")
+    ap.add_argument("--esr_bins", type=int, choices=[2, 4], default=4, help="Employment bins: 2 or 4.")
     ap.add_argument("--alpha", type=float, default=1.0, help="Laplace smoothing alpha per joint cell.")
     ap.add_argument(
         "--heterogeneity_warn_threshold",
@@ -350,7 +403,12 @@ def main() -> None:
     if bad:
         raise SystemExit(f"Unsupported statefps: {bad}")
 
-    shape = (4, 2, 4, 4, 4)
+    age_edges, age_labels = _age_edges_labels(int(args.age_bins))
+    income_edges, income_labels = _income_edges_labels(int(args.income_bins))
+    schl_labels = _schl_labels(int(args.schl_bins))
+    esr_labels = _esr_labels(int(args.esr_bins))
+
+    shape = (int(args.age_bins), 2, int(args.income_bins), int(args.schl_bins), int(args.esr_bins))
     all_rows: list[dict[str, Any]] = []
     by_state: list[dict[str, Any]] = []
 
@@ -361,6 +419,10 @@ def main() -> None:
             person_zip=person_zip,
             alpha=float(args.alpha),
             shape=shape,
+            age_edges=age_edges,
+            income_edges=income_edges,
+            schl_bins=int(args.schl_bins),
+            esr_bins=int(args.esr_bins),
         )
         all_rows.extend(rows)
         by_state.append(info)
@@ -426,12 +488,12 @@ def main() -> None:
     _write_json(
         schema_path,
         {
-            "shape": {"age": 4, "sex": 2, "income": 4, "schl": 4, "esr": 4},
-            "age_bins": ["0-24", "25-44", "45-64", "65+"],
+            "shape": {"age": shape[0], "sex": shape[1], "income": shape[2], "schl": shape[3], "esr": shape[4]},
+            "age_bins": age_labels,
             "sex_bins": ["male", "female"],
-            "income_bins": ["<25k", "25k-50k", "50k-100k", "100k+"],
-            "schl_bins": ["<HS", "HS/GED", "SomeCollege", "BA+"],
-            "esr_bins": ["Employed", "Unemployed", "Armed", "NILF"],
+            "income_bins": income_labels,
+            "schl_bins": schl_labels,
+            "esr_bins": esr_labels,
             "joint_dim": int(np.prod(shape)),
             "laplace_alpha": float(args.alpha),
             "definitions": {
@@ -451,6 +513,13 @@ def main() -> None:
             "n_states": int(len(statefps)),
             "n_pumas": int(wide.shape[0]),
             "n_long_rows": int(long.shape[0]),
+            "bin_config": {
+                "age_bins": int(args.age_bins),
+                "sex_bins": 2,
+                "income_bins": int(args.income_bins),
+                "schl_bins": int(args.schl_bins),
+                "esr_bins": int(args.esr_bins),
+            },
             "outputs": {
                 "wide_csv": str(wide_path),
                 "long_csv": str(long_path),
