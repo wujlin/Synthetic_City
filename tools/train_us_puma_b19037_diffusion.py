@@ -162,6 +162,17 @@ def _stable_hash_fold(values: list[str], *, n_folds: int, seed: int) -> dict[str
     return out
 
 
+def _apply_posthoc_ipf(*, policy: str, cond_name: str) -> bool:
+    p = str(policy).strip().lower()
+    if p == "none":
+        return False
+    if p == "all":
+        return True
+    if p == "marginal":
+        return str(cond_name).strip().lower() == "marginal"
+    raise ValueError(f"Unsupported posthoc_ipf_policy: {policy}")
+
+
 def main() -> None:
     torch = _require_torch()
 
@@ -182,6 +193,12 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log_every", type=int, default=200)
     ap.add_argument("--n_eval_joint_samples", type=int, default=256)
+    ap.add_argument(
+        "--posthoc_ipf_policy",
+        choices=["none", "marginal", "all"],
+        default="marginal",
+        help="Apply post-hoc IPF on diffusion output during evaluation: none | marginal | all.",
+    )
     ap.add_argument("--out_dir", default=None, help="Default: outputs/<run_id>")
     args = ap.parse_args()
 
@@ -312,6 +329,11 @@ def main() -> None:
             tvd_age_vals: list[float] = []
             tvd_inc_vals: list[float] = []
             cos_vals: list[float] = []
+            # Keep raw (pre-IPF) metrics for fairness diagnostics.
+            raw_tvd_joint_vals: list[float] = []
+            raw_tvd_age_vals: list[float] = []
+            raw_tvd_inc_vals: list[float] = []
+            raw_cos_vals: list[float] = []
 
             # Baselines for this fold (computed once; same for all conditions).
             seed_counts = np.zeros((K,), dtype=float)
@@ -346,15 +368,32 @@ def main() -> None:
                     c = np.repeat(cond_test[j : j + 1], repeats=n_eval, axis=0).astype(np.float32)
                     z = model.sample(n=n_eval, cond=torch.from_numpy(c), device=args.device).numpy()
                 p_draws = _softmax_rows(z.astype(np.float64))
-                p_hat = np.mean(p_draws, axis=0)
-                p_hat = p_hat / max(float(p_hat.sum()), 1e-12)
+                p_hat_raw = np.mean(p_draws, axis=0)
+                p_hat_raw = p_hat_raw / max(float(p_hat_raw.sum()), 1e-12)
 
-                tvd_joint_vals.append(_tvd(p_hat, p_true))
-                p_hat_2d = p_hat.reshape(n_row, n_col)
+                p_hat_eval = p_hat_raw
+                if _apply_posthoc_ipf(policy=str(args.posthoc_ipf_policy), cond_name=cond_name):
+                    p_hat_eval = _ipf_2d(
+                        seed_joint=p_hat_raw.reshape(n_row, n_col),
+                        target_row=p_age_t,
+                        target_col=p_inc_t,
+                    )
+
+                # Raw metrics (before optional post-hoc IPF).
+                raw_tvd_joint_vals.append(_tvd(p_hat_raw, p_true))
+                p_hat_raw_2d = p_hat_raw.reshape(n_row, n_col)
+                p_true_2d = p_true.reshape(n_row, n_col)
+                raw_tvd_age_vals.append(_tvd(p_hat_raw_2d.sum(axis=1), p_true_2d.sum(axis=1)))
+                raw_tvd_inc_vals.append(_tvd(p_hat_raw_2d.sum(axis=0), p_true_2d.sum(axis=0)))
+                raw_cos_vals.append(_cosine(p_hat_raw, p_true))
+
+                # Eval metrics (after policy-selected post-hoc treatment).
+                tvd_joint_vals.append(_tvd(p_hat_eval, p_true))
+                p_hat_2d = p_hat_eval.reshape(n_row, n_col)
                 p_true_2d = p_true.reshape(n_row, n_col)
                 tvd_age_vals.append(_tvd(p_hat_2d.sum(axis=1), p_true_2d.sum(axis=1)))
                 tvd_inc_vals.append(_tvd(p_hat_2d.sum(axis=0), p_true_2d.sum(axis=0)))
-                cos_vals.append(_cosine(p_hat, p_true))
+                cos_vals.append(_cosine(p_hat_eval, p_true))
 
             if fold_name not in baselines_by_fold["independence"]:
                 baselines_by_fold["independence"][fold_name] = {"tvd_joint": _summ(ind_tvd_vals)}
@@ -363,10 +402,15 @@ def main() -> None:
             cond_fold_metrics[fold_name] = {
                 "n_train": int(len(train_idx)),
                 "n_test": int(len(test_idx)),
+                "posthoc_ipf_applied": bool(_apply_posthoc_ipf(policy=str(args.posthoc_ipf_policy), cond_name=cond_name)),
                 "tvd_joint": _summ(tvd_joint_vals),
                 "tvd_age": _summ(tvd_age_vals),
                 "tvd_income": _summ(tvd_inc_vals),
                 "cosine_joint": _summ(cos_vals),
+                "tvd_joint_raw": _summ(raw_tvd_joint_vals),
+                "tvd_age_raw": _summ(raw_tvd_age_vals),
+                "tvd_income_raw": _summ(raw_tvd_inc_vals),
+                "cosine_joint_raw": _summ(raw_cos_vals),
             }
 
         # Aggregate across folds on fold mean.
@@ -375,12 +419,20 @@ def main() -> None:
         vals_age = [float(cond_fold_metrics[f]["tvd_age"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("tvd_age")]
         vals_inc = [float(cond_fold_metrics[f]["tvd_income"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("tvd_income")]
         vals_cos = [float(cond_fold_metrics[f]["cosine_joint"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("cosine_joint")]
+        vals_joint_raw = [float(cond_fold_metrics[f]["tvd_joint_raw"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("tvd_joint_raw")]
+        vals_age_raw = [float(cond_fold_metrics[f]["tvd_age_raw"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("tvd_age_raw")]
+        vals_inc_raw = [float(cond_fold_metrics[f]["tvd_income_raw"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("tvd_income_raw")]
+        vals_cos_raw = [float(cond_fold_metrics[f]["cosine_joint_raw"]["mean"]) for f in fold_names if cond_fold_metrics[f].get("cosine_joint_raw")]
         internal_by_condition[cond_name] = {
             "overall": {
                 "tvd_joint": _summ(vals_joint),
                 "tvd_age": _summ(vals_age),
                 "tvd_income": _summ(vals_inc),
                 "cosine_joint": _summ(vals_cos),
+                "tvd_joint_raw": _summ(vals_joint_raw),
+                "tvd_age_raw": _summ(vals_age_raw),
+                "tvd_income_raw": _summ(vals_inc_raw),
+                "cosine_joint_raw": _summ(vals_cos_raw),
             },
             "by_fold": cond_fold_metrics,
         }
@@ -416,6 +468,7 @@ def main() -> None:
         "condition_injection": str(args.condition_injection),
         "film_hidden_dim": int(args.film_hidden_dim),
         "n_eval_joint_samples": int(args.n_eval_joint_samples),
+        "posthoc_ipf_policy": str(args.posthoc_ipf_policy),
         "seed": int(args.seed),
         "device": args.device,
     }
