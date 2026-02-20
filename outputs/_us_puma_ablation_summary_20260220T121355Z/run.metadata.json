@@ -1,0 +1,18 @@
+{
+  "created_utc": "2026-02-20T12:13:55Z",
+  "n_runs_input": 5,
+  "n_rows_parsed": 12,
+  "run_dirs": [
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_b19037_mikfold_fixscale_20260220T094927Z",
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_leaveMI_30000ep_20260220T100927Z",
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_3var_leaveMI_k64_20260220T115607Z",
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_3var_leaveMI_k256_20260220T120026Z",
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_pairwise_cond_20260220T120234Z"
+  ],
+  "outputs": {
+    "ablation_long_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_ablation_summary_20260220T121355Z/ablation_long.csv",
+    "zscore_effect_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_ablation_summary_20260220T121355Z/zscore_effect_summary.csv",
+    "training_curve_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_ablation_summary_20260220T121355Z/training_curve_summary.csv",
+    "condition_dim_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_ablation_summary_20260220T121355Z/condition_dim_summary.csv"
+  }
+}
