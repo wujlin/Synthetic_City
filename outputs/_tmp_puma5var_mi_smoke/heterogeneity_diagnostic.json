@@ -1,0 +1,420 @@
+{
+  "mean_tvd_to_global": 0.16531165291128969,
+  "std_tvd_to_global": 0.05696315895052313,
+  "median_tvd_to_global": 0.1493020057373317,
+  "p90_tvd_to_global": 0.22596991261297789,
+  "max_tvd_to_global": 0.45522036468952465,
+  "n_pumas": 68,
+  "threshold": 0.1,
+  "pass_threshold": true,
+  "by_puma": [
+    {
+      "statefp": "26",
+      "puma": "100",
+      "puma_uid": "2600100",
+      "tvd_to_global": 0.14336851764012404
+    },
+    {
+      "statefp": "26",
+      "puma": "200",
+      "puma_uid": "2600200",
+      "tvd_to_global": 0.17274788059359747
+    },
+    {
+      "statefp": "26",
+      "puma": "300",
+      "puma_uid": "2600300",
+      "tvd_to_global": 0.18620172305976276
+    },
+    {
+      "statefp": "26",
+      "puma": "400",
+      "puma_uid": "2600400",
+      "tvd_to_global": 0.12191714878872413
+    },
+    {
+      "statefp": "26",
+      "puma": "500",
+      "puma_uid": "2600500",
+      "tvd_to_global": 0.13390241647115725
+    },
+    {
+      "statefp": "26",
+      "puma": "600",
+      "puma_uid": "2600600",
+      "tvd_to_global": 0.13969127366457068
+    },
+    {
+      "statefp": "26",
+      "puma": "700",
+      "puma_uid": "2600700",
+      "tvd_to_global": 0.1264259633961334
+    },
+    {
+      "statefp": "26",
+      "puma": "801",
+      "puma_uid": "2600801",
+      "tvd_to_global": 0.12266415106766343
+    },
+    {
+      "statefp": "26",
+      "puma": "802",
+      "puma_uid": "2600802",
+      "tvd_to_global": 0.17088437219164376
+    },
+    {
+      "statefp": "26",
+      "puma": "900",
+      "puma_uid": "2600900",
+      "tvd_to_global": 0.1380274572537092
+    },
+    {
+      "statefp": "26",
+      "puma": "1001",
+      "puma_uid": "2601001",
+      "tvd_to_global": 0.15344786429343377
+    },
+    {
+      "statefp": "26",
+      "puma": "1002",
+      "puma_uid": "2601002",
+      "tvd_to_global": 0.15930177534642526
+    },
+    {
+      "statefp": "26",
+      "puma": "1003",
+      "puma_uid": "2601003",
+      "tvd_to_global": 0.18460273636741625
+    },
+    {
+      "statefp": "26",
+      "puma": "1004",
+      "puma_uid": "2601004",
+      "tvd_to_global": 0.13696116101043382
+    },
+    {
+      "statefp": "26",
+      "puma": "1100",
+      "puma_uid": "2601100",
+      "tvd_to_global": 0.14105088686755998
+    },
+    {
+      "statefp": "26",
+      "puma": "1200",
+      "puma_uid": "2601200",
+      "tvd_to_global": 0.15408659685078385
+    },
+    {
+      "statefp": "26",
+      "puma": "1300",
+      "puma_uid": "2601300",
+      "tvd_to_global": 0.20836137823216488
+    },
+    {
+      "statefp": "26",
+      "puma": "1400",
+      "puma_uid": "2601400",
+      "tvd_to_global": 0.08795437587417258
+    },
+    {
+      "statefp": "26",
+      "puma": "1500",
+      "puma_uid": "2601500",
+      "tvd_to_global": 0.11530706605667075
+    },
+    {
+      "statefp": "26",
+      "puma": "1600",
+      "puma_uid": "2601600",
+      "tvd_to_global": 0.1715840502807957
+    },
+    {
+      "statefp": "26",
+      "puma": "1701",
+      "puma_uid": "2601701",
+      "tvd_to_global": 0.12280191018562875
+    },
+    {
+      "statefp": "26",
+      "puma": "1702",
+      "puma_uid": "2601702",
+      "tvd_to_global": 0.1341818000664278
+    },
+    {
+      "statefp": "26",
+      "puma": "1703",
+      "puma_uid": "2601703",
+      "tvd_to_global": 0.2285845474512578
+    },
+    {
+      "statefp": "26",
+      "puma": "1704",
+      "puma_uid": "2601704",
+      "tvd_to_global": 0.11264504632769866
+    },
+    {
+      "statefp": "26",
+      "puma": "1801",
+      "puma_uid": "2601801",
+      "tvd_to_global": 0.22484935482514362
+    },
+    {
+      "statefp": "26",
+      "puma": "1802",
+      "puma_uid": "2601802",
+      "tvd_to_global": 0.17465571423195053
+    },
+    {
+      "statefp": "26",
+      "puma": "1900",
+      "puma_uid": "2601900",
+      "tvd_to_global": 0.10484248967564877
+    },
+    {
+      "statefp": "26",
+      "puma": "2000",
+      "puma_uid": "2602000",
+      "tvd_to_global": 0.1017566877751802
+    },
+    {
+      "statefp": "26",
+      "puma": "2101",
+      "puma_uid": "2602101",
+      "tvd_to_global": 0.12609336730185794
+    },
+    {
+      "statefp": "26",
+      "puma": "2102",
+      "puma_uid": "2602102",
+      "tvd_to_global": 0.18986344806633507
+    },
+    {
+      "statefp": "26",
+      "puma": "2200",
+      "puma_uid": "2602200",
+      "tvd_to_global": 0.1772701521806926
+    },
+    {
+      "statefp": "26",
+      "puma": "2300",
+      "puma_uid": "2602300",
+      "tvd_to_global": 0.1262510334103339
+    },
+    {
+      "statefp": "26",
+      "puma": "2400",
+      "puma_uid": "2602400",
+      "tvd_to_global": 0.09149061999626845
+    },
+    {
+      "statefp": "26",
+      "puma": "2500",
+      "puma_uid": "2602500",
+      "tvd_to_global": 0.12131332018122007
+    },
+    {
+      "statefp": "26",
+      "puma": "2600",
+      "puma_uid": "2602600",
+      "tvd_to_global": 0.12175846641664609
+    },
+    {
+      "statefp": "26",
+      "puma": "2701",
+      "puma_uid": "2602701",
+      "tvd_to_global": 0.17616358793022277
+    },
+    {
+      "statefp": "26",
+      "puma": "2702",
+      "puma_uid": "2602702",
+      "tvd_to_global": 0.45522036468952465
+    },
+    {
+      "statefp": "26",
+      "puma": "2703",
+      "puma_uid": "2602703",
+      "tvd_to_global": 0.1869258829977363
+    },
+    {
+      "statefp": "26",
+      "puma": "2800",
+      "puma_uid": "2602800",
+      "tvd_to_global": 0.1336011805027416
+    },
+    {
+      "statefp": "26",
+      "puma": "2901",
+      "puma_uid": "2602901",
+      "tvd_to_global": 0.13951039901823425
+    },
+    {
+      "statefp": "26",
+      "puma": "2902",
+      "puma_uid": "2602902",
+      "tvd_to_global": 0.18904039931177308
+    },
+    {
+      "statefp": "26",
+      "puma": "2903",
+      "puma_uid": "2602903",
+      "tvd_to_global": 0.24281073374883114
+    },
+    {
+      "statefp": "26",
+      "puma": "2904",
+      "puma_uid": "2602904",
+      "tvd_to_global": 0.11114997586756205
+    },
+    {
+      "statefp": "26",
+      "puma": "2905",
+      "puma_uid": "2602905",
+      "tvd_to_global": 0.20279217275792782
+    },
+    {
+      "statefp": "26",
+      "puma": "2906",
+      "puma_uid": "2602906",
+      "tvd_to_global": 0.29121739595114293
+    },
+    {
+      "statefp": "26",
+      "puma": "2907",
+      "puma_uid": "2602907",
+      "tvd_to_global": 0.1971351628273736
+    },
+    {
+      "statefp": "26",
+      "puma": "2908",
+      "puma_uid": "2602908",
+      "tvd_to_global": 0.20580126270768284
+    },
+    {
+      "statefp": "26",
+      "puma": "3001",
+      "puma_uid": "2603001",
+      "tvd_to_global": 0.12745242083042113
+    },
+    {
+      "statefp": "26",
+      "puma": "3002",
+      "puma_uid": "2603002",
+      "tvd_to_global": 0.13055048344132292
+    },
+    {
+      "statefp": "26",
+      "puma": "3003",
+      "puma_uid": "2603003",
+      "tvd_to_global": 0.12690951748816934
+    },
+    {
+      "statefp": "26",
+      "puma": "3004",
+      "puma_uid": "2603004",
+      "tvd_to_global": 0.13350187783290385
+    },
+    {
+      "statefp": "26",
+      "puma": "3005",
+      "puma_uid": "2603005",
+      "tvd_to_global": 0.1449630742190981
+    },
+    {
+      "statefp": "26",
+      "puma": "3006",
+      "puma_uid": "2603006",
+      "tvd_to_global": 0.14821186257226626
+    },
+    {
+      "statefp": "26",
+      "puma": "3100",
+      "puma_uid": "2603100",
+      "tvd_to_global": 0.13896255258656112
+    },
+    {
+      "statefp": "26",
+      "puma": "3201",
+      "puma_uid": "2603201",
+      "tvd_to_global": 0.20797732264097402
+    },
+    {
+      "statefp": "26",
+      "puma": "3202",
+      "puma_uid": "2603202",
+      "tvd_to_global": 0.11387842462703976
+    },
+    {
+      "statefp": "26",
+      "puma": "3203",
+      "puma_uid": "2603203",
+      "tvd_to_global": 0.17519149409014534
+    },
+    {
+      "statefp": "26",
+      "puma": "3204",
+      "puma_uid": "2603204",
+      "tvd_to_global": 0.15039214890239713
+    },
+    {
+      "statefp": "26",
+      "puma": "3205",
+      "puma_uid": "2603205",
+      "tvd_to_global": 0.1692807596994414
+    },
+    {
+      "statefp": "26",
+      "puma": "3206",
+      "puma_uid": "2603206",
+      "tvd_to_global": 0.13604328827880063
+    },
+    {
+      "statefp": "26",
+      "puma": "3207",
+      "puma_uid": "2603207",
+      "tvd_to_global": 0.1573724199361657
+    },
+    {
+      "statefp": "26",
+      "puma": "3208",
+      "puma_uid": "2603208",
+      "tvd_to_global": 0.24777066998801858
+    },
+    {
+      "statefp": "26",
+      "puma": "3209",
+      "puma_uid": "2603209",
+      "tvd_to_global": 0.219469632996423
+    },
+    {
+      "statefp": "26",
+      "puma": "3210",
+      "puma_uid": "2603210",
+      "tvd_to_global": 0.275799107392817
+    },
+    {
+      "statefp": "26",
+      "puma": "3211",
+      "puma_uid": "2603211",
+      "tvd_to_global": 0.19690915907335144
+    },
+    {
+      "statefp": "26",
+      "puma": "3212",
+      "puma_uid": "2603212",
+      "tvd_to_global": 0.279255861971117
+    },
+    {
+      "statefp": "26",
+      "puma": "3213",
+      "puma_uid": "2603213",
+      "tvd_to_global": 0.17758946923526014
+    },
+    {
+      "statefp": "26",
+      "puma": "3300",
+      "puma_uid": "2603300",
+      "tvd_to_global": 0.12549557845501824
+    }
+  ]
+}

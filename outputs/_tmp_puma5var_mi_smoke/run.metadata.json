@@ -1,0 +1,25 @@
+{
+  "created_utc": "2026-02-20T04:17:41Z",
+  "pums_dir": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year",
+  "statefps": [
+    "26"
+  ],
+  "n_states": 1,
+  "n_pumas": 68,
+  "n_long_rows": 34816,
+  "outputs": {
+    "wide_csv": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_puma5var_mi_smoke/puma_5var_joint_wide.csv",
+    "long_csv": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_puma5var_mi_smoke/puma_5var_joint_long.csv",
+    "schema_json": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_puma5var_mi_smoke/schema_5var.json",
+    "heterogeneity_json": "/Users/jinlin/Desktop/project/Synthetic_City/outputs/_tmp_puma5var_mi_smoke/heterogeneity_diagnostic.json"
+  },
+  "by_state": [
+    {
+      "statefp": "26",
+      "person_zip": "/Users/jinlin/Desktop/project/Synthetic_City/dataset/wsA_staging/us/raw/pums/pums_2023_5-Year/csv_pmi.zip",
+      "n_rows_raw": 503042,
+      "n_rows_valid": 503042,
+      "n_pumas": 68
+    }
+  ]
+}
