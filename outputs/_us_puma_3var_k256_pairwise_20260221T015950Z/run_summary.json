@@ -1,0 +1,47 @@
+{
+  "created_utc": "2026-02-21T02:03:55Z",
+  "input_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_3var_joint_k256_p6_20260221T015743Z/puma_3var_joint_wide.csv",
+  "n_rows_total": 2456,
+  "n_mi_rows": 68,
+  "n_non_mi_rows": 2388,
+  "shape": {
+    "age": 4,
+    "income": 16,
+    "schl": 4
+  },
+  "K_joint_dim": 256,
+  "eval_mode": "leave_mi_out",
+  "n_folds": 1,
+  "conditions": [
+    "none",
+    "marginal",
+    "pairwise",
+    "marginal_pairwise"
+  ],
+  "condition_dims": {
+    "none": 0,
+    "marginal": 24,
+    "pairwise": 144,
+    "marginal_pairwise": 168
+  },
+  "pairwise_dims": {
+    "age__income": 64,
+    "age__schl": 16,
+    "income__schl": 64
+  },
+  "timesteps": 1000,
+  "epochs": 10000,
+  "batch_size": 512,
+  "hidden_dims": [
+    1024,
+    1024
+  ],
+  "condition_injection": "concat",
+  "film_hidden_dim": 128,
+  "n_eval_joint_samples": 128,
+  "ipf_iters": 200,
+  "posthoc_ipf_policy": "marginal",
+  "x_representation": "logp + per-fold z-score",
+  "seed": 0,
+  "device": "cuda"
+}
