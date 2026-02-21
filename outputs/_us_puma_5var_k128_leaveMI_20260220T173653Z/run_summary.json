@@ -1,0 +1,56 @@
+{
+  "created_utc": "2026-02-20T17:47:53Z",
+  "input_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_joint_k128_20260220T173448Z/puma_5var_joint_wide.csv",
+  "n_rows_total": 2456,
+  "n_mi_rows": 68,
+  "n_non_mi_rows": 2388,
+  "shape": {
+    "age": 4,
+    "sex": 2,
+    "income": 4,
+    "schl": 2,
+    "esr": 2
+  },
+  "K_joint_dim": 128,
+  "eval_mode": "leave_mi_out",
+  "n_folds": 1,
+  "conditions": [
+    "none",
+    "marginal",
+    "pairwise",
+    "marginal_pairwise"
+  ],
+  "condition_dims": {
+    "none": 0,
+    "marginal": 14,
+    "pairwise": 76,
+    "marginal_pairwise": 90
+  },
+  "pairwise_dims": {
+    "age__sex": 8,
+    "age__income": 16,
+    "age__schl": 8,
+    "age__esr": 8,
+    "sex__income": 8,
+    "sex__schl": 4,
+    "sex__esr": 4,
+    "income__schl": 8,
+    "income__esr": 8,
+    "schl__esr": 4
+  },
+  "timesteps": 1000,
+  "epochs": 30000,
+  "batch_size": 512,
+  "hidden_dims": [
+    1024,
+    1024
+  ],
+  "condition_injection": "concat",
+  "film_hidden_dim": 128,
+  "n_eval_joint_samples": 128,
+  "ipf_iters": 200,
+  "posthoc_ipf_policy": "marginal",
+  "x_representation": "logp + per-fold z-score",
+  "seed": 0,
+  "device": "cuda"
+}
