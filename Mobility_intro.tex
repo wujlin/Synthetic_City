@@ -1,0 +1,86 @@
+% Introduction - journal style, related work woven in as background toward gap and insight
+%
+% Logical arc (8 paragraphs):
+%   ¶1  Phenomenon: corridor multi-modality (define "corridor")
+%   ¶2  Why it matters: distributional fidelity for downstream tasks
+%   ¶3  Traditional methods: what they solved (local realism, coordinate diversity)
+%   ¶4  Their limitation under trip-level corridor separation
+%   ¶5  Recent latent/hierarchical methods: what they advanced, and the remaining blind spot
+%   ¶6  Our insight + crisp definition of CascadeTraj
+%   ¶7  Our key finding: capacity matching
+%   ¶8  Results summary + figure pointer
+
+
+% ¶1 — Phenomenon + corridor definition & Why it matters
+Generating route distributions is a foundational capability for transportation simulation, urban planning, and mobility analytics \citep{rong2025odsurvey,moro2021mobility,nilforoshan2023mobility}.
+Drivers navigating between the same origin and destination routinely choose among distinct paths; for example, a commuter heading from the eastern suburbs to the city centre may take the arterial highway, loop around a northern ring road, or follow a quieter riverside boulevard: three alternatives that share no road segments yet serve identical trip intent.
+This diversity is not random variation or navigational error; it arises from systematic responses to road hierarchy, traffic conditions, time of day, and the surrounding urban environment \citep{gonzalez2008mobility}. 
+Each such structurally distinct alternative constitutes a \emph{corridor}, defined here as a maximal set of routes that share a common topological skeleton (e.g. ) through the road network.
+Because the distribution of real route choices for a given origin--destination (OD) pair is shaped by context rather than by shortest-path optimality alone, a faithful route generator must recover this corridor-level diversity rather than collapsing onto a single mode.
+If a route generator produces only a single corridor or fails to reach the destination altogether, downstream applications (e.g., traffic assignment, emission modelling, infrastructure evaluation) inherit a systematic distributional bias that cannot be corrected after the fact.
+%The challenge, therefore, is not merely to produce individually plausible paths, but to recover the \emph{distribution} of corridor choices conditioned on trip context.
+
+% ¶3 — Traditional methods: what they solved
+%What's this problem? We need to put the problem at first, not just do a claim.
+The process of generating plausible and diverse paths is challenging, because it is hard to recover the distribution of corridor choices. 
+However, existing route generation methods have made substantial progress on this problem, falling into two categories: Autoregressive (AR) models and Continuous generative models.
+AR models learn sequential dependencies in road-network transitions and generate locally realistic path segments step by step \citep{kong2023mobility_survey,hsu2024trajgpt,cao2025hoser}, effectively solving the problem of \emph{local transition fidelity}: each generated step reflects the graph structure and the learned movement patterns.
+Meanwhile, continuous generative models, including diffusion-based and flow-based approaches, produce smooth and diverse trajectories in coordinate space \citep{zhu2023difftraj,wei2024diffrntraj,zhu2024controltraj,yang2025geo}, and recent work has integrated road-network topology to improve physical feasibility \citep{shi2024gdp,guo2025cardiff}.
+These methods are effective when the output distribution is unimodal (e.g., a single dominant corridor connects the origin and destination) or when alternative corridors are close enough in output space (e.g., two routes that diverge for only a few blocks before recoverging), conditions commonly met in short-horizon prediction \citep{gupta2018social,salzmann2020trajectronpp,zhou2022hivt} and in networks with limited route alternatives.
+
+% ¶4 — What they cannot solve: corridor entanglement
+At the trip level, however, corridor alternatives can be topologicallydisjoint, sharing no road segments at all, and under this condition each method encounters a characteristic failure
+(i.e., the assumptions of unimodal output or interpolable corridor proximity no longer hold).
+Because AR models encode corridor preference only implicitly (i.e., the choice of which corridor to follow is never made as an explicit decision but is instead distrbuted across hundreds of sequential hidden states), the decoder must sustain a consistent global choice across all these local decisions, and small per-step deviations can gradually redirect the route toward an unintended corridor or off the network entirely \citep{zhu2025survey}.
+Continuous generators face a different difficulty: when the data contains diverse coiirdor modes that share few or no road segments, the learned distribution can converge toward an inter-corridor average where no feasible route exists.
+Shortest-path and $k$-shortest-path algorithms avoid both issues inherently, because their output is determined by a fixed optimality criterion rather than learned from data, but this determinism comes at the cost of producing with zero diversity.
+Across all three paradigms, the underlying structural limitation is the same: \emph{corridor selection} (a discrete, global, context-dependent choice) remains entangled with \emph{route execution} (a sequential, local, graph-constrained process), and no explicit mechanism separates the two.
+
+
+%edit from here
+
+% ¶5 — Recent latent/hierarchical methods: what they advanced, and the remaining blind spot
+To capture corridor-level multi-modality, xxx introduce structured latent spaces, which through diverse sampling rather than implicit hidden-state accumulation.
+%A natural response to this entanglement is to introduce latent variables so that corridor-level multi-modality can be captured through diverse sampling rather than implicit hidden-state accumulation.
+Because variational autoencoders (VAEs) and flow-based generative models learn latent representations to draw multiple route hypotheses\citep{kingma2014auto}, trajectory foundation models extend this idea to large-scale pre-training \citep{lin2024trajfm,unitraj2025,choudhury2024trajectorypowered,liu2025trajmamba}.
+Besides, Coarse-to-fine strategies further decompose generation into structure and detail: for example, Cardiff \citep{guo2025cardiff} cascades hybrid diffusion at multiple spatial resolutions, DiffPath \citep{fan2024diffpath} applies latent diffusion for road-network paths, SEED \citep{rao2025seed} bridges sequence and diffusion models, and GTG \citep{wang2025gtg} demonstrates cross-city trajectory generation.
+Howerver, they share a common blind spot: none of them distinguishes between the two qualitatively different types of information the latent space must encode.
+The first type is \emph{corridor identity}, i.e., which of a limited number of topological alternatives the route follows; the second is \emph{execution detail}, i.e., the step-by-step traversal within a chosen corridor.
+Corridor identity is intrinsically low-dimensional (a city-scale network typically supports on the order of tens to hundreds of distinct corridor patterns for any given OD pair), while execution detail is high-dimensional and sequential.
+When both types are encoded together without capacity control (i.e. ), a high-capacity latent preserves execution detail and forces the generative model to face the same multi-modal corridor problem in latent form; a low-capacity latent compresses both, losing the very corridor distinctions it was meant to capture.
+
+% ¶6 — Our insight + crisp definition
+The key insight is that an effective latent space for route generation should encode \emph{only} corridor identity, while delegating execution detail to a separate decoding mechanism.
+We introduce \textbf{CascadeTraj}, a two-stage route generation framework that \emph{first commits to a corridor in a capacity-controlled latent space, then executes that corridor through graph-constrained sequential decoding}.
+In the first stage, an autoencoder compresses variable-length route sequences (tokenized at the \emph{way} level, where a way is a semantically homogeneous road segment in OpenStreetMap) into a compact latent representation, and an information bottleneck constrains this representation to retain corridor identity while discarding execution detail.
+A conditional generative model then samples corridor commitments from this bottlenecked space given trip context (origin, destination, and departure time).
+In the second stage, a graph-constrained AR decoder receives each sampled corridor commitment and resolves execution independently, producing a topologically valid route by selecting among graph-adjacent candidates at each step.
+Because the generative model need only learn a distribution over corridor identities, a low-dimensional and near-Gaussian target, rather than a distribution over full route sequences, the learning problem becomes substantially more tractable.
+The decoder, in turn, receives explicit corridor guidance and need only make locally consistent choices within the committed corridor, reducing the scope for sequential error accumulation.
+
+% ¶7 — Key finding: capacity matching
+A central empirical finding is that the information bottleneck must be \emph{capacity-matched} to corridor identity.
+When the bottleneck dimension is well matched, the generative model learns the corridor distribution tractably.
+Modestly reducing the dimension degrades performance gracefully, as the decoder compensates for minor ambiguity in corridor guidance.
+Modestly increasing the dimension, however, causes a disproportionate collapse: execution detail leaks into the latent space, the generative model reverts to inter-corridor averaging, and arrival rates drop sharply.
+This asymmetric sensitivity is not a hyperparameter-tuning artefact but a structural signature of the two-type information separation that CascadeTraj enforces.
+
+% ¶8 — Results summary
+On over one million taxi trips from a metropolitan road network, CascadeTraj reaches the destination in nearly four out of every five attempts, more than three times the rate of the strongest AR baseline, while covering over four times as many ground-truth corridor patterns.
+The improvement is not achieved by sacrificing diversity for reliability: the generated route sets are simultaneously more diverse and more reachable than those of any baseline.
+Failure-mode analysis reveals that AR baselines exhibit structurally distinct failure patterns: recurrent models gradually drift away from viable corridors, while attention-based models navigate into topological dead ends.
+These contrasting failure modes confirm that the underlying limitation is one of problem decomposition rather than model capacity.
+\Cref{fig:framework} illustrates the framework and a representative comparison.
+
+% Figure 1 placeholder
+\begin{figure*}[b]
+  \centering
+  % \includegraphics[width=\textwidth]{figures/framework_and_hero.pdf}
+  \caption{%
+    \textbf{Corridor multi-modality and the CascadeTraj framework.}
+    \textbf{(a)}~For a single origin--destination pair, ground-truth taxi routes follow topologically distinct corridors (coloured paths on the road network).
+    \textbf{(b)}~CascadeTraj decomposes route generation into corridor commitment in a capacity-matched latent space and graph-constrained local execution.
+    \textbf{(c)}~On a representative OD pair, CascadeTraj produces five distinct successful routes; both autoregressive baselines (recurrent and attention-based) fail to reach the destination on any of five attempts.
+  }
+  \label{fig:framework}
+\end{figure*}

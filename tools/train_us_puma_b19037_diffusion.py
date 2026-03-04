@@ -95,6 +95,84 @@ def _parse_hidden_dims(spec: str) -> tuple[int, ...]:
     return tuple(xs)
 
 
+def _split_tokens(spec: str) -> list[str]:
+    return [x.strip() for x in str(spec).split(",") if x.strip()]
+
+
+def _sorted_suffix_cols(cols: list[str]) -> list[str]:
+    def _key(c: str) -> tuple[int, str]:
+        try:
+            return (int(str(c).split("_")[-1]), str(c))
+        except Exception:
+            return (10**9, str(c))
+
+    return sorted(cols, key=_key)
+
+
+def _select_spatial_feature_cols(*, df: pd.DataFrame, sets: list[str], explicit_cols: list[str]) -> list[str]:
+    if explicit_cols:
+        miss = [c for c in explicit_cols if c not in df.columns]
+        if miss:
+            raise SystemExit(f"spatial_features_csv missing explicit columns: {miss}")
+        return explicit_cols
+
+    group_cols: dict[str, list[str]] = {
+        "centroid_raw": [c for c in ["centroid_x_z", "centroid_y_z"] if c in df.columns],
+        "centroid_pe": _sorted_suffix_cols([c for c in df.columns if c.startswith("pe_")]),
+        "geo_shape": [c for c in ["area_km2", "compactness"] if c in df.columns],
+        "neigh_1hop": _sorted_suffix_cols([c for c in df.columns if c.startswith("neigh1_marg_")]),
+        "neigh_2hop": _sorted_suffix_cols([c for c in df.columns if c.startswith("neigh2_marg_")]),
+        "neigh_stats": [c for c in ["n_neighbors", "neigh_marg_std_mean", "neigh_marg_std_max"] if c in df.columns],
+    }
+    bad_sets = [s for s in sets if s not in group_cols]
+    if bad_sets:
+        raise SystemExit(f"Unsupported --spatial_feature_sets: {bad_sets}")
+    out: list[str] = []
+    for s in sets:
+        out.extend(group_cols[s])
+    # Deduplicate while preserving order.
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for c in out:
+        if c not in seen:
+            uniq.append(c)
+            seen.add(c)
+    if not uniq:
+        raise SystemExit("No spatial feature columns selected. Provide --spatial_feature_sets or --spatial_feature_cols.")
+    return uniq
+
+
+def _load_spatial_features(*, path: pathlib.Path, ids: list[str], sets: list[str], explicit_cols: list[str]) -> tuple[np.ndarray, list[str]]:
+    sdf = pd.read_csv(path)
+    if "puma_uid" not in sdf.columns:
+        raise SystemExit(f"spatial_features_csv missing required column: puma_uid ({path})")
+    sdf["puma_uid"] = sdf["puma_uid"].astype(str)
+    sdf = sdf.drop_duplicates(subset=["puma_uid"], keep="first").set_index("puma_uid")
+    miss_ids = [pid for pid in ids if pid not in sdf.index]
+    if miss_ids:
+        raise SystemExit(f"spatial_features_csv missing {len(miss_ids)} puma_uid rows. Example={miss_ids[:5]}")
+    cols = _select_spatial_feature_cols(df=sdf.reset_index(), sets=sets, explicit_cols=explicit_cols)
+    arr = sdf.loc[ids, cols].to_numpy(dtype=np.float32)
+    return arr, cols
+
+
+def _zscore_selected(train: np.ndarray, test: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    if train.ndim != 2 or test.ndim != 2 or mask.ndim != 1:
+        raise ValueError("invalid shape for zscore_selected")
+    if train.shape[1] != test.shape[1] or train.shape[1] != mask.size:
+        raise ValueError("dimension mismatch for zscore_selected")
+    if not bool(mask.any()):
+        return train, test
+    tr = train.copy()
+    te = test.copy()
+    mu = tr[:, mask].mean(axis=0, dtype=np.float64).astype(np.float32)
+    sd = tr[:, mask].std(axis=0, dtype=np.float64).astype(np.float32)
+    sd = np.where(sd < 1e-6, 1.0, sd).astype(np.float32)
+    tr[:, mask] = (tr[:, mask] - mu.reshape(1, -1)) / sd.reshape(1, -1)
+    te[:, mask] = (te[:, mask] - mu.reshape(1, -1)) / sd.reshape(1, -1)
+    return tr, te
+
+
 def _ipf_2d(*, seed_joint: Any, target_row: Any, target_col: Any, max_iter: int = 200, tol: float = 1e-10) -> Any:
     seed = np.asarray(seed_joint, dtype=float).reshape(-1)
     r = np.asarray(target_row, dtype=float).reshape(-1)
@@ -169,16 +247,18 @@ def _apply_posthoc_ipf(*, policy: str, cond_name: str) -> bool:
     if p == "all":
         return True
     if p == "marginal":
-        return str(cond_name).strip().lower() == "marginal"
+        return str(cond_name).strip().lower() in {"marginal", "marginal_spatial"}
     raise ValueError(f"Unsupported posthoc_ipf_policy: {policy}")
 
 
 def main() -> None:
-    torch = _require_torch()
-
     ap = argparse.ArgumentParser(prog="train_us_puma_b19037_diffusion")
     ap.add_argument("--joint_wide_csv", required=True, help="Path to puma_b19037_joint_wide.csv")
-    ap.add_argument("--conditions", default="none,marginal", help='Comma-separated: "none,marginal"')
+    ap.add_argument(
+        "--conditions",
+        default="none,marginal",
+        help='Comma-separated: "none,marginal,spatial,marginal_spatial"',
+    )
     ap.add_argument("--eval_mode", choices=["leave_mi_out", "mi_kfold"], default="leave_mi_out")
     ap.add_argument("--n_folds", type=int, default=5, help="Used when eval_mode=mi_kfold")
     ap.add_argument("--timesteps", type=int, default=1000)
@@ -193,6 +273,13 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log_every", type=int, default=200)
     ap.add_argument("--n_eval_joint_samples", type=int, default=256)
+    ap.add_argument("--spatial_features_csv", default=None, help="Optional PUMA-level spatial feature CSV.")
+    ap.add_argument(
+        "--spatial_feature_sets",
+        default="",
+        help='Comma-separated groups from {centroid_raw,centroid_pe,geo_shape,neigh_1hop,neigh_2hop,neigh_stats}.',
+    )
+    ap.add_argument("--spatial_feature_cols", default="", help="Optional explicit spatial feature columns (comma-separated).")
     ap.add_argument(
         "--posthoc_ipf_policy",
         choices=["none", "marginal", "all"],
@@ -201,6 +288,7 @@ def main() -> None:
     )
     ap.add_argument("--out_dir", default=None, help="Default: outputs/<run_id>")
     args = ap.parse_args()
+    torch = _require_torch()
 
     random.seed(int(args.seed))
     np.random.seed(int(args.seed))
@@ -279,16 +367,58 @@ def main() -> None:
 
     hidden_dims = _parse_hidden_dims(args.hidden_dims)
     conditions = [c.strip() for c in str(args.conditions).split(",") if c.strip()]
-    allowed = {"none", "marginal"}
+    allowed = {"none", "marginal", "spatial", "marginal_spatial"}
     bad = [c for c in conditions if c not in allowed]
     if bad:
         raise SystemExit(f"Unsupported conditions: {bad}. allowed={sorted(allowed)}")
+    needs_spatial = any("spatial" in c for c in conditions)
+    spatial_arr: np.ndarray | None = None
+    spatial_cols: list[str] = []
+    spatial_sets = _split_tokens(args.spatial_feature_sets)
+    spatial_explicit = _split_tokens(args.spatial_feature_cols)
+    if needs_spatial:
+        if not args.spatial_features_csv:
+            raise SystemExit("Spatial condition requested but --spatial_features_csv is not provided.")
+        spatial_path = pathlib.Path(args.spatial_features_csv).expanduser().resolve()
+        if not spatial_path.exists():
+            raise SystemExit(f"spatial_features_csv not found: {spatial_path}")
+        spatial_arr, spatial_cols = _load_spatial_features(
+            path=spatial_path,
+            ids=ids,
+            sets=spatial_sets,
+            explicit_cols=spatial_explicit,
+        )
+        if spatial_arr.shape[0] != len(ids):
+            raise SystemExit("spatial feature rows mismatch with joint rows.")
+
+    cond_map: dict[str, np.ndarray | None] = {
+        "none": None,
+        "marginal": cond_marg,
+        "spatial": spatial_arr,
+        "marginal_spatial": (np.concatenate([cond_marg, spatial_arr], axis=1).astype(np.float32) if spatial_arr is not None else None),
+    }
+    spatial_mask_map: dict[str, np.ndarray | None] = {
+        "none": None,
+        "marginal": np.zeros((cond_marg.shape[1],), dtype=bool),
+        "spatial": (np.ones((spatial_arr.shape[1],), dtype=bool) if spatial_arr is not None else None),
+        "marginal_spatial": (
+            np.concatenate(
+                [
+                    np.zeros((cond_marg.shape[1],), dtype=bool),
+                    np.ones((spatial_arr.shape[1],), dtype=bool),
+                ]
+            )
+            if spatial_arr is not None
+            else None
+        ),
+    }
 
     internal_by_condition: dict[str, Any] = {}
     baselines_by_fold: dict[str, dict[str, Any]] = {"independence": {}, "ipf_train_seed": {}}
 
     for cond_name in conditions:
-        cond_dim = 0 if cond_name == "none" else int(cond_marg.shape[1])
+        cond_arr = cond_map[cond_name]
+        cond_dim = 0 if cond_arr is None else int(cond_arr.shape[1])
         cond_fold_metrics: dict[str, Any] = {}
 
         for fold_name, train_idx, test_idx in folds:
@@ -300,11 +430,11 @@ def main() -> None:
             x_test_true = p_joint[test_idx]
             tot_train = totals[train_idx]
             tot_test = totals[test_idx]
-            cond_train = None
-            cond_test = None
-            if cond_name == "marginal":
-                cond_train = cond_marg[train_idx]
-                cond_test = cond_marg[test_idx]
+            cond_train = cond_arr[train_idx] if cond_arr is not None else None
+            cond_test = cond_arr[test_idx] if cond_arr is not None else None
+            m = spatial_mask_map[cond_name]
+            if cond_train is not None and cond_test is not None and m is not None and bool(m.any()):
+                cond_train, cond_test = _zscore_selected(cond_train, cond_test, m)
 
             model = DiffusionTabularModel(
                 input_dim=K,
@@ -468,6 +598,7 @@ def main() -> None:
         "eval_mode": str(args.eval_mode),
         "n_folds": int(len(folds)),
         "conditions": conditions,
+        "condition_dims": {c: 0 if cond_map[c] is None else int(cond_map[c].shape[1]) for c in conditions},
         "timesteps": int(args.timesteps),
         "epochs": int(args.epochs),
         "batch_size": int(args.batch_size),
@@ -479,6 +610,9 @@ def main() -> None:
         "x_representation": "logp + per-fold z-score",
         "seed": int(args.seed),
         "device": args.device,
+        "spatial_features_csv": str(pathlib.Path(args.spatial_features_csv).expanduser().resolve()) if args.spatial_features_csv else None,
+        "spatial_feature_sets": spatial_sets,
+        "spatial_feature_cols": spatial_cols if spatial_cols else spatial_explicit,
     }
 
     _write_json(out_dir / "run_summary.json", run_summary)
