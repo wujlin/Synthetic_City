@@ -22,7 +22,7 @@
   urlcolor=blue!50!black
 }
 
-\title{\textbf{Distribution-Level Diffusion Recovers Spatially\\Heterogeneous Dependence from Marginal Constraints}}
+\title{Distribution-Level Diffusion Recovers Spatially\\Heterogeneous Dependence from Marginal Constraints}
 
 
 \date{}
@@ -47,11 +47,11 @@ However, these methods share a commonality, which is that the copula structure i
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig1_heterogeneity.pdf}
-\caption{\textbf{Dependence heterogeneity across US regions.}
-\textbf{(a)}~Choropleth of PUMA-level TVD to the national-average dependence structure ($K=32$, five demographic attributes). High-TVD regions (darker red) cluster around major metropolitan areas, university towns, and areas with distinctive demographic compositions.
-\textbf{(b)}~Distribution of TVD-to-global for 2,456 regions. Mean = 0.191 (dashed); 90th percentile = 0.265.
-\textbf{(c)}~Rank-ordered TVD; the long right tail shows a substantial minority of regions deviate strongly from the national average.
-\textbf{(d)}~Same metric for Michigan's 68 regions (the held-out test state).}
+\caption{Dependence heterogeneity across US regions.
+(a)~Choropleth of PUMA-level TVD to the national-average dependence structure ($K=32$, five demographic attributes). High-TVD regions (darker red) cluster around major metropolitan areas, university towns, and areas with distinctive demographic compositions.
+(b)~Distribution of TVD-to-global for 2,456 regions. Mean = 0.191 (dashed); 90th percentile = 0.265.
+(c)~Rank-ordered TVD; the long right tail shows a substantial minority of regions deviate strongly from the national average.
+(d)~Same metric for Michigan's 68 regions (the held-out test state).}
 \label{fig:heterogeneity}
 \end{figure}
 
@@ -85,17 +85,17 @@ A central claim of IPF-based methods is that a single, globally-extracted copula
 
 The results demonstrate substantial spatial heterogeneity: mean TVD is 0.191 (std = 0.057); 90\% of regions deviate by more than 0.12 from the national average (Fig.~\ref{fig:heterogeneity}b,c). This heterogeneity is not sampling noise---each region contains $\sim$5,000--15,000 person records, ensuring that within-region sampling variance is negligible relative to observed cross-region variation. 
 
-Critically, the heterogeneity is **spatially structured, not random**: high-TVD regions cluster in major metropolitan areas, university towns, and communities with distinctive demographic profiles (Fig.~\ref{fig:heterogeneity}a). This clustering suggests that region-specific signals---local marginal frequencies and cross-tabulations---encode information about local dependence patterns. Because different regions have observably different demographic compositions (e.g., university towns vs.\ manufacturing regions), their marginal distributions differ, and these marginal differences correlate with deeper differences in copula structure. This spatial structure makes **conditional learning a principled path**: a model that conditions on a region's specific marginals can potentially learn region-specific copulas, rather than inheriting a global template.
+Critically, the heterogeneity is spatially structured, not random: high-TVD regions cluster in major metropolitan areas, university towns, and communities with distinctive demographic profiles (Fig.~\ref{fig:heterogeneity}a). This clustering suggests that region-specific signals---local marginal frequencies and cross-tabulations---encode information about local dependence patterns. Because different regions have observably different demographic compositions (e.g., university towns vs.\ manufacturing regions), their marginal distributions differ, and these marginal differences correlate with deeper differences in copula structure. This spatial structure makes conditional learning a principled path: a model that conditions on a region's specific marginals can potentially learn region-specific copulas, rather than inheriting a global template.
 
 
 
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/figure_schematic.png}
-\caption{\textbf{Method overview: IPF vs.\ distribution-level diffusion.}
+\caption{Method overview: IPF vs.\ distribution-level diffusion.
 Both pipelines begin with target marginal constraints and end with a region-specific joint distribution.
-\textbf{(Left)} IPF takes a single national-average copula, projects it onto target marginals---all regions inherit the same dependence structure.
-\textbf{(Right)} Distribution-level diffusion generates a region-specific joint distribution by conditioning a denoising diffusion model on local marginal (and optionally pairwise) information, then applies one round of IPF for exact marginal consistency. The comparison isolates a single factor: seed quality.}
+(Left) IPF takes a single national-average copula, projects it onto target marginals---all regions inherit the same dependence structure.
+(Right) Distribution-level diffusion generates a region-specific joint distribution by conditioning a denoising diffusion model on local marginal (and optionally pairwise) information, then applies one round of IPF for exact marginal consistency. The comparison isolates a single factor: seed quality.}
 \label{fig:schematic}
 \end{figure}
 
@@ -113,11 +113,11 @@ Across all five configurations with $K\leq256$, diffusion produces higher-qualit
 \toprule
 Configuration & Unit & $K$ & Best condition & Diff.\ TVD & IPF TVD & Rel.\ gain \\
 \midrule
-5-var coarse  & person    & 32  & pairwise       & \textbf{0.024} & 0.058 & $-59\%$ \\
-5-var medium  & person    & 128 & pairwise       & \textbf{0.051} & 0.081 & $-37\%$ \\
-3-var fine    & person    & 256 & marg+pair      & \textbf{0.084} & 0.103 & $-19\%$ \\
-3-var         & person    & 64  & marginal       & \textbf{0.055} & 0.070 & $-22\%$ \\
-2-var (5-fold)& household & 64  & marginal       & \textbf{0.069} & 0.074 & $-8\%$ \\
+5-var coarse  & person    & 32  & pairwise       & 0.024 & 0.058 & $-59\%$ \\
+5-var medium  & person    & 128 & pairwise       & 0.051 & 0.081 & $-37\%$ \\
+3-var fine    & person    & 256 & marg+pair      & 0.084 & 0.103 & $-19\%$ \\
+3-var         & person    & 64  & marginal       & 0.055 & 0.070 & $-22\%$ \\
+2-var (5-fold)& household & 64  & marginal       & 0.069 & 0.074 & $-8\%$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -140,7 +140,7 @@ Fold & Diffusion TVD & IPF TVD & $\Delta$ \\
 3 & 0.066 & 0.074 & $-0.007$ \\
 4 & 0.065 & 0.071 & $-0.006$ \\
 \midrule
-Mean & \textbf{0.069} & 0.074 & $-0.006$ \\
+Mean & 0.069 & 0.074 & $-0.006$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -148,11 +148,11 @@ Mean & \textbf{0.069} & 0.074 & $-0.006$ \\
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig2_main_results.pdf}
-\caption{\textbf{Diffusion consistently reduces dependence error relative to IPF.}}
-\textbf{(a)}~Diffusion TVD vs.\ IPF TVD across all configurations. Points below the diagonal indicate diffusion advantage.
-\textbf{(b)}~Michigan 5-fold: per-fold $\Delta$ (diffusion $-$ IPF). All folds favor diffusion.
-\textbf{(c)}~Relative gain (\%) vs.\ joint dimensionality.
-\textbf{(d)}~Paired TVD comparison for each configuration.}
+\caption{Diffusion consistently reduces dependence error relative to IPF.}
+(a)~Diffusion TVD vs.\ IPF TVD across all configurations. Points below the diagonal indicate diffusion advantage.
+(b)~Michigan 5-fold: per-fold $\Delta$ (diffusion $-$ IPF). All folds favor diffusion.
+(c)~Relative gain (\%) vs.\ joint dimensionality.
+(d)~Paired TVD comparison for each configuration.}
 \label{fig:main}
 \end{figure}
 
@@ -160,11 +160,11 @@ Mean & \textbf{0.069} & 0.074 & $-0.006$ \\
 
 The results above show that conditioning helps, but they don't explain why or what information matters most. To isolate which types of constraints drive the copula learning, we perform systematic ablations: we train the model under four conditions---no constraints, one-dimensional marginals only, two-dimensional pairwise cross-tabulations only, and both combined---and measure the resulting TVD. This ablation reveals which data sources are essential for learning copula structure.
 
-For the 5-variable K=32 setting, the progression is striking (Table~\ref{tab:cond32}; Fig.~\ref{fig:ablation}a): **Without any constraints** ($d_c=0$), the diffusion model learns a prior over plausible copulas, achieving TVD = 0.114---already better than statistical independence (0.290) but far from the true dependence. **Adding one-dimensional marginals** ($d_c=18$) provides local frequency information, allowing the model to infer better-than-average copulas (TVD = 0.043), now surpassing IPF's 0.058. **Adding two-dimensional pairwise cross-tabulations** ($d_c=128$) reduces TVD another 44\% *relative to marginal-only* (from 0.043 to 0.024), because these constraints directly encode second-order associations---the very information IPF's global seed lacks.
+For the 5-variable K=32 setting, the progression is striking (Table~\ref{tab:cond32}; Fig.~\ref{fig:ablation}a): Without any constraints ($d_c=0$), the diffusion model learns a prior over plausible copulas, achieving TVD = 0.114---already better than statistical independence (0.290) but far from the true dependence. Adding one-dimensional marginals ($d_c=18$) provides local frequency information, allowing the model to infer better-than-average copulas (TVD = 0.043), now surpassing IPF's 0.058. Adding two-dimensional pairwise cross-tabulations ($d_c=128$) reduces TVD another 44\% *relative to marginal-only* (from 0.043 to 0.024), because these constraints directly encode second-order associations---the very information IPF's global seed lacks.
 
 Why is this progression meaningful? In inverse problems, the fundamental constraint is information: you cannot recover more unknowns than you have constraints. At $K=32$, the joint has 31 free parameters; one-dimensional marginals provide only 18 constraints, leaving 13 degrees of freedom. Two-variable cross-tabulations add 128 constraints covering pairwise interactions. The model uses this richer constraint set to pin down the higher-order structure.
 
-Under pairwise conditioning, the model's raw outputs (before post-hoc IPF) already recover correct one-dimensional marginals with TVD $<0.002$ for all five attributes (Fig.~\ref{fig:ablation}d). This **learned marginal consistency** demonstrates that the model has internalized the structural relationship between low-order constraints and the full joint---it does not need post-hoc IPF to enforce marginal matching. The model has learned not just copula, but the exact mapping from constraints to distribution.
+Under pairwise conditioning, the model's raw outputs (before post-hoc IPF) already recover correct one-dimensional marginals with TVD $<0.002$ for all five attributes (Fig.~\ref{fig:ablation}d). This learned marginal consistency demonstrates that the model has internalized the structural relationship between low-order constraints and the full joint---it does not need post-hoc IPF to enforce marginal matching. The model has learned not just copula, but the exact mapping from constraints to distribution.
 
 \begin{table}[htbp]
 \centering
@@ -176,22 +176,22 @@ Condition & cond\_dim & TVD & vs.\ IPF \\
 \midrule
 none      & 0  & 0.114 & $+0.056$ \\
 marginal  & 18 & 0.043 & $-0.015$ \\
-pairwise  & 40 & \textbf{0.024} & $\mathbf{-0.034}$ \\
+pairwise  & 40 & 0.024 & $-0.034$ \\
 marg+pair & 50 & 0.024 & $-0.034$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Does this ablation pattern hold across different numbers of variables? We test this by computing the **pairwise contribution**---the TVD reduction from marginal-only to pairwise---across 2-variable to 5-variable settings. The pairwise contribution is strongest for $D=5$ (44\% reduction), weaker for $D=3$ (20\% reduction), and zero for $D=2$ (pairwise constraints *are* the joint itself, providing no additional information beyond what marginals imply). This scaling law reflects the fundamental constraint counting: as dimensionality increases, the gap between one-variable constraints and full-joint unknowns grows, making higher-order information increasingly valuable.
+Does this ablation pattern hold across different numbers of variables? We test this by computing the pairwise contribution---the TVD reduction from marginal-only to pairwise---across 2-variable to 5-variable settings. The pairwise contribution is strongest for $D=5$ (44\% reduction), weaker for $D=3$ (20\% reduction), and zero for $D=2$ (pairwise constraints *are* the joint itself, providing no additional information beyond what marginals imply). This scaling law reflects the fundamental constraint counting: as dimensionality increases, the gap between one-variable constraints and full-joint unknowns grows, making higher-order information increasingly valuable.
 
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig3_ablation.pdf}
-\caption{\textbf{Condition ablation and information hierarchy.}
-\textbf{(a)}~TVD progression from \emph{none} to \emph{pairwise} at $K=32$, with independence and IPF reference lines.
-\textbf{(b)}~Same at $K=128$.
-\textbf{(c)}~Pairwise contribution (\% TVD reduction vs.\ marginal-only) across variable counts.
-\textbf{(d)}~Raw marginal TVD under pairwise conditioning ($K=32$): all five attributes $<0.002$, demonstrating learned marginal consistency.}
+\caption{Condition ablation and information hierarchy.
+(a)~TVD progression from \emph{none} to \emph{pairwise} at $K=32$, with independence and IPF reference lines.
+(b)~Same at $K=128$.
+(c)~Pairwise contribution (\% TVD reduction vs.\ marginal-only) across variable counts.
+(d)~Raw marginal TVD under pairwise conditioning ($K=32$): all five attributes $<0.002$, demonstrating learned marginal consistency.}
 \label{fig:ablation}
 \end{figure}
 
@@ -219,18 +219,18 @@ $K$ & Variables & Diff.\ TVD & IPF TVD & $\Delta$ \\
 
 Specifically, at $K=512$ (a fine-grained 5-variable joint), diffusion TVD reaches 0.139 while IPF achieves 0.112 (Table~\ref{tab:Kscale}; Fig.~\ref{fig:scaling}a).
 
-Why does the advantage reverse? Two mechanisms interact. **First, cell sparsity**: at $K=32$, each cell contains $\sim$220 people on average; at $K=512$, only $\sim$14. Empirical probability estimates become unreliable at this sparsity. **Second, constraint insufficiency**: the pairwise conditions provide 128 parameters, but the joint distribution has 511 free parameters. Critical higher-order interactions (third-order and above) remain unspecified, and the model must infer them from the training data prior alone. At $K=256$, constraints still cover enough degrees of freedom; at $K=512$, they fall short.
+Why does the advantage reverse? Two mechanisms interact. First, cell sparsity: at $K=32$, each cell contains $\sim$220 people on average; at $K=512$, only $\sim$14. Empirical probability estimates become unreliable at this sparsity. Second, constraint insufficiency: the pairwise conditions provide 128 parameters, but the joint distribution has 511 free parameters. Critical higher-order interactions (third-order and above) remain unspecified, and the model must infer them from the training data prior alone. At $K=256$, constraints still cover enough degrees of freedom; at $K=512$, they fall short.
 
-To confirm this diagnosis, we test whether extending training at $K=512$ helps. From 10k to 30k epochs, TVD improves from 0.182 to 0.147---a 19\% reduction---but still does not reach IPF's 0.112 (Fig.~\ref{fig:scaling}b). This suggests the issue is not optimization, but fundamental information lack. Moreover, a counterintuitive finding: pairwise conditions at $K=512$ produce TVD = 0.249---*worse* than marginal-only (0.147). This occurs because the 128-dim pairwise input must drive reconstruction of 511 unknown parameters without the help of post-hoc IPF, whereas marginal-only conditioning (18-dim) benefits from IPF's ability to fill remaining structure using the global prior. The boundary reflects information-theoretic constraints on inverse problems: **enriching input constraints is more effective than increasing model capacity**.
+To confirm this diagnosis, we test whether extending training at $K=512$ helps. From 10k to 30k epochs, TVD improves from 0.182 to 0.147---a 19\% reduction---but still does not reach IPF's 0.112 (Fig.~\ref{fig:scaling}b). This suggests the issue is not optimization, but fundamental information lack. Moreover, a counterintuitive finding: pairwise conditions at $K=512$ produce TVD = 0.249---*worse* than marginal-only (0.147). This occurs because the 128-dim pairwise input must drive reconstruction of 511 unknown parameters without the help of post-hoc IPF, whereas marginal-only conditioning (18-dim) benefits from IPF's ability to fill remaining structure using the global prior. The boundary reflects information-theoretic constraints on inverse problems: enriching input constraints is more effective than increasing model capacity.
 
 \begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig4_scaling.pdf}
-\caption{\textbf{Dimensional scaling and information boundaries.}
-\textbf{(a)}~Diffusion TVD and IPF TVD vs.\ joint dimensionality $K$. Crossover near $K\approx 400$.
-\textbf{(b)}~Training effect at $K=512$: TVD at 10k and 30k epochs, with IPF reference.
-\textbf{(c)}~Average persons per cell vs.\ $K$, illustrating sparsity growth.
-\textbf{(d)}~Constraint coverage: pairwise condition dimensions vs.\ joint free parameters.}
+\caption{Dimensional scaling and information boundaries.
+(a)~Diffusion TVD and IPF TVD vs.\ joint dimensionality $K$. Crossover near $K\approx 400$.
+(b)~Training effect at $K=512$: TVD at 10k and 30k epochs, with IPF reference.
+(c)~Average persons per cell vs.\ $K$, illustrating sparsity growth.
+(d)~Constraint coverage: pairwise condition dimensions vs.\ joint free parameters.}
 \label{fig:scaling}
 \end{figure}
 
@@ -256,8 +256,8 @@ Let a regional joint distribution be $\mathbf{p}\in\Delta^{K-1}$ with $K=\prod_{
 \subsection{Data, units, and binning}
 Data source is ACS PUMS 2023 5-year, covering 2,456 US PUMAs. Two statistical units are used:
 \begin{itemize}
-  \item \textbf{2-var (household)}: householder age $\times$ household income, B19037-aligned ($4\times16$, $K=64$).
-  \item \textbf{3/5-var (person)}: AGEP, SEX, PINCP, SCHL, ESR with coarse (2 bins) to fine (4--16 bins) resolutions, yielding $K\in\{32,64,128,256,512\}$.
+  \item 2-var (household): householder age $\times$ household income, B19037-aligned ($4\times16$, $K=64$).
+  \item 3/5-var (person): AGEP, SEX, PINCP, SCHL, ESR with coarse (2 bins) to fine (4--16 bins) resolutions, yielding $K\in\{32,64,128,256,512\}$.
 \end{itemize}
 Joint counts use Laplace smoothing ($\alpha=1$): the most conservative prior, adding one pseudo-count per cell. At $K=32$ this perturbs cell probabilities by $<0.5\%$; at $K=512$ it replaces $\log(0)=-\infty$ with $\log\!\bigl(\frac{1}{N+K}\bigr)\approx -9$, keeping the log-probability vector well-defined. The two unit systems are analyzed jointly for scaling diagnostics but are not interpreted as same-unit absolute comparisons.
 
@@ -277,10 +277,10 @@ where $\mathbf{z}_t = \sqrt{\bar\alpha_t}\,\mathbf{z}_0 + \sqrt{1-\bar\alpha_t}\
 \subsection{Condition design}
 Conditions are injected by concatenation at the denoiser input \cite{ho2022cfg}. Four condition modes, with dimensions shown for 5-var $B=(4,2,4,4,4)$:
 \begin{itemize}
-  \item \textbf{none}: unconditional ($d_c=0$).
-  \item \textbf{marginal}: concatenated 1D marginals ($d_c=\sum_d B_d=18$).
-  \item \textbf{pairwise}: concatenated 2D marginals ($d_c=\sum_{i<j}B_iB_j=128$).
-  \item \textbf{marg+pair}: both ($d_c=146$).
+  \item none: unconditional ($d_c=0$).
+  \item marginal: concatenated 1D marginals ($d_c=\sum_d B_d=18$).
+  \item pairwise: concatenated 2D marginals ($d_c=\sum_{i<j}B_iB_j=128$).
+  \item marg+pair: both ($d_c=146$).
 \end{itemize}
 
 \subsection{Sampling and post-processing}
@@ -291,7 +291,7 @@ Post-hoc IPF uses the diffusion output as an IPF seed and fits to the test regio
 \subsection{Evaluation protocol}
 Primary: leave-Michigan-out (68 MI regions test, 2,388 train). Michigan is chosen because holding out an entire state avoids spatial autocorrelation leakage between train and test regions---a risk inherent in random splits where neighboring regions share labor markets and demographics. For 2-var: additional Michigan 5-fold (13--14 regions per fold). Metric: TVD $=\frac{1}{2}\sum_k|\hat{p}_k - p_k|$, with cosine similarity as auxiliary. Model comparison uses a one-sided sign test across folds \cite{demsar2006}.
 
-Baselines: (1) \textbf{Independence}: outer product of target marginals. (2) \textbf{IPF(global seed)}: the population-weighted average joint distribution over all training regions serves as seed, then IPF iterates to enforce exact target marginals.
+Baselines: (1) Independence: outer product of target marginals. (2) IPF(global seed): the population-weighted average joint distribution over all training regions serves as seed, then IPF iterates to enforce exact target marginals.
 
 %% ====================================================================
 \section{Data availability}

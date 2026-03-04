@@ -79,8 +79,14 @@ def main() -> None:
     out_csv = pathlib.Path(args.out_csv).expanduser().resolve()
     out_meta = out_csv.with_suffix(out_csv.suffix + ".metadata.json")
 
+    if str(args.puma_zip).strip() == "":
+        raise SystemExit("--puma_zip is empty. Please set a valid TIGER PUMA zip path.")
     if not puma_zip.exists():
         raise SystemExit(f"puma_zip not found: {puma_zip}")
+    if not puma_zip.is_file():
+        raise SystemExit(f"puma_zip must be a .zip file, got: {puma_zip}")
+    if puma_zip.suffix.lower() != ".zip":
+        raise SystemExit(f"puma_zip must end with .zip, got: {puma_zip.name}")
     if not joint_csv.exists():
         raise SystemExit(f"joint_wide_csv not found: {joint_csv}")
     if int(args.knn_k) <= 0:
