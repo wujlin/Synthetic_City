@@ -57,11 +57,37 @@ def _write_json(path: pathlib.Path, obj: object) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def _normalize_puma(v: str) -> str:
-    s = str(v).strip()
-    if s.isdigit():
-        return str(int(s))
-    return s
+def _digits_only(v: object) -> str:
+    return "".join(ch for ch in str(v).strip() if ch.isdigit())
+
+
+def _canon_statefp(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(2)
+
+
+def _canon_puma5(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(5)
+
+
+def _canon_uid(statefp: object, puma: object) -> str:
+    s = _canon_statefp(statefp)
+    p = _canon_puma5(puma)
+    if not s or not p:
+        return ""
+    return s + p
+
+
+def _normalize_puma(v: object) -> str:
+    p5 = _canon_puma5(v)
+    if not p5:
+        return str(v).strip()
+    return str(int(p5))
 
 
 def main() -> None:
@@ -108,9 +134,11 @@ def main() -> None:
         )
 
     g = g[[state_col, puma_col, "geometry"]].copy()
-    g["statefp"] = g[state_col].astype(str).str.zfill(2)
-    g["puma"] = g[puma_col].astype(str).str.zfill(5).map(_normalize_puma)
-    g["puma_uid"] = g["statefp"] + g[puma_col].astype(str).str.zfill(5)
+    g["statefp"] = g[state_col].map(_canon_statefp)
+    g["puma5"] = g[puma_col].map(_canon_puma5)
+    g["puma"] = g["puma5"].map(_normalize_puma)
+    g["puma_uid"] = g.apply(lambda r: _canon_uid(r["statefp"], r["puma5"]), axis=1)
+    g = g[(g["statefp"] != "") & (g["puma5"] != "") & (g["puma_uid"] != "")].copy()
 
     # Metric projection for centroid distance and geometry shape metrics.
     g = g.to_crs(epsg=int(args.epsg_metric))
@@ -142,7 +170,11 @@ def main() -> None:
         raise SystemExit("No marginal columns found in joint_wide csv (expected p_* prefixes).")
 
     j = j[["puma_uid", "statefp", "puma"] + marg_cols].copy()
-    j["puma_uid"] = j["puma_uid"].astype(str)
+    j["statefp"] = j["statefp"].map(_canon_statefp)
+    j["puma5"] = j["puma"].map(_canon_puma5)
+    j["puma"] = j["puma5"].map(_normalize_puma)
+    j["puma_uid"] = j.apply(lambda r: _canon_uid(r["statefp"], r["puma5"]), axis=1)
+    j = j[(j["statefp"] != "") & (j["puma5"] != "") & (j["puma_uid"] != "")].copy()
     j = j.drop_duplicates(subset=["puma_uid"], keep="first").reset_index(drop=True)
 
     d = j.merge(

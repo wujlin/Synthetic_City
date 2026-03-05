@@ -92,6 +92,32 @@ def _parse_hidden_dims(spec: str) -> tuple[int, ...]:
     return tuple(xs)
 
 
+def _digits_only(v: object) -> str:
+    return "".join(ch for ch in str(v).strip() if ch.isdigit())
+
+
+def _canon_statefp(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(2)
+
+
+def _canon_puma5(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(5)
+
+
+def _canon_uid(statefp: object, puma: object) -> str:
+    s = _canon_statefp(statefp)
+    p = _canon_puma5(puma)
+    if not s or not p:
+        return ""
+    return s + p
+
+
 def _stable_hash_fold(values: list[str], *, n_folds: int, seed: int) -> dict[str, int]:
     import hashlib
 
@@ -284,7 +310,13 @@ def main() -> None:
     if len(p_joint_cols) != K:
         raise SystemExit(f"Joint dim mismatch: got {len(p_joint_cols)} joint cols, expected {K} from shape={shape}")
 
-    df["statefp"] = df["statefp"].astype(str).str.zfill(2)
+    df["statefp"] = df["statefp"].map(_canon_statefp)
+    df["puma5"] = df["puma"].map(_canon_puma5)
+    df["puma"] = df["puma5"].map(lambda x: str(int(x)) if x else "")
+    df["puma_uid"] = df.apply(lambda r: _canon_uid(r["statefp"], r["puma5"]), axis=1)
+    bad_uid = int((df["puma_uid"] == "").sum())
+    if bad_uid > 0:
+        raise SystemExit(f"Invalid puma_uid rows after canonicalization: {bad_uid}")
     is_mi = df["statefp"] == "26"
     if int(is_mi.sum()) == 0:
         raise SystemExit("No Michigan rows found (statefp==26).")

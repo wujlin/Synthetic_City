@@ -99,6 +99,42 @@ def _split_tokens(spec: str) -> list[str]:
     return [x.strip() for x in str(spec).split(",") if x.strip()]
 
 
+def _digits_only(v: object) -> str:
+    return "".join(ch for ch in str(v).strip() if ch.isdigit())
+
+
+def _canon_statefp(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(2)
+
+
+def _canon_puma5(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    return str(int(d)).zfill(5)
+
+
+def _canon_uid(statefp: object, puma: object) -> str:
+    s = _canon_statefp(statefp)
+    p = _canon_puma5(puma)
+    if not s or not p:
+        return ""
+    return s + p
+
+
+def _canon_uid_loose(v: object) -> str:
+    d = _digits_only(v)
+    if not d:
+        return ""
+    # puma_uid should be 7 digits: statefp(2)+puma5(5)
+    if len(d) > 7:
+        d = d[-7:]
+    return d.zfill(7)
+
+
 def _sorted_suffix_cols(cols: list[str]) -> list[str]:
     def _key(c: str) -> tuple[int, str]:
         try:
@@ -146,7 +182,11 @@ def _load_spatial_features(*, path: pathlib.Path, ids: list[str], sets: list[str
     sdf = pd.read_csv(path)
     if "puma_uid" not in sdf.columns:
         raise SystemExit(f"spatial_features_csv missing required column: puma_uid ({path})")
-    sdf["puma_uid"] = sdf["puma_uid"].astype(str)
+    if "statefp" in sdf.columns and "puma" in sdf.columns:
+        sdf["puma_uid"] = sdf.apply(lambda r: _canon_uid(r["statefp"], r["puma"]), axis=1)
+    else:
+        sdf["puma_uid"] = sdf["puma_uid"].map(_canon_uid_loose)
+    sdf = sdf[sdf["puma_uid"] != ""].copy()
     sdf = sdf.drop_duplicates(subset=["puma_uid"], keep="first").set_index("puma_uid")
     miss_ids = [pid for pid in ids if pid not in sdf.index]
     if miss_ids:
@@ -320,7 +360,13 @@ def main() -> None:
     if K != n_row * n_col:
         raise SystemExit(f"shape mismatch: K={K}, n_row={n_row}, n_col={n_col}")
 
-    df["statefp"] = df["statefp"].astype(str).str.zfill(2)
+    df["statefp"] = df["statefp"].map(_canon_statefp)
+    df["puma5"] = df["puma"].map(_canon_puma5)
+    df["puma"] = df["puma5"].map(lambda x: str(int(x)) if x else "")
+    df["puma_uid"] = df.apply(lambda r: _canon_uid(r["statefp"], r["puma5"]), axis=1)
+    bad_uid = int((df["puma_uid"] == "").sum())
+    if bad_uid > 0:
+        raise SystemExit(f"Invalid puma_uid rows after canonicalization: {bad_uid}")
     is_mi = df["statefp"] == "26"
     if int(is_mi.sum()) == 0:
         raise SystemExit("No Michigan rows found (statefp==26).")
