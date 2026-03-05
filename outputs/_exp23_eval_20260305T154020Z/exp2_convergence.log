@@ -1,0 +1,10 @@
+[ok] epoch=100 tvd_mean=0.484251 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_00100.pt
+[ok] epoch=200 tvd_mean=0.436186 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_00200.pt
+[ok] epoch=500 tvd_mean=0.233149 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_00500.pt
+[ok] epoch=1000 tvd_mean=0.154125 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_01000.pt
+[ok] epoch=2000 tvd_mean=0.239255 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_02000.pt
+[ok] epoch=3000 tvd_mean=0.217889 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_03000.pt
+[ok] epoch=5000 tvd_mean=0.193333 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_05000.pt
+[ok] epoch=7000 tvd_mean=0.201575 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_07000.pt
+[ok] epoch=10000 tvd_mean=0.185191 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_20260305T154020Z/checkpoints/pairwise/leave_mi_out/epoch_10000.pt
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_exp23_eval_20260305T154020Z/exp2_convergence.json
