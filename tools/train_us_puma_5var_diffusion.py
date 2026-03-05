@@ -96,6 +96,17 @@ def _split_tokens(spec: str) -> list[str]:
     return [x.strip() for x in str(spec).split(",") if x.strip()]
 
 
+def _parse_int_tokens(spec: str) -> list[int]:
+    out: list[int] = []
+    for tok in _split_tokens(spec):
+        try:
+            v = int(tok)
+        except Exception as e:
+            raise ValueError(f"Invalid integer token in list: {tok}") from e
+        out.append(v)
+    return out
+
+
 def _digits_only(v: object) -> str:
     return "".join(ch for ch in str(v).strip() if ch.isdigit())
 
@@ -370,6 +381,16 @@ def main() -> None:
     )
     ap.add_argument("--spatial_feature_cols", default="", help="Optional explicit spatial feature columns (comma-separated).")
     ap.add_argument(
+        "--save_epochs",
+        default="",
+        help="Optional comma-separated epoch list for checkpoint saving (e.g., 100,200,500,1000).",
+    )
+    ap.add_argument(
+        "--save_final_model",
+        action="store_true",
+        help="If set, save final checkpoint per (condition, fold) under out_dir/checkpoints.",
+    )
+    ap.add_argument(
         "--posthoc_ipf_policy",
         choices=["none", "marginal", "all"],
         default="marginal",
@@ -557,6 +578,9 @@ def main() -> None:
     hidden_dims = _parse_hidden_dims(args.hidden_dims)
     internal_by_condition: dict[str, Any] = {}
     baselines_by_fold: dict[str, dict[str, Any]] = {"independence": {}, "ipf_train_seed": {}}
+    save_epochs = sorted(set([e for e in _parse_int_tokens(args.save_epochs) if e > 0]))
+    save_epoch_set = set(save_epochs)
+    saved_checkpoints: dict[str, dict[str, list[str]]] = {}
 
     for cond_name in conditions:
         cond_arr = cond_map[cond_name]
@@ -597,7 +621,30 @@ def main() -> None:
             }
             if cond_train is not None:
                 fit_kwargs["cond"] = torch.from_numpy(cond_train)
+            ckpt_dir = out_dir / "checkpoints" / cond_name / fold_name
+            saved_this_fold: list[str] = []
+
+            def _on_epoch(epoch: int, info: dict[str, Any]) -> None:
+                if epoch in save_epoch_set:
+                    ckpt_path = ckpt_dir / f"epoch_{epoch:05d}.pt"
+                    model.save(ckpt_path)
+                    saved_this_fold.append(str(ckpt_path))
+                    print(
+                        f"[ckpt] condition={cond_name} fold={fold_name} epoch={epoch} "
+                        f"loss={float(info.get('loss', float('nan'))):.6f} path={ckpt_path}",
+                        file=sys.stderr,
+                    )
+
+            fit_kwargs["epoch_callback"] = _on_epoch
             model.fit(**fit_kwargs)
+
+            if bool(args.save_final_model):
+                ckpt_path = ckpt_dir / "final.pt"
+                model.save(ckpt_path)
+                saved_this_fold.append(str(ckpt_path))
+                print(f"[ckpt] condition={cond_name} fold={fold_name} final path={ckpt_path}", file=sys.stderr)
+
+            saved_checkpoints.setdefault(cond_name, {})[fold_name] = saved_this_fold
 
             # Build train seed for IPF baseline (weighted mean joint).
             seed_counts = np.zeros((K,), dtype=float)
@@ -737,6 +784,9 @@ def main() -> None:
         "spatial_features_csv": str(pathlib.Path(args.spatial_features_csv).expanduser().resolve()) if args.spatial_features_csv else None,
         "spatial_feature_sets": spatial_sets,
         "spatial_feature_cols": spatial_cols if spatial_cols else spatial_explicit,
+        "save_epochs": save_epochs,
+        "save_final_model": bool(args.save_final_model),
+        "saved_checkpoints": saved_checkpoints,
     }
 
     _write_json(out_dir / "run_summary.json", run_summary)

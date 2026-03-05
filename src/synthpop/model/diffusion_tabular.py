@@ -289,6 +289,7 @@ class DiffusionTabularModel:
         batch_size: int = 2048,
         device: str | None = None,
         log_every: int = 200,
+        epoch_callback: Any | None = None,
     ) -> dict[str, float]:
         torch = _require_torch()
 
@@ -351,6 +352,15 @@ class DiffusionTabularModel:
                 num_steps += 1
                 if log_every > 0 and num_steps % int(log_every) == 0:
                     print(f"[train] step={num_steps} loss={last_loss:.6f}")
+
+            if epoch_callback is not None:
+                epoch_callback(
+                    int(_epoch + 1),
+                    {
+                        "loss": float(last_loss),
+                        "num_steps": int(num_steps),
+                    },
+                )
 
         return {"loss": last_loss}
 
