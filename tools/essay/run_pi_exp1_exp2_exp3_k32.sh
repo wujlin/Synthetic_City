@@ -89,7 +89,9 @@ python -u tools/essay/exp1_output_examples.py \
   --n_eval_joint_samples 128 \
   --posthoc_ipf \
   --ipf_iters 200 \
-  --n_examples 4 \
+  --n_examples 2 \
+  --puma_uids "2602903,2601100" \
+  --region_labels "University Town,Typical Suburb" \
   --out_pdf "$FIG_DIR/fig_output_examples.pdf" \
   --out_json "$RUN_EXP23/exp1_output_examples.json" 2>&1 | tee "$RUN_EXP23/exp1_output_examples.log"
 echo ">>> [Exp1-K32] RC=${PIPESTATUS[0]}"

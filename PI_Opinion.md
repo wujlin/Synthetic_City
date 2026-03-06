@@ -1,36 +1,137 @@
-给 Partner 的三个实验设计
-实验 1: Output Example 可视化
-目标：让读者直观看到模型输出是什么——一个概率向量，和真实分布的对比。
+给 Partner 的实验与图表设计
 
-选择标准：从 Michigan test set（leave-MI-out split）挑 4 个 PUMA，覆盖人口类型光谱：
+---
 
-A 大学城（如 Ann Arbor 区域）：高 TVD-to-global，年轻 + 低收入 + 高教育
-B 制造业走廊（如 Flint/Detroit 工业区）：壮年 + 收入极化
-C 退休/农村（如 Upper Peninsula）：老龄 + 中等收入
-D 典型郊区（TVD 近中位数）：接近国家平均
-选法：按 TVD-to-global 的分位数（>90th, ~75th, ~50th, ~25th）筛选，再用人口学特征确认。
+## 实验 1（重新设计）: Output Examples — 展示合成人口产品
 
-**具体操作**：
-1. 加载 leave-MI-out 实验的 Michigan 68 PUMAs 的 TVD-to-global 值（已有数据，来自 fig1_heterogeneity 的计算脚本）
-2. 按 TVD 分位数筛选 4 个 PUMA GEOID
-3. 对每个 PUMA，加载 true joint p（32 cells）和 diffusion output p̂（从已训练的 5-var K=32 pairwise model 推理，128 draws average + post-hoc IPF）
-4. 用 PUMA 的 marginal profile（5 个属性的 1D 分布）确认其人口类型标签
+### 设计理念
 
-计算内容（5-var K=32, pairwise-conditioned）：
+当前的 fig_output_examples.pdf 只展示了 32-cell 概率向量的 paired bar + residual。
+**问题**：读者（城市规划者、交通建模者）无法直观理解模型输出是什么。
+**目标**：把 §2.1 的图重新设计为"产品展示"——让读者看到：
+1. 这个地区的人口长什么样（demographic profile）
+2. 模型正确捕获了该地区特有的属性关联模式（cross-tabulation）
+3. 在完整的 32-cell joint 上，生成 ≈ 真实
 
-True joint p（32 cells）
-Diffusion output p̂（128 draws average + post-hoc IPF）
-Cell-wise residual p̂_k − p_k
-Per-PUMA TVD
+### 选取 PUMA
 
-可视化：2×4 subplot grid
+从 Michigan 68 个测试 PUMA 中选 **2 个对比鲜明的地区**，展示模型对不同类型地区都有效：
 
-Top row (a–d)：paired bar chart，32 cells 按 true probability 降序排列，blue=true, orange=diffusion
-Bottom row (e–h)：residual plot，同 x 轴，y = p̂_k − p_k，虚线标 ±0.01
-每个子图标题：PUMA 名 + 人口类型 + TVD 值
-输出文件：figures/fig_output_examples.pdf
+| 行 | PUMA UID | 类型 | TVD-to-global 分位 | 选取理由 |
+|---|---|---|---|---|
+| 上排 | 2602903 | 大学城型（高异质性） | ~0.90 | 与全国均值偏离最大，最能展示"region-specific"能力 |
+| 下排 | 2601100 | 典型郊区型（中位数） | ~0.50 | 接近平均水平，代表普通场景 |
 
-**代码入口**：基于现有推理脚本（sample 阶段），只需加载已有 model checkpoint 和 Michigan test set，跑推理 + 可视化。不需要重新训练。
+（选取方法同现有脚本 `_select_representatives`，按 TVD-to-global 分位数）
+
+### 图表布局
+
+**fig_output_examples.pdf**
+- 2 行 × 3 列 = 6 panels
+- 尺寸：约 170mm × 100mm（单栏或双栏均可）
+
+```
+       Column (a)              Column (b)                  Column (c)
+       人口画像                 关键交叉表                   完整联合分布
+
+Row 1  [大学城 PUMA 2602903]    [education × income 2×2]    [32-cell paired bars]
+       "N = xx,xxx 人"          True | Generated             true vs gen, person counts
+
+Row 2  [郊区 PUMA 2601100]     [education × income 2×2]    [32-cell paired bars]
+       "N = xx,xxx 人"          True | Generated             true vs gen, person counts
+```
+
+### 各 Panel 详细规格
+
+#### Column (a): 人口画像 — "这个地区长什么样"
+
+- **形式**：水平堆叠条形图，5 个属性各一行
+- **每个属性**：2 段（bin0 | bin1），标注人数
+- **两套颜色**：真实（蓝色系）vs 生成（橙色系），紧邻排列
+- **标注**：
+  - 左上角：PUMA 名称 + 人口类型标签（如 "University Town" / "Typical Suburb"）
+  - 右上角：总人口 N = xxx,xxx（从 `total_person_weight` 获取）
+- **人数计算**：`count = N × p_marginal`
+
+具体标签示例（以 PUMA 2601100 为例）：
+```
+Age:        [Young ████ 56%  | Old ███ 44%]
+Sex:        [Male ████ 48%   | Female ████ 52%]
+Income:     [Low █████ 81%   | High ██ 19%]
+Education:  [Low ████ 60%    | High ███ 40%]
+Employment: [Employed ███ 46%| Not-Empl ████ 54%]
+```
+
+**关键点**：post-hoc IPF 保证边际精确匹配，所以蓝色和橙色应该几乎完全重合。这恰好传达了信息："边际一致性由设计保证。"
+
+#### Column (b): 关键交叉表 — "属性间的关联是否被捕获"
+
+- **变量对**：education × income（2×2 = 4 cells），最能体现 copula 差异
+- **形式**：2 个并排的 2×2 annotated heatmap
+  - 左边标 "True"，右边标 "Generated"
+  - 每个 cell 标注**人数**和**占比**
+- **色标**：连续色标（如 YlOrRd），两个 heatmap 共享同一色标范围
+- **替代方案**：如果 heatmap 视觉效果不好（因为只有 4 cells），可用 **grouped bar chart**（4 组 × 2 bars）
+
+交叉表计算：
+```python
+# 从 32-cell joint 提取 education × income 二维边际
+tab = p_joint.reshape(shape)  # shape = (2,2,2,2,2) → (age, sex, income, schl, esr)
+# income 是 axis=2, schl 是 axis=3
+cross_tab = tab.sum(axis=(0,1,4))  # sum over age, sex, esr → shape (2,2)
+# cross_tab[i,j] = P(income=i, schl=j)
+# 人数 = N × cross_tab[i,j]
+```
+
+**注意 axis 顺序**：shape=(age, sex, income, schl, esr)，所以 income=axis2, schl=axis3。
+
+**为什么选 education × income**：
+- 这是最直观的 copula pair——大学城里"高学历+低收入"（学生）比例高，郊区里"高学历→高收入"是正常模式
+- 两个 PUMA 的交叉表模式应该明显不同，直观展示"region-specific dependence"
+
+#### Column (c): 完整联合分布 — "32 个 cell 的完整产品"
+
+- **形式**：Paired bar chart，32 cells 按真实概率降序排列
+  - 蓝色 = True，橙色 = Generated
+  - y 轴 = **人数**（= N × p_k），不是概率
+- **标注**：
+  - 右上角：TVD = 0.xxx
+  - x 轴标签：cell index（1–32），不需要标注属性组合（太挤）
+  - 可在前 3-5 个最大 cell 上方标注属性组合缩写（如 "Y-M-L-L-E"）
+- **辅助元素**：在 0 线附近加一条 residual subplot（小面积），或直接在 bar 上标色差
+
+### 数据来源与脚本
+
+```
+输入文件：
+  joint_wide_csv: outputs/_us_puma_5var_joint_k32_20260220T172157Z/puma_5var_joint_wide.csv
+  checkpoint: outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/final.pt
+
+推理参数（与主结果一致）：
+  condition: pairwise
+  eval_mode: leave_mi_out
+  n_eval_joint_samples: 128
+  posthoc_ipf: true
+  ipf_iters: 200
+
+代码入口：
+  修改 tools/essay/exp1_output_examples.py 或新建 tools/essay/exp1_output_examples_v2.py
+  复用 _eval_5var_common.py 的 load_eval_data() 和 infer_one_region()
+
+输出文件：
+  figures/fig_output_examples.pdf (替换现有文件)
+  输出 JSON 中额外记录：
+    - total_population (N) for each PUMA
+    - cross_tab_true 和 cross_tab_gen (education × income 2×2)
+    - cell_counts_true 和 cell_counts_gen (32 cells)
+```
+
+### 配色
+
+沿用 Okabe-Ito 色盲友好配色：
+- True: OKABE_ITO["blue"] (#0072B2)
+- Generated: OKABE_ITO["vermillion"] (#D55E00)
+- 或者用 True=深灰, Generated=主题色（如果期刊要求灰度可读）
 
 ---
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-Experiment 1: visualize output examples for representative Michigan PUMAs.
+Experiment 1: product-style output examples for representative Michigan PUMAs.
 
 Outputs:
 - figures/fig_output_examples.pdf
@@ -16,6 +16,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors as mcolors
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 if str(REPO / "src") not in sys.path:
@@ -37,13 +38,26 @@ from _eval_5var_common import (
 )
 
 
-def _select_representatives(
-    *,
-    data: Any,
-    n_examples: int,
-    quantiles: list[float],
-) -> list[int]:
-    test = data.test_idx
+PROFILE_SPECS: list[tuple[str, str, str, int]] = [
+    ("Age", "Young", "Old", 0),
+    ("Sex", "Male", "Female", 1),
+    ("Income", "Low", "High", 2),
+    ("Education", "Low", "High", 3),
+    ("Employment", "Employed", "Not-Empl", 4),
+]
+
+DEFAULT_PUMA_UIDS = ["2602903", "2601100"]
+DEFAULT_REGION_LABELS = {
+    "2602903": "University Town",
+    "2601100": "Typical Suburb",
+}
+
+
+def _parse_csv_list(spec: str) -> list[str]:
+    return [x.strip() for x in str(spec).split(",") if x.strip()]
+
+
+def _global_reference(data: Any) -> np.ndarray:
     train = data.train_idx
     w = np.maximum(data.totals[train], 0.0)
     if float(w.sum()) <= 0:
@@ -51,33 +65,185 @@ def _select_representatives(
     else:
         p_global = np.sum(data.p_joint[train] * w.reshape(-1, 1), axis=0) / float(w.sum())
     p_global = p_global / max(float(p_global.sum()), 1e-12)
-
-    tvd_test = np.array([_tvd(data.p_joint[i], p_global) for i in test], dtype=float)
-    order = np.argsort(tvd_test)
-    picked: list[int] = []
-    for q in quantiles[:n_examples]:
-        target = float(np.quantile(tvd_test, q))
-        cand = order[np.argmin(np.abs(tvd_test[order] - target))]
-        idx = int(test[cand])
-        if idx not in picked:
-            picked.append(idx)
-    while len(picked) < int(n_examples):
-        idx = int(test[order[len(picked)]])
-        if idx not in picked:
-            picked.append(idx)
-    return picked[: int(n_examples)]
+    return p_global.astype(np.float64)
 
 
-def _profile_text(data: Any, idx: int) -> str:
-    p = data.p_joint[idx]
-    age = _marginal_from_joint(p, shape=data.shape, axis=0)
-    income = _marginal_from_joint(p, shape=data.shape, axis=2)
-    schl = _marginal_from_joint(p, shape=data.shape, axis=3)
-    esr = _marginal_from_joint(p, shape=data.shape, axis=4)
-    return (
-        f"age_bin0={age[0]:.2f}, income_bin0={income[0]:.2f}\n"
-        f"schl_bin0={schl[0]:.2f}, esr_bin0={esr[0]:.2f}"
+def _select_fixed_representatives(*, data: Any, puma_uids: list[str]) -> list[int]:
+    id_to_idx = {str(pid): int(i) for i, pid in enumerate(data.ids)}
+    missing = [pid for pid in puma_uids if pid not in id_to_idx]
+    if missing:
+        raise SystemExit(f"Requested PUMA(s) not found in eval data: {missing}")
+    picked = [id_to_idx[pid] for pid in puma_uids]
+    bad = [data.ids[i] for i in picked if int(i) not in set(map(int, data.test_idx.tolist()))]
+    if bad:
+        raise SystemExit(f"Requested PUMA(s) are not in the test split: {bad}")
+    return picked
+
+
+def _format_count(x: float) -> str:
+    return f"{int(round(float(x))):,}"
+
+
+def _profile_marginals(p: np.ndarray, shape: tuple[int, ...]) -> list[np.ndarray]:
+    return [_marginal_from_joint(p, shape=shape, axis=axis) for axis in range(len(shape))]
+
+
+def _cross_tab_income_education(p: np.ndarray, *, shape: tuple[int, ...]) -> np.ndarray:
+    tab = np.asarray(p, dtype=float).reshape(shape)
+    out = tab.sum(axis=(0, 1, 4))  # keep income(axis=2) and schl(axis=3)
+    out = out / max(float(out.sum()), 1e-12)
+    return out.astype(np.float64)
+
+
+def _mix_with_white(color: str, alpha: float) -> tuple[float, float, float]:
+    rgb = np.asarray(mcolors.to_rgb(color), dtype=float)
+    return tuple((1.0 - alpha) * np.ones(3) + alpha * rgb)
+
+
+def _cell_label(idx: int, shape: tuple[int, ...]) -> str:
+    a, s, inc, edu, emp = np.unravel_index(int(idx), shape)
+    age_lab = ["Y", "O"][int(a)]
+    sex_lab = ["M", "F"][int(s)]
+    inc_lab = ["L", "H"][int(inc)]
+    edu_lab = ["L", "H"][int(edu)]
+    emp_lab = ["E", "N"][int(emp)]
+    return f"{age_lab}/{sex_lab}/{inc_lab}/{edu_lab}/{emp_lab}"
+
+
+def _draw_profile_panel(
+    *,
+    ax: Any,
+    p_true: np.ndarray,
+    p_gen: np.ndarray,
+    total_pop: float,
+    region_title: str,
+    puma_uid: str,
+    shape: tuple[int, ...],
+) -> None:
+    marg_true = _profile_marginals(p_true, shape=shape)
+    marg_gen = _profile_marginals(p_gen, shape=shape)
+    y_base = np.arange(len(PROFILE_SPECS))[::-1].astype(float)
+    h = 0.28
+
+    c_true0 = _mix_with_white(OKABE_ITO["blue"], 0.92)
+    c_true1 = _mix_with_white(OKABE_ITO["sky_blue"], 0.92)
+    c_gen0 = _mix_with_white(OKABE_ITO["vermillion"], 0.88)
+    c_gen1 = _mix_with_white(OKABE_ITO["orange"], 0.88)
+
+    for i, (attr, bin0, bin1, axis) in enumerate(PROFILE_SPECS):
+        y = y_base[i]
+        t = marg_true[axis] * float(total_pop)
+        g = marg_gen[axis] * float(total_pop)
+
+        ax.barh(y + h / 2, t[0], height=h, color=c_true0, edgecolor="white", linewidth=0.8)
+        ax.barh(y + h / 2, t[1], left=t[0], height=h, color=c_true1, edgecolor="white", linewidth=0.8)
+        ax.barh(y - h / 2, g[0], height=h, color=c_gen0, edgecolor="white", linewidth=0.8)
+        ax.barh(y - h / 2, g[1], left=g[0], height=h, color=c_gen1, edgecolor="white", linewidth=0.8)
+
+        ax.text(-0.02 * total_pop, y, attr, ha="right", va="center", fontsize=8)
+        ax.text(t[0] * 0.5, y + h / 2, f"{bin0}\n{marg_true[axis][0] * 100:.0f}%", ha="center", va="center", fontsize=6.5, color="black")
+        ax.text(t[0] + t[1] * 0.5, y + h / 2, f"{bin1}\n{marg_true[axis][1] * 100:.0f}%", ha="center", va="center", fontsize=6.5, color="black")
+
+    ax.set_xlim(0, float(total_pop))
+    ax.set_ylim(-0.8, len(PROFILE_SPECS) - 0.2)
+    ax.set_yticks([])
+    ax.set_xlabel("Person count")
+    ax.set_title(f"{region_title}\nPUMA {puma_uid}", fontsize=9)
+    ax.text(
+        0.98,
+        1.03,
+        f"N = {_format_count(total_pop)}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=8,
     )
+    despine(ax)
+
+
+def _draw_heatmap_panel(
+    *,
+    parent_spec: Any,
+    fig: Any,
+    cross_true: np.ndarray,
+    cross_gen: np.ndarray,
+    total_pop: float,
+) -> list[Any]:
+    sub = parent_spec.subgridspec(1, 2, wspace=0.12)
+    axes = [fig.add_subplot(sub[0, 0]), fig.add_subplot(sub[0, 1])]
+    vmax = max(float(cross_true.max()), float(cross_gen.max()), 1e-6)
+    panels = [("True", cross_true), ("Generated", cross_gen)]
+    cmap = "YlOrRd"
+    for ax, (title, arr) in zip(axes, panels):
+        im = ax.imshow(arr, cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
+        for i in range(arr.shape[0]):
+            for j in range(arr.shape[1]):
+                cnt = float(arr[i, j] * total_pop)
+                pct = float(arr[i, j] * 100.0)
+                ax.text(
+                    j,
+                    i,
+                    f"{_format_count(cnt)}\n{pct:.1f}%",
+                    ha="center",
+                    va="center",
+                    fontsize=7,
+                    color="black",
+                )
+        ax.set_xticks([0, 1], labels=["Low", "High"])
+        ax.set_yticks([0, 1], labels=["Low", "High"])
+        ax.set_xlabel("Income")
+        if ax is axes[0]:
+            ax.set_ylabel("Education")
+        ax.set_title(title, fontsize=8)
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.8)
+            spine.set_color("black")
+        ax.set_xticks(np.arange(-0.5, 2, 1), minor=True)
+        ax.set_yticks(np.arange(-0.5, 2, 1), minor=True)
+        ax.grid(which="minor", color="white", linewidth=1.0)
+        ax.tick_params(which="minor", bottom=False, left=False)
+    return axes
+
+
+def _draw_joint_panel(
+    *,
+    ax: Any,
+    p_true: np.ndarray,
+    p_gen: np.ndarray,
+    total_pop: float,
+    shape: tuple[int, ...],
+) -> None:
+    order = np.argsort(-p_true)
+    x = np.arange(p_true.size)
+    cnt_true = p_true[order] * float(total_pop)
+    cnt_gen = p_gen[order] * float(total_pop)
+    w = 0.42
+    ax.bar(x - w / 2, cnt_true, width=w, color=OKABE_ITO["blue"], alpha=0.85, label="True")
+    ax.bar(x + w / 2, cnt_gen, width=w, color=OKABE_ITO["vermillion"], alpha=0.75, label="Generated")
+    ax.set_xlabel("Joint cell (sorted by true mass)")
+    ax.set_ylabel("Person count")
+    ax.set_xticks([0, 7, 15, 23, 31], labels=["1", "8", "16", "24", "32"])
+    ax.text(
+        0.98,
+        0.98,
+        f"TVD = {_tvd(p_gen, p_true):.3f}",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=8,
+    )
+    for rank in range(min(4, len(order))):
+        idx = int(order[rank])
+        ax.text(
+            rank,
+            max(cnt_true[rank], cnt_gen[rank]) * 1.03,
+            _cell_label(idx, shape),
+            ha="center",
+            va="bottom",
+            rotation=90,
+            fontsize=6.3,
+        )
+    despine(ax)
 
 
 def main() -> None:
@@ -92,7 +258,9 @@ def main() -> None:
     ap.add_argument("--n_eval_joint_samples", type=int, default=128)
     ap.add_argument("--posthoc_ipf", action="store_true")
     ap.add_argument("--ipf_iters", type=int, default=200)
-    ap.add_argument("--n_examples", type=int, default=4)
+    ap.add_argument("--n_examples", type=int, default=2)
+    ap.add_argument("--puma_uids", default="2602903,2601100")
+    ap.add_argument("--region_labels", default="University Town,Typical Suburb")
     ap.add_argument("--out_pdf", required=True)
     ap.add_argument("--out_json", required=True)
     args = ap.parse_args()
@@ -117,18 +285,26 @@ def main() -> None:
 
     model = DiffusionTabularModel(input_dim=1, cond_dim=0, seed=int(args.seed))
     model.load(ckpt)
-    quantiles = [0.90, 0.75, 0.50, 0.25]
-    rep_idx = _select_representatives(data=data, n_examples=int(args.n_examples), quantiles=quantiles)
+    puma_uids = _parse_csv_list(str(args.puma_uids))
+    if not puma_uids:
+        puma_uids = list(DEFAULT_PUMA_UIDS)
+    region_labels = _parse_csv_list(str(args.region_labels))
+    if not region_labels:
+        region_labels = [DEFAULT_REGION_LABELS.get(pid, f"PUMA {pid}") for pid in puma_uids]
+    if len(region_labels) != len(puma_uids):
+        raise SystemExit("--region_labels must have the same length as --puma_uids")
+    rep_idx = _select_fixed_representatives(data=data, puma_uids=puma_uids)
 
-    C_TRUE = OKABE_ITO["blue"]
-    C_PRED = OKABE_ITO["vermillion"]
-    C_RES = OKABE_ITO["gray"]
+    p_global = _global_reference(data)
 
     records: list[dict[str, Any]] = []
     with paper_style():
-        fig, axes = plt.subplots(2, int(args.n_examples), figsize=(12.5, 4.8), sharex=False)
-        fig.subplots_adjust(wspace=0.35, hspace=0.35)
-        for j, idx in enumerate(rep_idx):
+        fig = plt.figure(figsize=(6.9, 4.0))
+        outer = fig.add_gridspec(2, 3, width_ratios=[1.25, 1.05, 1.45], wspace=0.36, hspace=0.42)
+        profile_axes = []
+        joint_axes = []
+        heat_axes: list[list[Any]] = []
+        for row, idx in enumerate(rep_idx):
             p_true = data.p_joint[idx]
             p_hat_raw, p_hat_eval = infer_one_region(
                 model=model,
@@ -140,53 +316,83 @@ def main() -> None:
                 posthoc_ipf=bool(args.posthoc_ipf),
                 ipf_iters=int(args.ipf_iters),
             )
-            order = np.argsort(-p_true)
-            x = np.arange(p_true.size)
-            ax0 = axes[0, j]
-            ax1 = axes[1, j]
-            w = 0.42
-            ax0.bar(x - w / 2, p_true[order], width=w, color=C_TRUE, alpha=0.85, label="true")
-            ax0.bar(x + w / 2, p_hat_eval[order], width=w, color=C_PRED, alpha=0.75, label="generated")
-            ax0.set_title(
-                f"PUMA {data.ids[idx]} (q~{quantiles[j]:.2f})\nTVD={_tvd(p_hat_eval, p_true):.3f}",
-                fontsize=8,
-            )
-            if j == 0:
-                ax0.legend(frameon=False, fontsize=7)
-                ax0.set_ylabel("Probability")
-            ax0.text(
-                0.02,
-                0.98,
-                _profile_text(data, idx),
-                transform=ax0.transAxes,
-                va="top",
-                ha="left",
-                fontsize=6.5,
-                color="black",
-            )
-            despine(ax0)
-            add_panel_label(ax0, chr(ord("a") + j), dx=-18)
+            total_pop = float(data.totals[idx])
+            cross_true = _cross_tab_income_education(p_true, shape=data.shape)
+            cross_gen = _cross_tab_income_education(p_hat_eval, shape=data.shape)
+            profile_ax = fig.add_subplot(outer[row, 0])
+            joint_ax = fig.add_subplot(outer[row, 2])
+            region_title = region_labels[row]
 
-            res = (p_hat_eval - p_true)[order]
-            ax1.axhline(0.0, color="black", linewidth=0.8)
-            ax1.axhline(0.01, color="black", linewidth=0.6, linestyle="--", alpha=0.6)
-            ax1.axhline(-0.01, color="black", linewidth=0.6, linestyle="--", alpha=0.6)
-            ax1.bar(x, res, width=0.8, color=C_RES, alpha=0.75)
-            if j == 0:
-                ax1.set_ylabel("Residual")
-            ax1.set_xlabel("Cells (sorted by true prob.)")
-            despine(ax1)
-            add_panel_label(ax1, chr(ord("e") + j), dx=-18)
+            _draw_profile_panel(
+                ax=profile_ax,
+                p_true=p_true,
+                p_gen=p_hat_eval,
+                total_pop=total_pop,
+                region_title=region_title,
+                puma_uid=data.ids[idx],
+                shape=data.shape,
+            )
+            heat_pair = _draw_heatmap_panel(
+                parent_spec=outer[row, 1],
+                fig=fig,
+                cross_true=cross_true,
+                cross_gen=cross_gen,
+                total_pop=total_pop,
+            )
+            _draw_joint_panel(
+                ax=joint_ax,
+                p_true=p_true,
+                p_gen=p_hat_eval,
+                total_pop=total_pop,
+                shape=data.shape,
+            )
+            profile_axes.append(profile_ax)
+            joint_axes.append(joint_ax)
+            heat_axes.append(heat_pair)
+
+            if row == 0:
+                profile_ax.legend(
+                    handles=[
+                        plt.Rectangle((0, 0), 1, 1, color=_mix_with_white(OKABE_ITO["blue"], 0.92)),
+                        plt.Rectangle((0, 0), 1, 1, color=_mix_with_white(OKABE_ITO["vermillion"], 0.88)),
+                    ],
+                    labels=["True", "Generated"],
+                    frameon=False,
+                    fontsize=7,
+                    loc="lower right",
+                )
+                heat_pair[0].text(0.5, 1.18, "Education × Income", transform=heat_pair[0].transAxes, ha="center", va="bottom", fontsize=9)
+                joint_ax.text(0.5, 1.12, "Full 32-cell joint distribution", transform=joint_ax.transAxes, ha="center", va="bottom", fontsize=9)
 
             records.append(
                 {
                     "puma_uid": data.ids[idx],
+                    "region_label": region_title,
                     "tvd": float(_tvd(p_hat_eval, p_true)),
                     "tvd_raw": float(_tvd(p_hat_raw, p_true)),
-                    "profile": _profile_text(data, idx),
-                    "quantile_anchor": float(quantiles[j]),
+                    "tvd_to_global": float(_tvd(p_true, p_global)),
+                    "total_population": total_pop,
+                    "marginals_true": {
+                        spec[0].lower(): _marginal_from_joint(p_true, shape=data.shape, axis=spec[3]).astype(float).tolist()
+                        for spec in PROFILE_SPECS
+                    },
+                    "marginals_generated": {
+                        spec[0].lower(): _marginal_from_joint(p_hat_eval, shape=data.shape, axis=spec[3]).astype(float).tolist()
+                        for spec in PROFILE_SPECS
+                    },
+                    "cross_tab_true": cross_true.astype(float).tolist(),
+                    "cross_tab_gen": cross_gen.astype(float).tolist(),
+                    "cell_counts_true": (p_true * total_pop).astype(float).tolist(),
+                    "cell_counts_gen": (p_hat_eval * total_pop).astype(float).tolist(),
                 }
             )
+
+        add_panel_label(profile_axes[0], "a", dx=-24, dy=6)
+        add_panel_label(heat_axes[0][0], "b", dx=-20, dy=6)
+        add_panel_label(joint_axes[0], "c", dx=-22, dy=6)
+        add_panel_label(profile_axes[1], "d", dx=-24, dy=6)
+        add_panel_label(heat_axes[1][0], "e", dx=-20, dy=6)
+        add_panel_label(joint_axes[1], "f", dx=-22, dy=6)
 
         save_figure(fig, out_pdf)
         plt.close(fig)
