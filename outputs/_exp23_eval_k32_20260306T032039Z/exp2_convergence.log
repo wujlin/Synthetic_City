@@ -1,0 +1,12 @@
+[ok] epoch=100 tvd_mean=0.043968 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_00100.pt
+[ok] epoch=200 tvd_mean=0.040228 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_00200.pt
+[ok] epoch=500 tvd_mean=0.034755 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_00500.pt
+[ok] epoch=1000 tvd_mean=0.030467 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_01000.pt
+[ok] epoch=2000 tvd_mean=0.027736 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_02000.pt
+[ok] epoch=3000 tvd_mean=0.025587 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_03000.pt
+[ok] epoch=5000 tvd_mean=0.025524 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_05000.pt
+[ok] epoch=7000 tvd_mean=0.024476 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_07000.pt
+[ok] epoch=10000 tvd_mean=0.023592 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_10000.pt
+[ok] epoch=20000 tvd_mean=0.024057 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_20000.pt
+[ok] epoch=30000 tvd_mean=0.023777 ckpt=/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/epoch_30000.pt
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_exp23_eval_k32_20260306T032039Z/exp2_convergence.json

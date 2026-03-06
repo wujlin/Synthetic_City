@@ -1,0 +1,11 @@
+[ok] n_draws=1 mean=0.026602 std=0.000333
+[ok] n_draws=2 mean=0.025162 std=0.000165
+[ok] n_draws=4 mean=0.024494 std=0.000157
+[ok] n_draws=8 mean=0.024139 std=0.000150
+[ok] n_draws=16 mean=0.023920 std=0.000116
+[ok] n_draws=32 mean=0.023849 std=0.000080
+[ok] n_draws=64 mean=0.023826 std=0.000034
+[ok] n_draws=128 mean=0.023785 std=0.000026
+[ok] n_draws=256 mean=0.023768 std=0.000021
+[ok] n_draws=512 mean=0.023762 std=0.000012
+[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_exp23_eval_k32_20260306T032039Z/exp3_mc_stability.json

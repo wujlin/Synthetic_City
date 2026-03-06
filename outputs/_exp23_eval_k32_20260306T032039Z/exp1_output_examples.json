@@ -1,0 +1,47 @@
+{
+  "checkpoint": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/final.pt",
+  "joint_wide_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_joint_k32_20260220T172157Z/puma_5var_joint_wide.csv",
+  "condition": "pairwise",
+  "eval_mode": "leave_mi_out",
+  "n_eval_joint_samples": 128,
+  "posthoc_ipf": true,
+  "examples": [
+    {
+      "puma_uid": "2602903",
+      "tvd": 0.021294588498615295,
+      "tvd_raw": 0.021240309513340258,
+      "profile": "age_bin0=0.54, income_bin0=0.63\nschl_bin0=0.37, esr_bin0=0.53",
+      "quantile_anchor": 0.9
+    },
+    {
+      "puma_uid": "2602905",
+      "tvd": 0.023292593952933986,
+      "tvd_raw": 0.02293668280474703,
+      "profile": "age_bin0=0.56, income_bin0=0.64\nschl_bin0=0.39, esr_bin0=0.56",
+      "quantile_anchor": 0.75
+    },
+    {
+      "puma_uid": "2601100",
+      "tvd": 0.015553246422730923,
+      "tvd_raw": 0.015558733250921329,
+      "profile": "age_bin0=0.56, income_bin0=0.81\nschl_bin0=0.60, esr_bin0=0.46",
+      "quantile_anchor": 0.5
+    },
+    {
+      "puma_uid": "2603213",
+      "tvd": 0.02644953405316185,
+      "tvd_raw": 0.02695376803148649,
+      "profile": "age_bin0=0.60, income_bin0=0.77\nschl_bin0=0.53, esr_bin0=0.44",
+      "quantile_anchor": 0.25
+    }
+  ],
+  "summary_tvd": {
+    "mean": 0.02164749073186051,
+    "std": 0.003969582419890943,
+    "min": 0.015553246422730923,
+    "max": 0.02644953405316185,
+    "p50": 0.02229359122577464,
+    "p90": 0.02550245202309349,
+    "n": 4
+  }
+}
