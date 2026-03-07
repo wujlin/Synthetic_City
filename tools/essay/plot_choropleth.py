@@ -133,7 +133,6 @@ def plot_choropleth():
             ax_ak.set_xlim(-180, -130)
             ax_ak.set_ylim(51, 72)
         ax_ak.axis("off")
-        ax_ak.set_title("Alaska", fontsize=8, pad=2)
 
         # Hawaii inset — to the right of Alaska, zoomed to main islands
         ax_hi = fig.add_axes([0.24, 0.0, 0.18, 0.18])
@@ -142,7 +141,6 @@ def plot_choropleth():
             ax_hi.set_xlim(-160.5, -154.5)
             ax_hi.set_ylim(18.8, 22.5)
         ax_hi.axis("off")
-        ax_hi.set_title("Hawai\u02BBi", fontsize=8, pad=2)
 
         # Horizontal colorbar at bottom-right
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)

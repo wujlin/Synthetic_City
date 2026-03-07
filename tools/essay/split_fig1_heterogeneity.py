@@ -95,25 +95,23 @@ def main() -> None:
         ax.set_ylim(23, 52)
         ax.axis("off")
 
-        ax_ak = fig.add_axes([0.02, 0.60, 0.16, 0.30])
+        ax_ak = fig.add_axes([0.03, 0.12, 0.16, 0.24])
         if not alaska.empty:
             alaska.plot(ax=ax_ak, **plot_kw)
             ax_ak.set_xlim(-180, -130)
             ax_ak.set_ylim(51, 72)
         ax_ak.axis("off")
-        ax_ak.set_title("AK", fontsize=7, pad=1)
 
-        ax_hi = fig.add_axes([0.18, 0.60, 0.11, 0.18])
+        ax_hi = fig.add_axes([0.17, 0.12, 0.11, 0.14])
         if not hawaii.empty:
             hawaii.plot(ax=ax_hi, **plot_kw)
             ax_hi.set_xlim(-160.5, -154.5)
             ax_hi.set_ylim(18.8, 22.5)
         ax_hi.axis("off")
-        ax_hi.set_title("HI", fontsize=7, pad=1)
 
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cax = fig.add_axes([0.30, 0.08, 0.50, 0.03])
+        cax = fig.add_axes([0.33, 0.08, 0.47, 0.03])
         cb = fig.colorbar(sm, cax=cax, orientation="horizontal")
         cb.set_label("TVD to national-average copula", fontsize=8, labelpad=3)
         cb.ax.tick_params(labelsize=7)

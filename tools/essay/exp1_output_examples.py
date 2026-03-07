@@ -17,6 +17,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors as mcolors
+from matplotlib.patches import Patch
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 if str(REPO / "src") not in sys.path:
@@ -45,6 +46,14 @@ PROFILE_SPECS: list[tuple[str, str, str, int]] = [
     ("Education", "Low", "High", 3),
     ("Employment", "Employed", "Not-Empl", 4),
 ]
+
+PROFILE_LABELS = {
+    "Age": "Age (Y/O)",
+    "Sex": "Sex (M/F)",
+    "Income": "Income (L/H)",
+    "Education": "Educ. (L/H)",
+    "Employment": "Employ. (E/N)",
+}
 
 DEFAULT_PUMA_UIDS = ["2602903", "2601100"]
 DEFAULT_REGION_LABELS = {
@@ -140,13 +149,10 @@ def _draw_profile_panel(
         ax.barh(y - h / 2, g[0], height=h, color=c_gen0, edgecolor="white", linewidth=0.8)
         ax.barh(y - h / 2, g[1], left=g[0], height=h, color=c_gen1, edgecolor="white", linewidth=0.8)
 
-        ax.text(-0.02 * total_pop, y, attr, ha="right", va="center", fontsize=8)
-        ax.text(t[0] * 0.5, y + h / 2, f"{bin0}\n{marg_true[axis][0] * 100:.0f}%", ha="center", va="center", fontsize=6.5, color="black")
-        ax.text(t[0] + t[1] * 0.5, y + h / 2, f"{bin1}\n{marg_true[axis][1] * 100:.0f}%", ha="center", va="center", fontsize=6.5, color="black")
-
     ax.set_xlim(0, float(total_pop))
     ax.set_ylim(-0.8, len(PROFILE_SPECS) - 0.2)
-    ax.set_yticks([])
+    ax.set_yticks(y_base, labels=[PROFILE_LABELS[attr] for attr, _, _, _ in PROFILE_SPECS])
+    ax.tick_params(axis="y", labelsize=7)
     ax.set_xlabel("Person count")
     ax.set_title(f"{region_title}\nPUMA {puma_uid}", fontsize=9)
     ax.text(
@@ -169,26 +175,15 @@ def _draw_heatmap_panel(
     cross_gen: np.ndarray,
     total_pop: float,
 ) -> list[Any]:
-    sub = parent_spec.subgridspec(1, 2, wspace=0.12)
+    sub = parent_spec.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.08], wspace=0.18)
     axes = [fig.add_subplot(sub[0, 0]), fig.add_subplot(sub[0, 1])]
+    cax = fig.add_subplot(sub[0, 2])
     vmax = max(float(cross_true.max()), float(cross_gen.max()), 1e-6)
     panels = [("True", cross_true), ("Generated", cross_gen)]
     cmap = "YlOrRd"
+    im = None
     for ax, (title, arr) in zip(axes, panels):
         im = ax.imshow(arr, cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
-        for i in range(arr.shape[0]):
-            for j in range(arr.shape[1]):
-                cnt = float(arr[i, j] * total_pop)
-                pct = float(arr[i, j] * 100.0)
-                ax.text(
-                    j,
-                    i,
-                    f"{_format_count(cnt)}\n{pct:.1f}%",
-                    ha="center",
-                    va="center",
-                    fontsize=7,
-                    color="black",
-                )
         ax.set_xticks([0, 1], labels=["Low", "High"])
         ax.set_yticks([0, 1], labels=["Low", "High"])
         ax.set_xlabel("Income")
@@ -202,7 +197,10 @@ def _draw_heatmap_panel(
         ax.set_yticks(np.arange(-0.5, 2, 1), minor=True)
         ax.grid(which="minor", color="white", linewidth=1.0)
         ax.tick_params(which="minor", bottom=False, left=False)
-    return axes
+    cb = fig.colorbar(im, cax=cax)
+    cb.set_label("Share", fontsize=7)
+    cb.ax.tick_params(labelsize=6)
+    return axes + [cax]
 
 
 def _draw_joint_panel(
@@ -232,17 +230,6 @@ def _draw_joint_panel(
         va="top",
         fontsize=8,
     )
-    for rank in range(min(4, len(order))):
-        idx = int(order[rank])
-        ax.text(
-            rank,
-            max(cnt_true[rank], cnt_gen[rank]) * 1.03,
-            _cell_label(idx, shape),
-            ha="center",
-            va="bottom",
-            rotation=90,
-            fontsize=6.3,
-        )
     despine(ax)
 
 
@@ -351,16 +338,6 @@ def main() -> None:
             heat_axes.append(heat_pair)
 
             if row == 0:
-                profile_ax.legend(
-                    handles=[
-                        plt.Rectangle((0, 0), 1, 1, color=_mix_with_white(OKABE_ITO["blue"], 0.92)),
-                        plt.Rectangle((0, 0), 1, 1, color=_mix_with_white(OKABE_ITO["vermillion"], 0.88)),
-                    ],
-                    labels=["True", "Generated"],
-                    frameon=False,
-                    fontsize=7,
-                    loc="lower right",
-                )
                 heat_pair[0].text(0.5, 1.18, "Education × Income", transform=heat_pair[0].transAxes, ha="center", va="bottom", fontsize=9)
                 joint_ax.text(0.5, 1.12, "Full 32-cell joint distribution", transform=joint_ax.transAxes, ha="center", va="bottom", fontsize=9)
 
@@ -393,6 +370,18 @@ def main() -> None:
         add_panel_label(profile_axes[1], "d", dx=-24, dy=6)
         add_panel_label(heat_axes[1][0], "e", dx=-20, dy=6)
         add_panel_label(joint_axes[1], "f", dx=-22, dy=6)
+
+        fig.legend(
+            handles=[
+                Patch(facecolor=OKABE_ITO["blue"], edgecolor="none", alpha=0.85, label="True"),
+                Patch(facecolor=OKABE_ITO["vermillion"], edgecolor="none", alpha=0.75, label="Generated"),
+            ],
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.99),
+            ncol=2,
+            frameon=False,
+            fontsize=8,
+        )
 
         save_figure(fig, out_pdf)
         plt.close(fig)
