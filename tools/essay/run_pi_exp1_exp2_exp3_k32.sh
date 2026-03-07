@@ -93,6 +93,7 @@ python -u tools/essay/exp1_output_examples.py \
   --puma_uids "2602903,2601100" \
   --region_labels "University Town,Typical Suburb" \
   --out_pdf "$FIG_DIR/fig_output_examples.pdf" \
+  --out_png "$FIG_DIR/fig_output_examples.png" \
   --out_json "$RUN_EXP23/exp1_output_examples.json" 2>&1 | tee "$RUN_EXP23/exp1_output_examples.log"
 echo ">>> [Exp1-K32] RC=${PIPESTATUS[0]}"
 
@@ -120,6 +121,7 @@ echo ">>> [split_fig1] RC=${PIPESTATUS[0]}"
 echo ">>> Outputs"
 ls -lh \
   "$FIG_DIR/fig_output_examples.pdf" \
+  "$FIG_DIR/fig_output_examples.png" \
   "$FIG_DIR/fig_verification.pdf" \
   "$FIG_DIR/fig1_map.pdf" \
   "$FIG_DIR/fig_S2_heterogeneity_stats.pdf"

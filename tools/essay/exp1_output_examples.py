@@ -128,6 +128,7 @@ def _draw_profile_panel(
     region_title: str,
     puma_uid: str,
     shape: tuple[int, ...],
+    show_xlabel: bool = True,
 ) -> None:
     marg_true = _profile_marginals(p_true, shape=shape)
     marg_gen = _profile_marginals(p_gen, shape=shape)
@@ -153,16 +154,20 @@ def _draw_profile_panel(
     ax.set_ylim(-0.8, len(PROFILE_SPECS) - 0.2)
     ax.set_yticks(y_base, labels=[PROFILE_LABELS[attr] for attr, _, _, _ in PROFILE_SPECS])
     ax.tick_params(axis="y", labelsize=7)
-    ax.set_xlabel("Person count")
-    ax.set_title(f"{region_title}\nPUMA {puma_uid}", fontsize=9)
+    if show_xlabel:
+        ax.set_xlabel("Person count")
+    else:
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelbottom=False)
+    ax.set_title(region_title, fontsize=9, pad=2)
     ax.text(
-        0.98,
-        1.03,
-        f"N = {_format_count(total_pop)}",
+        0.02,
+        1.01,
+        f"PUMA {puma_uid} | N = {_format_count(total_pop)}",
         transform=ax.transAxes,
-        ha="right",
+        ha="left",
         va="bottom",
-        fontsize=8,
+        fontsize=7,
     )
     despine(ax)
 
@@ -174,6 +179,7 @@ def _draw_heatmap_panel(
     cross_true: np.ndarray,
     cross_gen: np.ndarray,
     total_pop: float,
+    show_xlabel: bool = True,
 ) -> list[Any]:
     sub = parent_spec.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.08], wspace=0.18)
     axes = [fig.add_subplot(sub[0, 0]), fig.add_subplot(sub[0, 1])]
@@ -186,7 +192,11 @@ def _draw_heatmap_panel(
         im = ax.imshow(arr, cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
         ax.set_xticks([0, 1], labels=["Low", "High"])
         ax.set_yticks([0, 1], labels=["Low", "High"])
-        ax.set_xlabel("Income")
+        if show_xlabel:
+            ax.set_xlabel("Income")
+        else:
+            ax.set_xlabel("")
+            ax.tick_params(axis="x", labelbottom=False)
         if ax is axes[0]:
             ax.set_ylabel("Education")
         ax.set_title(title, fontsize=8)
@@ -210,6 +220,7 @@ def _draw_joint_panel(
     p_gen: np.ndarray,
     total_pop: float,
     shape: tuple[int, ...],
+    show_xlabel: bool = True,
 ) -> None:
     order = np.argsort(-p_true)
     x = np.arange(p_true.size)
@@ -218,7 +229,11 @@ def _draw_joint_panel(
     w = 0.42
     ax.bar(x - w / 2, cnt_true, width=w, color=OKABE_ITO["blue"], alpha=0.85, label="True")
     ax.bar(x + w / 2, cnt_gen, width=w, color=OKABE_ITO["vermillion"], alpha=0.75, label="Generated")
-    ax.set_xlabel("Joint cell (sorted by true mass)")
+    if show_xlabel:
+        ax.set_xlabel("Joint cell (sorted by true mass)")
+    else:
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelbottom=False)
     ax.set_ylabel("Person count")
     ax.set_xticks([0, 7, 15, 23, 31], labels=["1", "8", "16", "24", "32"])
     ax.text(
@@ -249,12 +264,14 @@ def main() -> None:
     ap.add_argument("--puma_uids", default="2602903,2601100")
     ap.add_argument("--region_labels", default="University Town,Typical Suburb")
     ap.add_argument("--out_pdf", required=True)
+    ap.add_argument("--out_png", default="")
     ap.add_argument("--out_json", required=True)
     args = ap.parse_args()
 
     joint_csv = pathlib.Path(args.joint_wide_csv).expanduser().resolve()
     ckpt = pathlib.Path(args.checkpoint).expanduser().resolve()
     out_pdf = pathlib.Path(args.out_pdf).expanduser().resolve()
+    out_png = pathlib.Path(args.out_png).expanduser().resolve() if str(args.out_png).strip() else None
     out_json = pathlib.Path(args.out_json).expanduser().resolve()
     if not joint_csv.exists():
         raise SystemExit(f"joint_wide_csv not found: {joint_csv}")
@@ -286,8 +303,8 @@ def main() -> None:
 
     records: list[dict[str, Any]] = []
     with paper_style():
-        fig = plt.figure(figsize=(6.9, 4.0))
-        outer = fig.add_gridspec(2, 3, width_ratios=[1.25, 1.05, 1.45], wspace=0.36, hspace=0.42)
+        fig = plt.figure(figsize=(7.2, 4.8))
+        outer = fig.add_gridspec(2, 3, width_ratios=[1.30, 1.08, 1.52], wspace=0.40, hspace=0.52)
         profile_axes = []
         joint_axes = []
         heat_axes: list[list[Any]] = []
@@ -318,6 +335,7 @@ def main() -> None:
                 region_title=region_title,
                 puma_uid=data.ids[idx],
                 shape=data.shape,
+                show_xlabel=(row == len(rep_idx) - 1),
             )
             heat_pair = _draw_heatmap_panel(
                 parent_spec=outer[row, 1],
@@ -325,6 +343,7 @@ def main() -> None:
                 cross_true=cross_true,
                 cross_gen=cross_gen,
                 total_pop=total_pop,
+                show_xlabel=(row == len(rep_idx) - 1),
             )
             _draw_joint_panel(
                 ax=joint_ax,
@@ -332,14 +351,11 @@ def main() -> None:
                 p_gen=p_hat_eval,
                 total_pop=total_pop,
                 shape=data.shape,
+                show_xlabel=(row == len(rep_idx) - 1),
             )
             profile_axes.append(profile_ax)
             joint_axes.append(joint_ax)
             heat_axes.append(heat_pair)
-
-            if row == 0:
-                heat_pair[0].text(0.5, 1.18, "Education × Income", transform=heat_pair[0].transAxes, ha="center", va="bottom", fontsize=9)
-                joint_ax.text(0.5, 1.12, "Full 32-cell joint distribution", transform=joint_ax.transAxes, ha="center", va="bottom", fontsize=9)
 
             records.append(
                 {
@@ -371,19 +387,25 @@ def main() -> None:
         add_panel_label(heat_axes[1][0], "e", dx=-20, dy=6)
         add_panel_label(joint_axes[1], "f", dx=-22, dy=6)
 
+        fig.text(0.19, 0.97, "Demographic profile", ha="center", va="top", fontsize=9)
+        fig.text(0.50, 0.97, "Education × Income", ha="center", va="top", fontsize=9)
+        fig.text(0.82, 0.97, "Full 32-cell joint", ha="center", va="top", fontsize=9)
+
         fig.legend(
             handles=[
                 Patch(facecolor=OKABE_ITO["blue"], edgecolor="none", alpha=0.85, label="True"),
                 Patch(facecolor=OKABE_ITO["vermillion"], edgecolor="none", alpha=0.75, label="Generated"),
             ],
             loc="upper center",
-            bbox_to_anchor=(0.5, 0.99),
+            bbox_to_anchor=(0.5, 1.04),
             ncol=2,
             frameon=False,
             fontsize=8,
         )
 
         save_figure(fig, out_pdf)
+        if out_png is not None:
+            fig.savefig(out_png, dpi=220)
         plt.close(fig)
 
     write_json(
@@ -400,6 +422,8 @@ def main() -> None:
         },
     )
     print(f"[ok] wrote: {out_pdf}")
+    if out_png is not None:
+        print(f"[ok] wrote: {out_png}")
     print(f"[ok] wrote: {out_json}")
 
 
