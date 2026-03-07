@@ -5,7 +5,7 @@ from __future__ import annotations
 Experiment 1: product-style output examples for representative Michigan PUMAs.
 
 Outputs:
-- figures/fig_output_examples.pdf
+- figures/fig_03_output_examples.pdf
 - metrics/output_examples.json
 """
 

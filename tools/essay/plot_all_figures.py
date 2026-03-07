@@ -5,10 +5,10 @@
     python Essay/plot_all_figures.py
 
 输出：
-    Essay/figures/fig1_heterogeneity.pdf
-    Essay/figures/fig2_main_results.pdf
-    Essay/figures/fig3_ablation.pdf
-    Essay/figures/fig4_scaling.pdf
+    Essay/figures/legacy/fig1_heterogeneity.pdf
+    Essay/figures/fig_06_main_results.pdf
+    Essay/figures/fig_05_ablation.pdf
+    Essay/figures/fig_s01_scaling.pdf
 """
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ from plot_style import (
 
 OUT_DIR = REPO / "Essay" / "figures"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+LEGACY_DIR = OUT_DIR / "legacy"
+LEGACY_DIR.mkdir(parents=True, exist_ok=True)
 
 C_DIFF = OKABE_ITO["blue"]
 C_IPF = OKABE_ITO["vermillion"]
@@ -218,9 +220,9 @@ def fig1_heterogeneity():
         despine(ax)
         add_panel_label(ax, "d")
 
-        save_figure(fig, OUT_DIR / "fig1_heterogeneity.pdf")
-        fig.savefig(OUT_DIR / "fig1_heterogeneity.png", dpi=200)
-        print(f"  → {OUT_DIR / 'fig1_heterogeneity.pdf'}")
+        save_figure(fig, LEGACY_DIR / "fig1_heterogeneity.pdf")
+        fig.savefig(LEGACY_DIR / "fig1_heterogeneity.png", dpi=200)
+        print(f"  → {LEGACY_DIR / 'fig1_heterogeneity.pdf'}")
     plt.close(fig)
 
 
@@ -308,9 +310,9 @@ def fig2_main_results():
         despine(ax)
         add_panel_label(ax, "d")
 
-        save_figure(fig, OUT_DIR / "fig2_main_results.pdf")
-        fig.savefig(OUT_DIR / "fig2_main_results.png", dpi=200)
-        print(f"  → {OUT_DIR / 'fig2_main_results.pdf'}")
+        save_figure(fig, OUT_DIR / "fig_06_main_results.pdf")
+        fig.savefig(OUT_DIR / "fig_06_main_results.png", dpi=200)
+        print(f"  → {OUT_DIR / 'fig_06_main_results.pdf'}")
     plt.close(fig)
 
 
@@ -414,9 +416,9 @@ def fig3_ablation():
         despine(ax)
         add_panel_label(ax, "d")
 
-        save_figure(fig, OUT_DIR / "fig3_ablation.pdf")
-        fig.savefig(OUT_DIR / "fig3_ablation.png", dpi=200)
-        print(f"  → {OUT_DIR / 'fig3_ablation.pdf'}")
+        save_figure(fig, OUT_DIR / "fig_05_ablation.pdf")
+        fig.savefig(OUT_DIR / "fig_05_ablation.png", dpi=200)
+        print(f"  → {OUT_DIR / 'fig_05_ablation.pdf'}")
     plt.close(fig)
 
 
@@ -503,9 +505,9 @@ def fig4_scaling():
         despine(ax)
         add_panel_label(ax, "d")
 
-        save_figure(fig, OUT_DIR / "fig4_scaling.pdf")
-        fig.savefig(OUT_DIR / "fig4_scaling.png", dpi=200)
-        print(f"  → {OUT_DIR / 'fig4_scaling.pdf'}")
+        save_figure(fig, OUT_DIR / "fig_s01_scaling.pdf")
+        fig.savefig(OUT_DIR / "fig_s01_scaling.png", dpi=200)
+        print(f"  → {OUT_DIR / 'fig_s01_scaling.pdf'}")
     plt.close(fig)
 
 

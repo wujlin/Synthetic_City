@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-Plot fig_verification.pdf (1x3 panels):
+Plot fig_04_verification.pdf (1x3 panels):
 (a) raw marginal consistency
 (b) convergence vs epoch
 (c) MC stability vs draw count

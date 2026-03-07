@@ -47,7 +47,7 @@ However, these methods share a commonality, which is that the copula structure i
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig1_map.pdf}
+\includegraphics[width=\textwidth]{figures/fig_01_map.pdf}
 \caption{Spatial heterogeneity of dependence structure across US regions.
 Choropleth of PUMA-level TVD to the national-average joint distribution ($K=32$, five demographic attributes). High-TVD regions (darker shading) cluster around major metropolitan areas, university towns, and areas with distinctive demographic compositions. The full distribution of TVD values and a breakdown for Michigan's 68 held-out regions are shown in Supplementary Fig.~S2.}
 \label{fig:heterogeneity}
@@ -91,7 +91,7 @@ Recovering $\mathbf{p}$ from marginals alone is fundamentally underdetermined: $
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/figure_framework.jpg}
+\includegraphics[width=\textwidth]{figures/fig_02_framework.jpg}
 \caption{Method overview: distribution-level diffusion for population synthesis.
 \textbf{(Left)~Training:} Each region is represented by an empirical joint distribution $\mathbf{p}\in\Delta^{K-1}$, transformed into log-probability space and z-score normalized to form the diffusion target $\mathbf{z}_0$. A denoiser MLP receives the noised target $\mathbf{z}_t$, a timestep embedding, and a condition vector $\mathbf{c}$ built from one-dimensional marginals and optional two-dimensional pairwise cross-tabulations.
 \textbf{(Right)~Inference:} Reverse denoising maps Gaussian noise to a region-specific joint distribution conditioned on the target constraints. The resulting raw probability estimates are averaged over repeated draws and then adjusted by one round of post-hoc IPF to satisfy exact target marginals.}
@@ -210,7 +210,7 @@ Three levels of comparison reveal how well the generated population matches real
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_output_examples.pdf}
+\includegraphics[width=\textwidth]{figures/fig_03_output_examples.pdf}
 \caption{Synthetic population output for two contrasting Michigan PUMAs: a university town (top row) and a typical suburb (bottom row).
 (a,d)~Demographic profile: population composition across five attributes. True and generated marginals match by construction after post-hoc IPF; darker and lighter segments indicate the two bins within each attribute.
 (b,e)~Education$\times$income cross-tabulation shown with a shared color scale. The university town has a much higher college-educated share (63\% vs.\ 40\%), reshaping the income--education association, and the generated table preserves this region-specific pattern.
@@ -231,7 +231,7 @@ Monte Carlo stability is assessed by varying the number of denoising draws avera
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_verification.pdf}
+\includegraphics[width=\textwidth]{figures/fig_04_verification.pdf}
 \caption{Verification and validation.
 (a)~Raw marginal TVD under pairwise conditioning ($K=32$): all five attributes fall below 0.002, demonstrating learned marginal consistency before post-hoc IPF.
 (b)~Training convergence: TVD vs.\ epoch count, showing rapid improvement followed by plateau.
@@ -276,7 +276,7 @@ Does this ablation pattern hold across different numbers of variables? We test t
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig3_ablation.pdf}
+\includegraphics[width=\textwidth]{figures/fig_05_ablation.pdf}
 \caption{Condition ablation and information hierarchy.
 (a)~TVD progression from none to pairwise at $K=32$, with independence baseline as upper reference.
 (b)~Same at $K=128$.
@@ -336,7 +336,7 @@ Mean & 0.069 & 0.074 & $-0.006$ \\
 
 \begin{figure}[!bhtp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig2_main_results.png}
+\includegraphics[width=\textwidth]{figures/fig_06_main_results.pdf}
 \caption{Comparison with IPF.
 (a)~Diffusion TVD vs.\ IPF TVD across all configurations. Points below the diagonal indicate diffusion advantage.
 (b)~Michigan 5-fold: per-fold $\Delta$ (diffusion $-$ IPF). All folds favor diffusion.
@@ -406,7 +406,7 @@ $K$ & Variables & Diff.\ TVD & IPF TVD & $\Delta$ \\
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig4_scaling.pdf}
+\includegraphics[width=\textwidth]{figures/fig_s01_scaling.pdf}
 \caption{\textbf{Supplementary Fig.~S1.} Dimensional scaling and information boundaries.
 (a)~Diffusion TVD and IPF TVD vs.\ joint dimensionality $K$. Crossover near $K\approx 400$.
 (b)~Training effect at $K=512$: TVD at 10k and 30k epochs, with IPF reference.
@@ -417,7 +417,7 @@ $K$ & Variables & Diff.\ TVD & IPF TVD & $\Delta$ \\
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_S2_heterogeneity_stats.pdf}
+\includegraphics[width=\textwidth]{figures/fig_s02_heterogeneity_stats.pdf}
 \caption{\textbf{Supplementary Fig.~S2.} Distribution of dependence heterogeneity.
 (a)~Histogram of TVD-to-global for 2,456 US regions. Mean = 0.191 (dashed); 90th percentile = 0.265.
 (b)~Rank-ordered TVD across all regions; the long right tail shows a substantial minority deviate strongly from the national average.

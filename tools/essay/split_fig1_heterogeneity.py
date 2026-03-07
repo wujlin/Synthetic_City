@@ -3,8 +3,8 @@ from __future__ import annotations
 
 """
 Split original heterogeneity figure into:
-- fig1_map.pdf (main text)
-- fig_S2_heterogeneity_stats.pdf (SI: distribution stats)
+- fig_01_map.pdf (main text)
+- fig_s02_heterogeneity_stats.pdf (SI: distribution stats)
 """
 
 import argparse

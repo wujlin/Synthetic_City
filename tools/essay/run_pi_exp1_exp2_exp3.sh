@@ -87,7 +87,8 @@ python -u tools/essay/exp1_output_examples.py \
   --posthoc_ipf \
   --ipf_iters 200 \
   --n_examples 4 \
-  --out_pdf "$FIG_DIR/fig_output_examples.pdf" \
+  --out_pdf "$FIG_DIR/fig_03_output_examples.pdf" \
+  --out_png "$FIG_DIR/fig_03_output_examples.png" \
   --out_json "$RUN_EXP23/exp1_output_examples.json" 2>&1 | tee "$RUN_EXP23/exp1_output_examples.log"
 echo ">>> [Exp1] RC=${PIPESTATUS[0]}"
 
@@ -97,8 +98,8 @@ python -u tools/essay/plot_verification.py \
   --convergence_json "$RUN_EXP23/exp2_convergence.json" \
   --mc_json "$RUN_EXP23/exp3_mc_stability.json" \
   --condition pairwise \
-  --out_pdf "$FIG_DIR/fig_verification.pdf" \
-  --out_png "$FIG_DIR/fig_verification.png" 2>&1 | tee "$RUN_EXP23/plot_verification.log"
+  --out_pdf "$FIG_DIR/fig_04_verification.pdf" \
+  --out_png "$FIG_DIR/fig_04_verification.png" 2>&1 | tee "$RUN_EXP23/plot_verification.log"
 echo ">>> [fig_verification] RC=${PIPESTATUS[0]}"
 
 echo ">>> Split Figure 1"
@@ -106,18 +107,18 @@ python -u tools/essay/split_fig1_heterogeneity.py \
   --puma_zip "$PUMA_ZIP" \
   --us_heterogeneity_json "$US_HET_JSON" \
   --mi_heterogeneity_json "$MI_HET_JSON" \
-  --out_map_pdf "$FIG_DIR/fig1_map.pdf" \
-  --out_stats_pdf "$FIG_DIR/fig_S2_heterogeneity_stats.pdf" \
-  --out_map_png "$FIG_DIR/fig1_map.png" \
-  --out_stats_png "$FIG_DIR/fig_S2_heterogeneity_stats.png" 2>&1 | tee "$RUN_EXP23/split_fig1.log"
+  --out_map_pdf "$FIG_DIR/fig_01_map.pdf" \
+  --out_stats_pdf "$FIG_DIR/fig_s02_heterogeneity_stats.pdf" \
+  --out_map_png "$FIG_DIR/fig_01_map.png" \
+  --out_stats_png "$FIG_DIR/fig_s02_heterogeneity_stats.png" 2>&1 | tee "$RUN_EXP23/split_fig1.log"
 echo ">>> [split_fig1] RC=${PIPESTATUS[0]}"
 
 echo ">>> Outputs"
 ls -lh \
-  "$FIG_DIR/fig_output_examples.pdf" \
-  "$FIG_DIR/fig_verification.pdf" \
-  "$FIG_DIR/fig1_map.pdf" \
-  "$FIG_DIR/fig_S2_heterogeneity_stats.pdf"
+  "$FIG_DIR/fig_03_output_examples.pdf" \
+  "$FIG_DIR/fig_04_verification.pdf" \
+  "$FIG_DIR/fig_01_map.pdf" \
+  "$FIG_DIR/fig_s02_heterogeneity_stats.pdf"
 
 echo ">>> DONE"
 echo "RUN_EXP2=$RUN_EXP2"
