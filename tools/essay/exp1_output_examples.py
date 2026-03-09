@@ -17,7 +17,6 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors as mcolors
-from matplotlib.patches import Patch
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 if str(REPO / "src") not in sys.path:
@@ -169,7 +168,7 @@ def _draw_heatmap_panel(
     cross_gen: np.ndarray,
     show_xlabel: bool = True,
 ) -> list[Any]:
-    sub = parent_spec.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.07], wspace=0.22)
+    sub = parent_spec.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.08], wspace=0.14)
     axes = [fig.add_subplot(sub[0, 0]), fig.add_subplot(sub[0, 1])]
     cax = fig.add_subplot(sub[0, 2])
     vmax = max(float(cross_true.max()), float(cross_gen.max()), 1e-6)
@@ -180,11 +179,7 @@ def _draw_heatmap_panel(
         im = ax.imshow(arr, cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
         ax.set_xticks([0, 1], labels=["Low", "High"])
         ax.set_yticks([0, 1], labels=["Low", "High"] if j == 0 else ["", ""])
-        if show_xlabel:
-            ax.set_xlabel("Income")
-        else:
-            ax.set_xlabel("")
-            ax.tick_params(axis="x", labelbottom=False)
+        ax.tick_params(axis="x", labelbottom=True)
         if j == 0:
             ax.set_ylabel("Education")
         ax.text(0.5, 1.06, title, transform=ax.transAxes, ha="center", va="bottom", fontsize=7)
@@ -198,6 +193,11 @@ def _draw_heatmap_panel(
         ax.tick_params(axis="both", labelsize=7, pad=1)
     cb = fig.colorbar(im, cax=cax)
     cb.ax.tick_params(labelsize=6)
+    pos_l = axes[0].get_position()
+    pos_r = axes[1].get_position()
+    x_center = 0.5 * (pos_l.x0 + pos_r.x1)
+    y_bottom = min(pos_l.y0, pos_r.y0)
+    fig.text(x_center, y_bottom - 0.02, "Income", ha="center", va="top", fontsize=8)
     return axes + [cax]
 
 
@@ -225,15 +225,6 @@ def _draw_joint_panel(
     ax.set_ylabel("")
     ax.set_xticks([0, 7, 15, 23, 31], labels=["1", "8", "16", "24", "32"])
     ax.tick_params(axis="both", labelsize=7)
-    ax.text(
-        0.98,
-        0.98,
-        f"TVD = {_tvd(p_gen, p_true):.3f}",
-        transform=ax.transAxes,
-        ha="right",
-        va="top",
-        fontsize=8,
-    )
     despine(ax)
 
 
@@ -292,8 +283,8 @@ def main() -> None:
 
     records: list[dict[str, Any]] = []
     with paper_style():
-        fig = plt.figure(figsize=(7.2, 5.25))
-        outer = fig.add_gridspec(2, 3, width_ratios=[1.34, 1.02, 1.58], wspace=0.54, hspace=0.50)
+        fig = plt.figure(figsize=(7.35, 4.85))
+        outer = fig.add_gridspec(2, 3, width_ratios=[1.26, 1.24, 1.45], wspace=0.28, hspace=0.48)
         profile_axes = []
         joint_axes = []
         heat_axes: list[list[Any]] = []
@@ -329,7 +320,7 @@ def main() -> None:
                 fig=fig,
                 cross_true=cross_true,
                 cross_gen=cross_gen,
-                show_xlabel=(row == len(rep_idx) - 1),
+                show_xlabel=True,
             )
             _draw_joint_panel(
                 ax=joint_ax,
@@ -373,21 +364,9 @@ def main() -> None:
         add_panel_label(heat_axes[1][0], "e", dx=-18, dy=6)
         add_panel_label(joint_axes[1], "f", dx=-18, dy=6)
 
-        fig.text(0.19, 0.975, "Demographic profile", ha="center", va="top", fontsize=9)
-        fig.text(0.505, 0.975, "Education × Income", ha="center", va="top", fontsize=9)
-        fig.text(0.835, 0.975, "Full 32-cell joint", ha="center", va="top", fontsize=9)
-
-        fig.legend(
-            handles=[
-                Patch(facecolor=OKABE_ITO["blue"], edgecolor="none", alpha=0.85, label="True"),
-                Patch(facecolor=OKABE_ITO["vermillion"], edgecolor="none", alpha=0.75, label="Generated"),
-            ],
-            loc="upper center",
-            bbox_to_anchor=(0.5, 1.025),
-            ncol=2,
-            frameon=False,
-            fontsize=8,
-        )
+        fig.text(0.185, 0.975, "Demographic profile", ha="center", va="top", fontsize=9)
+        fig.text(0.515, 0.975, "Education × Income", ha="center", va="top", fontsize=9)
+        fig.subplots_adjust(left=0.075, right=0.985, top=0.90, bottom=0.11)
 
         save_figure(fig, out_pdf)
         if out_png is not None:
