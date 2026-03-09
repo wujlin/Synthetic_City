@@ -160,45 +160,37 @@ def _draw_profile_panel(
     despine(ax)
 
 
-def _draw_heatmap_panel(
+def _draw_cross_panel(
     *,
-    parent_spec: Any,
-    fig: Any,
+    ax: Any,
     cross_true: np.ndarray,
     cross_gen: np.ndarray,
     show_xlabel: bool = True,
-) -> list[Any]:
-    sub = parent_spec.subgridspec(1, 3, width_ratios=[1.0, 1.0, 0.08], wspace=0.14)
-    axes = [fig.add_subplot(sub[0, 0]), fig.add_subplot(sub[0, 1])]
-    cax = fig.add_subplot(sub[0, 2])
-    vmax = max(float(cross_true.max()), float(cross_gen.max()), 1e-6)
-    panels = [("True", cross_true), ("Generated", cross_gen)]
-    cmap = "YlOrRd"
-    im = None
-    for j, (ax, (title, arr)) in enumerate(zip(axes, panels)):
-        im = ax.imshow(arr, cmap=cmap, vmin=0.0, vmax=vmax, aspect="equal")
-        ax.set_xticks([0, 1], labels=["Low", "High"])
-        ax.set_yticks([0, 1], labels=["Low", "High"] if j == 0 else ["", ""])
-        ax.tick_params(axis="x", labelbottom=True)
-        if j == 0:
-            ax.set_ylabel("Education")
-        ax.text(0.5, 1.06, title, transform=ax.transAxes, ha="center", va="bottom", fontsize=7)
-        for spine in ax.spines.values():
-            spine.set_linewidth(0.8)
-            spine.set_color("black")
-        ax.set_xticks(np.arange(-0.5, 2, 1), minor=True)
-        ax.set_yticks(np.arange(-0.5, 2, 1), minor=True)
-        ax.grid(which="minor", color="white", linewidth=1.0)
-        ax.tick_params(which="minor", bottom=False, left=False)
-        ax.tick_params(axis="both", labelsize=7, pad=1)
-    cb = fig.colorbar(im, cax=cax)
-    cb.ax.tick_params(labelsize=6)
-    pos_l = axes[0].get_position()
-    pos_r = axes[1].get_position()
-    x_center = 0.5 * (pos_l.x0 + pos_r.x1)
-    y_bottom = min(pos_l.y0, pos_r.y0)
-    fig.text(x_center, y_bottom - 0.02, "Income", ha="center", va="top", fontsize=8)
-    return axes + [cax]
+) -> None:
+    vals_true = np.asarray(
+        [cross_true[0, 0], cross_true[0, 1], cross_true[1, 0], cross_true[1, 1]],
+        dtype=float,
+    )
+    vals_gen = np.asarray(
+        [cross_gen[0, 0], cross_gen[0, 1], cross_gen[1, 0], cross_gen[1, 1]],
+        dtype=float,
+    )
+    cats = ["L/L", "L/H", "H/L", "H/H"]
+    x = np.arange(4, dtype=float)
+    w = 0.36
+    ax.bar(x - w / 2, vals_true, width=w, color=OKABE_ITO["blue"], alpha=0.85)
+    ax.bar(x + w / 2, vals_gen, width=w, color=OKABE_ITO["vermillion"], alpha=0.75)
+    ax.set_xticks(x, labels=cats)
+    if show_xlabel:
+        ax.set_xlabel("Income × Education")
+    else:
+        ax.set_xlabel("")
+        ax.tick_params(axis="x", labelbottom=False)
+    ax.set_ylabel("Share")
+    ax.tick_params(axis="both", labelsize=7)
+    ax.set_ylim(0.0, max(float(vals_true.max()), float(vals_gen.max())) * 1.18)
+    ax.grid(axis="y", color="#d9d9d9", linewidth=0.6, alpha=0.8)
+    despine(ax)
 
 
 def _draw_joint_panel(
@@ -284,10 +276,10 @@ def main() -> None:
     records: list[dict[str, Any]] = []
     with paper_style():
         fig = plt.figure(figsize=(7.35, 4.85))
-        outer = fig.add_gridspec(2, 3, width_ratios=[1.26, 1.24, 1.45], wspace=0.28, hspace=0.48)
+        outer = fig.add_gridspec(2, 3, width_ratios=[1.22, 1.12, 1.52], wspace=0.34, hspace=0.44)
         profile_axes = []
         joint_axes = []
-        heat_axes: list[list[Any]] = []
+        cross_axes = []
         for row, idx in enumerate(rep_idx):
             p_true = data.p_joint[idx]
             p_hat_raw, p_hat_eval = infer_one_region(
@@ -304,6 +296,7 @@ def main() -> None:
             cross_true = _cross_tab_income_education(p_true, shape=data.shape)
             cross_gen = _cross_tab_income_education(p_hat_eval, shape=data.shape)
             profile_ax = fig.add_subplot(outer[row, 0])
+            cross_ax = fig.add_subplot(outer[row, 1])
             joint_ax = fig.add_subplot(outer[row, 2])
             region_title = region_labels[row]
 
@@ -315,9 +308,8 @@ def main() -> None:
                 shape=data.shape,
                 show_xlabel=(row == len(rep_idx) - 1),
             )
-            heat_pair = _draw_heatmap_panel(
-                parent_spec=outer[row, 1],
-                fig=fig,
+            _draw_cross_panel(
+                ax=cross_ax,
                 cross_true=cross_true,
                 cross_gen=cross_gen,
                 show_xlabel=True,
@@ -332,7 +324,7 @@ def main() -> None:
             )
             profile_axes.append(profile_ax)
             joint_axes.append(joint_ax)
-            heat_axes.append(heat_pair)
+            cross_axes.append(cross_ax)
 
             records.append(
                 {
@@ -358,10 +350,10 @@ def main() -> None:
             )
 
         add_panel_label(profile_axes[0], "a", dx=-20, dy=6)
-        add_panel_label(heat_axes[0][0], "b", dx=-18, dy=6)
+        add_panel_label(cross_axes[0], "b", dx=-18, dy=6)
         add_panel_label(joint_axes[0], "c", dx=-18, dy=6)
         add_panel_label(profile_axes[1], "d", dx=-20, dy=6)
-        add_panel_label(heat_axes[1][0], "e", dx=-18, dy=6)
+        add_panel_label(cross_axes[1], "e", dx=-18, dy=6)
         add_panel_label(joint_axes[1], "f", dx=-18, dy=6)
 
         fig.text(0.185, 0.975, "Demographic profile", ha="center", va="top", fontsize=9)
