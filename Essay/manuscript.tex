@@ -159,7 +159,7 @@ The denoiser $\epsilon_\theta$ is a two-hidden-layer MLP with hidden dimensions 
 \begin{equation}
   \mathcal{L} = \mathbb{E}_{t,\,\mathbf{z}_0,\,\boldsymbol{\epsilon}}\bigl[\|\boldsymbol{\epsilon} - \epsilon_\theta(\mathbf{z}_t, t, \mathbf{c})\|^2\bigr],
 \end{equation}
-where $\mathbf{z}_t = \sqrt{\bar\alpha_t}\,\mathbf{z}_0 + \sqrt{1-\bar\alpha_t}\,\boldsymbol{\epsilon}$, $\boldsymbol{\epsilon}\sim\mathcal{N}(0,I)$, and $\bar\alpha_t$ follows a cosine noise schedule with $T=1000$ timesteps. Optimizer: AdamW ($\text{lr}=10^{-3}$, $\text{wd}=10^{-4}$), gradient clipping at 1.0, batch size 512. Training epochs: 4,000 (2-var) and 30,000 (3/5-var $K\leq256$).
+where $\mathbf{z}_t = \sqrt{\bar\alpha_t}\,\mathbf{z}_0 + \sqrt{1-\bar\alpha_t}\,\boldsymbol{\epsilon}$, $\boldsymbol{\epsilon}\sim\mathcal{N}(0,I)$, and $\bar\alpha_t$ follows a linear noise schedule ($\beta_1=10^{-4}$, $\beta_T=0.02$) with $T=1000$ timesteps. Optimizer: AdamW ($\text{lr}=10^{-3}$, $\text{wd}=10^{-4}$), gradient clipping at 1.0, batch size 512. Training epochs: 4,000 (2-var) and 30,000 (3/5-var $K\leq256$).
 
 \subsection{Condition design}
 \label{sec:condition_design}

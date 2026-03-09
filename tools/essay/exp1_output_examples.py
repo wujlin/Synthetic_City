@@ -349,16 +349,14 @@ def main() -> None:
                 }
             )
 
-        add_panel_label(profile_axes[0], "a", dx=-20, dy=6)
-        add_panel_label(cross_axes[0], "b", dx=-18, dy=6)
-        add_panel_label(joint_axes[0], "c", dx=-18, dy=6)
-        add_panel_label(profile_axes[1], "d", dx=-20, dy=6)
-        add_panel_label(cross_axes[1], "e", dx=-18, dy=6)
-        add_panel_label(joint_axes[1], "f", dx=-18, dy=6)
+        add_panel_label(profile_axes[0], "a", dx=-28, dy=10)
+        add_panel_label(cross_axes[0], "b", dx=-26, dy=10)
+        add_panel_label(joint_axes[0], "c", dx=-24, dy=10)
+        add_panel_label(profile_axes[1], "d", dx=-28, dy=10)
+        add_panel_label(cross_axes[1], "e", dx=-26, dy=10)
+        add_panel_label(joint_axes[1], "f", dx=-24, dy=10)
 
-        fig.text(0.185, 0.975, "Demographic profile", ha="center", va="top", fontsize=9)
-        fig.text(0.515, 0.975, "Education × Income", ha="center", va="top", fontsize=9)
-        fig.subplots_adjust(left=0.075, right=0.985, top=0.90, bottom=0.11)
+        fig.subplots_adjust(left=0.085, right=0.985, top=0.94, bottom=0.11)
 
         save_figure(fig, out_pdf)
         if out_png is not None:
