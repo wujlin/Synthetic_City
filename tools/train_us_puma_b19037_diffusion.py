@@ -179,13 +179,20 @@ def _select_spatial_feature_cols(*, df: pd.DataFrame, sets: list[str], explicit_
 
 
 def _load_spatial_features(*, path: pathlib.Path, ids: list[str], sets: list[str], explicit_cols: list[str]) -> tuple[np.ndarray, list[str]]:
-    sdf = pd.read_csv(path)
-    if "puma_uid" not in sdf.columns:
-        raise SystemExit(f"spatial_features_csv missing required column: puma_uid ({path})")
-    if "statefp" in sdf.columns and "puma" in sdf.columns:
+    read_kwargs: dict[str, object] = {}
+    dtype_cols = {"puma_uid", "statefp", "puma"}
+    usecols = pd.read_csv(path, nrows=0).columns.tolist()
+    dtype_map = {c: str for c in usecols if c in dtype_cols}
+    if dtype_map:
+        read_kwargs["dtype"] = dtype_map
+    sdf = pd.read_csv(path, **read_kwargs)
+    if "puma_uid" in sdf.columns:
+        # Prefer the persisted canonical UID from the feature builder.
+        sdf["puma_uid"] = sdf["puma_uid"].map(_canon_uid_loose)
+    elif "statefp" in sdf.columns and "puma" in sdf.columns:
         sdf["puma_uid"] = sdf.apply(lambda r: _canon_uid(r["statefp"], r["puma"]), axis=1)
     else:
-        sdf["puma_uid"] = sdf["puma_uid"].map(_canon_uid_loose)
+        raise SystemExit(f"spatial_features_csv missing required column: puma_uid ({path})")
     sdf = sdf[sdf["puma_uid"] != ""].copy()
     sdf = sdf.drop_duplicates(subset=["puma_uid"], keep="first").set_index("puma_uid")
     miss_ids = [pid for pid in ids if pid not in sdf.index]
