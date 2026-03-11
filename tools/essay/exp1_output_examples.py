@@ -56,8 +56,8 @@ PROFILE_LABELS = {
 
 DEFAULT_PUMA_UIDS = ["2602903", "2601100"]
 DEFAULT_REGION_LABELS = {
-    "2602903": "High-heterogeneity case\nTroy-Rochester area (PUMA 2602903)",
-    "2601100": "Median-heterogeneity case\nIonia-Montcalm-Mecosta-Osceola (PUMA 2601100)",
+    "2602903": "PUMA 2602903",
+    "2601100": "PUMA 2601100",
 }
 
 
@@ -237,8 +237,8 @@ def main() -> None:
     ap.add_argument(
         "--region_labels",
         default=(
-            "High-heterogeneity case\\nTroy-Rochester area (PUMA 2602903),"
-            "Median-heterogeneity case\\nIonia-Montcalm-Mecosta-Osceola (PUMA 2601100)"
+            "PUMA 2602903,"
+            "PUMA 2601100"
         ),
     )
     ap.add_argument("--out_pdf", required=True)
@@ -381,15 +381,13 @@ def main() -> None:
         # Row labels identify which PUMA each row corresponds to.
         for row, label in enumerate(region_labels):
             pos = profile_axes[row].get_position()
-            ymid = 0.5 * (pos.y0 + pos.y1)
             fig.text(
-                0.015,
-                ymid,
+                pos.x0,
+                pos.y1 + 0.01,
                 label,
                 ha="left",
-                va="center",
+                va="bottom",
                 fontsize=8,
-                linespacing=1.1,
             )
 
         fig.subplots_adjust(left=0.105, right=0.985, top=0.92, bottom=0.11)
