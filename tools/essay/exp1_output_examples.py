@@ -56,8 +56,8 @@ PROFILE_LABELS = {
 
 DEFAULT_PUMA_UIDS = ["2602903", "2601100"]
 DEFAULT_REGION_LABELS = {
-    "2602903": "University Town",
-    "2601100": "Typical Suburb",
+    "2602903": "High-heterogeneity case\nTroy-Rochester area (PUMA 2602903)",
+    "2601100": "Median-heterogeneity case\nIonia-Montcalm-Mecosta-Osceola (PUMA 2601100)",
 }
 
 
@@ -234,7 +234,13 @@ def main() -> None:
     ap.add_argument("--ipf_iters", type=int, default=200)
     ap.add_argument("--n_examples", type=int, default=2)
     ap.add_argument("--puma_uids", default="2602903,2601100")
-    ap.add_argument("--region_labels", default="University Town,Typical Suburb")
+    ap.add_argument(
+        "--region_labels",
+        default=(
+            "High-heterogeneity case\\nTroy-Rochester area (PUMA 2602903),"
+            "Median-heterogeneity case\\nIonia-Montcalm-Mecosta-Osceola (PUMA 2601100)"
+        ),
+    )
     ap.add_argument("--out_pdf", required=True)
     ap.add_argument("--out_png", default="")
     ap.add_argument("--out_json", required=True)
@@ -349,14 +355,44 @@ def main() -> None:
                 }
             )
 
-        add_panel_label(profile_axes[0], "a", dx=-28, dy=10)
-        add_panel_label(cross_axes[0], "b", dx=-26, dy=10)
-        add_panel_label(joint_axes[0], "c", dx=-24, dy=10)
-        add_panel_label(profile_axes[1], "d", dx=-28, dy=10)
-        add_panel_label(cross_axes[1], "e", dx=-26, dy=10)
-        add_panel_label(joint_axes[1], "f", dx=-24, dy=10)
+        add_panel_label(profile_axes[0], "a", dx=-30, dy=8)
+        add_panel_label(cross_axes[0], "b", dx=-28, dy=8)
+        add_panel_label(joint_axes[0], "c", dx=-26, dy=8)
+        add_panel_label(profile_axes[1], "d", dx=-30, dy=8)
+        add_panel_label(cross_axes[1], "e", dx=-28, dy=8)
+        add_panel_label(joint_axes[1], "f", dx=-26, dy=8)
 
-        fig.subplots_adjust(left=0.085, right=0.985, top=0.94, bottom=0.11)
+        # Compact legend for all panels.
+        legend_handles = [
+            plt.Line2D([0], [0], color=OKABE_ITO["blue"], lw=6, alpha=0.85, label="True"),
+            plt.Line2D([0], [0], color=OKABE_ITO["vermillion"], lw=6, alpha=0.75, label="Generated"),
+        ]
+        fig.legend(
+            handles=legend_handles,
+            loc="upper center",
+            bbox_to_anchor=(0.60, 0.985),
+            ncol=2,
+            frameon=False,
+            fontsize=8,
+            handlelength=1.8,
+            columnspacing=1.2,
+        )
+
+        # Row labels identify which PUMA each row corresponds to.
+        for row, label in enumerate(region_labels):
+            pos = profile_axes[row].get_position()
+            ymid = 0.5 * (pos.y0 + pos.y1)
+            fig.text(
+                0.015,
+                ymid,
+                label,
+                ha="left",
+                va="center",
+                fontsize=8,
+                linespacing=1.1,
+            )
+
+        fig.subplots_adjust(left=0.105, right=0.985, top=0.92, bottom=0.11)
 
         save_figure(fig, out_pdf)
         if out_png is not None:
