@@ -22,6 +22,8 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from plot_style import (
     OKABE_ITO,
     paper_style,
@@ -280,17 +282,17 @@ def fig2_main_results():
         despine(ax)
         add_panel_label(ax, "b")
 
-        # (c) Relative gain vs K
+        # (c) Relative gain across the five reported configurations
         ax = axes[1, 0]
-        k_vals = [32, 64, 64, 128, 256, 512]
-        rel_gain = [-59, -8, -22, -37, -19, 25]
-        labels_k = ["5v", "2v", "3v", "5v", "3v", "5v"]
+        k_vals = [32, 128, 256, 64, 64]
+        rel_gain = [-59, -37, -19, -22, -8]
+        labels_k = ["5v", "5v", "3v", "3v", "2v"]
         colors_k = [C_DIFF if g < 0 else C_IPF for g in rel_gain]
         ax.bar(range(len(k_vals)), rel_gain, color=colors_k, edgecolor="white", linewidth=0.5)
         ax.set_xticks(range(len(k_vals)))
         ax.set_xticklabels([f"{k}({l})" for k, l in zip(k_vals, labels_k)], fontsize=7)
         ax.axhline(0, color=C_INDEP, linewidth=0.8)
-        ax.set_xlabel("K (variables)", fontsize=9)
+        ax.set_xlabel("Configuration", fontsize=9)
         ax.set_ylabel("Relative gain (%)")
         despine(ax)
         add_panel_label(ax, "c")
@@ -328,14 +330,14 @@ def fig3_ablation():
         return abl["conditions"][cond]["tvd_joint"]["mean"]
 
     conds = ["none", "marginal", "pairwise", "marginal_pairwise"]
-    labels = ["none", "marginal", "pairwise", "marg+pair"]
+    labels = ["none", "marg.", "pair", "marg.+\npair"]
 
     with paper_style():
-        fig, axes = plt.subplots(2, 2, figsize=(6.5, 5.4))
-        fig.subplots_adjust(hspace=0.55, wspace=0.35)
+        fig, axes = plt.subplots(1, 3, figsize=(6.8, 2.7))
+        fig.subplots_adjust(wspace=0.42, bottom=0.34)
 
         # (a) K=32 ablation
-        ax = axes[0, 0]
+        ax = axes[0]
         tvds_32 = [_get_tvd(abl32, c) for c in conds]
         ipf_32 = abl32["baselines"]["ipf_train_seed"]["tvd_joint"]["mean"]
         indep_32 = abl32["baselines"]["independence"]["tvd_joint"]["mean"]
@@ -348,13 +350,11 @@ def fig3_ablation():
         ax.set_xticklabels(labels, fontsize=8)
         ax.set_ylabel("TVD")
         ax.set_title("5-var, K=32", fontsize=10)
-        ax.legend(frameon=False, fontsize=7,
-                  loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
         despine(ax)
         add_panel_label(ax, "a")
 
         # (b) K=128 ablation
-        ax = axes[0, 1]
+        ax = axes[1]
         tvds_128 = [_get_tvd(abl128, c) for c in conds]
         ipf_128 = abl128["baselines"]["ipf_train_seed"]["tvd_joint"]["mean"]
         indep_128 = abl128["baselines"]["independence"]["tvd_joint"]["mean"]
@@ -367,18 +367,16 @@ def fig3_ablation():
         ax.set_xticklabels(labels, fontsize=8)
         ax.set_ylabel("TVD")
         ax.set_title("5-var, K=128", fontsize=10)
-        ax.legend(frameon=False, fontsize=7,
-                  loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
         despine(ax)
         add_panel_label(ax, "b")
 
         # (c) Pairwise contribution vs D
-        ax = axes[1, 0]
+        ax = axes[2]
         d_vals = [2, 3, 5, 5]
         d_labels = ["D=2\nK=64", "D=3\nK=256", "D=5\nK=32", "D=5\nK=128"]
         marg_only = [0.069, 0.101, 0.043, 0.070]
         best_pair = [0.069, 0.084, 0.024, 0.051]
-        pct_change = [0, -17, -44, -27]
+        pct_change = [0, -17, -44, -26]
 
         x_pos = np.arange(len(d_vals))
         w = 0.35
@@ -392,29 +390,25 @@ def fig3_ablation():
         ax.set_xticklabels(d_labels, fontsize=7)
         ax.set_ylabel("TVD")
         ax.set_ylim(0, max(marg_only) * 1.25)
-        ax.legend(frameon=False, fontsize=7,
-                  loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
         despine(ax)
         add_panel_label(ax, "c")
 
-        # (d) Raw marginal TVD under pairwise (K=32)
-        ax = axes[1, 1]
-        vars_list = ["age", "sex", "income", "schl", "esr"]
-        var_labels = ["Age", "Sex", "Income", "Edu.", "Empl."]
-        raw_tvds = []
-        for v in vars_list:
-            key = f"tvd_{v}_raw"
-            raw_tvds.append(abl32["conditions"]["pairwise"].get(key, {}).get("mean", 0.0))
-
-        ax.bar(range(len(vars_list)), raw_tvds, color=C_PAIR, edgecolor="white", linewidth=0.5)
-        ax.set_xticks(range(len(vars_list)))
-        ax.set_xticklabels(var_labels, fontsize=9)
-        ax.set_ylabel("Marginal TVD (raw)")
-        ax.set_ylim(0, 0.003)
-        ax.axhline(0.002, color=C_INDEP, linestyle=":", linewidth=1.0, alpha=0.5, label="0.002 threshold")
-        ax.legend(frameon=False, fontsize=8)
-        despine(ax)
-        add_panel_label(ax, "d")
+        legend_handles = [
+            Line2D([0], [0], color=C_IPF, linestyle="--", linewidth=1.5, label="IPF"),
+            Line2D([0], [0], color=C_INDEP, linestyle=":", linewidth=1.2, label="Independence"),
+            Patch(facecolor=C_ACCENT, edgecolor="white", label="Marginal"),
+            Patch(facecolor=C_PAIR, edgecolor="white", label="+Pair"),
+        ]
+        fig.legend(
+            handles=legend_handles,
+            frameon=False,
+            fontsize=7,
+            loc="lower center",
+            bbox_to_anchor=(0.5, 0.02),
+            ncol=4,
+            handlelength=2.0,
+            columnspacing=1.4,
+        )
 
         save_figure(fig, OUT_DIR / "fig_05_ablation.pdf")
         fig.savefig(OUT_DIR / "fig_05_ablation.png", dpi=200)

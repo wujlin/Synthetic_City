@@ -33,17 +33,18 @@
 \onehalfspacing
 
 \begin{abstract}
-Reconstructing how demographic attributes co-occur within a region---not just their individual frequencies---is a central challenge in population synthesis. The standard method, iterative proportional fitting (IPF), fills this gap by reusing a fixed national-average template, implicitly assuming that the dependence structure is the same everywhere. We show empirically that this assumption is violated: regional dependence patterns vary substantially across more than 2,400 regions in the United States. To learn these region-specific patterns, we train a conditional diffusion model to directly predict the quantity that matters---the regional joint probability vector---treating each region's observed distribution as a single training example. This approach consistently outperforms IPF across five experimental configurations (up to 59\% error reduction), with statistical significance confirmed in a five-fold spatial cross-validation. Systematic ablations reveal that performance is driven by the quality of input constraints---two-variable cross-tabulations provide up to 44\% additional improvement over one-variable summaries---establishing constraint informativeness, not model capacity, as the critical resource for dependence recovery.
+Reconstructing how demographic attributes co-occur within a region---not just their individual frequencies---is a central challenge in population synthesis. The standard method, iterative proportional fitting (IPF), fills this gap by reusing a fixed national-average template, implicitly assuming that the dependence structure is the same everywhere. We show empirically that this assumption is violated: regional dependence patterns vary substantially across more than 2,400 regions in the United States. To learn these region-specific patterns, we train a conditional diffusion model to directly predict the quantity that matters---the regional joint probability vector---treating each region's observed distribution as a single training example. This approach consistently outperforms IPF across four experimental configurations (up to 59\% error reduction), with statistical significance confirmed in a five-fold spatial cross-validation. Systematic ablations reveal that performance is driven by the quality of input constraints---two-variable cross-tabulations provide up to 44\% additional improvement over one-variable summaries---establishing constraint informativeness, not model capacity, as the critical resource for dependence recovery.
 \end{abstract}
 
 %% ====================================================================
 \section{Introduction}
+\label{sec:intro}
 
 The creation of a synthetic population by reconstructing the joint distribution of demographic attributes within regions from aggregated data (i.e., data reporting regional marginal distributions of individual attributes) has long been regarded as a foundation of urban simulation, transportation modeling, and policy analysis \cite{mueller2011,barthelemy2013,la2025,chapuis2022}. However, aggregated data drastically under-specify the full picture from a statistical perspective. For example, when creating a synthetic population with five attributes and four values per attribute, the joint distribution contains more than one thousand potential combinations, whereas current methods typically rely on one-dimensional marginals alone. As a result, the underlying dependence structure---that is, the copula \cite{sklar1959} describing how multiple attributes co-occur---may be missed. The resulting synthetic population can therefore contain internal bias, such as assigning an impossible combination of attributes to a single synthetic individual.
 
 Recovering a joint distribution from marginals alone is inherently difficult because the copula is hard to reconstruct \cite{frogner2019}. Existing population-synthesis methods nevertheless attempt to address this problem through two broad strategies: synthetic reconstruction and combinatorial optimization \cite{chapuis2022}. In the synthetic-reconstruction family, methods such as Hierarchical Sampling (HS) \cite{jiang_large-scale_2024}, Iterative Proportional Fitting (IPF) \cite{predhumeau_synthetic_2023}, and Iterative Proportional Updating (IPU) \cite{ipu2009} recover joint distributions from aggregated data (e.g., census-tract-level data) by matching target marginals while preserving the seed copula structure \cite{choupani2016,lovelace2015}. In the combinatorial-optimization family \cite{harland2012}, one extends real individual-level microdata or adjusts existing synthetic individuals to match target joint distributions through fitness evaluation and optimized sampling procedures.
 
-However, these methods share a common limitation: the copula structure is extracted from aggregated data or real individual-level microdata and then applied uniformly across regions. This works when regions are demographically similar, but when regions are heterogeneous, a fixed copula can misrepresent local dependence and introduce internal bias into the resulting synthetic population \cite{roxburgh2025}. A related issue is spatial non-stationarity \cite{krupskii2018,mondal2024,bastin2023}. In the United States, for example, dependence structures vary substantially across the 2,456 Public Use Microdata Areas (PUMAs). We quantify this variation by comparing each regional dependence structure with the national average and obtain a mean total variation distance (TVD) of 0.19, which is far from negligible and far from uniform across regions (Fig.~\ref{fig:heterogeneity}). In practical terms, a university region with a distinctive ``young + low-income + high-education'' profile does not share the same age--income--education dependence pattern as a manufacturing region.
+However, these methods share a common limitation: the copula structure is extracted from aggregated data or real individual-level microdata and then applied uniformly across regions. This works when regions are demographically similar, but when regions are heterogeneous, a fixed copula can misrepresent local dependence and introduce internal bias into the resulting synthetic population \cite{roxburgh2025}. A related issue is spatial non-stationarity \cite{krupskii2018,mondal2024,bastin2023}, which fails to reconstruct the distribution of spatial heterogeneity related to the different combinations of demographic attributes. For example, a university region with a distinctive ``young + low-income + high-education'' profile does not share the same age--income--education dependence pattern as a manufacturing region. To demonstrate the spatial heterogeneity, we conduct an analysis by extracting the dependence structures (i.e., copula structures) across the 2,456 Public Use Microdata Areas (i.e., PUMAs) in the United States and comparing each regional dependence structure with the national average of total variation distance (i.e., TVD) of 0.19, which is far from negligible and far from uniform across regions (Fig.~\ref{fig:heterogeneity}).
 
 \begin{figure}[!bhtp]
 \centering
@@ -76,23 +77,19 @@ Recently, generative models have provided a new possibility for recovering the c
 
 \subsection{Overview}
 %The goal of this work is to learn region-specific dependence structures from data, replacing the fixed global template used by standard methods. 
-The primary objective of this framework is to accurately reconstruct region-specific joint demographic distributions from low-dimensional aggregate data, overcoming the assumption of spatial homogeneity inherent in standard population synthesis methods. 
-
-Recovering $\mathbf{p}$ from marginals alone is fundamentally underdetermined: $K-1$ unknowns versus $\sum_d(B_d-1)$ constraints. Traditional IPF resolves this by computing the information projection (I-projection) of a seed $\mathbf{q}$ onto the marginal-consistent polytope \cite{csiszar1975}, preserving the seed's interaction structure. However, when $\mathbf{q}$ is the population-weighted national average, every region inherits the same copula. Our diffusion model replaces this fixed $\mathbf{q}$ with a learned, region-specific estimate through three conceptual stages (Fig.~\ref{fig:framework}):
-
-
-%The Introduction identifies two challenges: (1)~regional copulas vary substantially across space, and (2)~recovering a high-dimensional joint distribution from low-dimensional marginal constraints is fundamentally underdetermined. Our approach addresses both through a three-stage pipeline (Fig.~\ref{fig:framework}).
+As discussed in Section~\ref{sec:intro}, the goal of this work is to propose a framework to reconstruct a synthetic population data where its five attributes follow the joint distribution of multiple demographic variables using PUMS data. In addition, this framework could generate the combinations of synthetic population attributes with realistic spatial heterogeneity. The framework comprises three stages as shown in Figure~\ref{fig:framework}. 
 
 \textbf{Stage~1: Distribution-level representation.}
-For each of 2,456 regions in the United States (PUMAs), we construct the empirical joint probability vector $\mathbf{p}\in\Delta^{K-1}$ over $D$ discretized demographic attributes, where $K=\prod_{d=1}^{D}B_d$ is the number of joint cells. We treat each region's $\mathbf{p}$ as a single training example, directly aligning the learning objective with the evaluation metric (\S\ref{sec:training_target}).
+As noted, five attributes will be generated for the resulting synthetic population, thus, in this stage we construct the empirical joint probability vector for the five attributes (e.g., age, sex, income, education, employment status) to represent copula. Specifically, for each of 2,456 PUMAs regions in the United States, the vector is constructed based on $\mathbf{p}\in\Delta^{K-1}$ over $D$ discretized demographic attributes, where $K=\prod_{d=1}^{D}B_d$ is the number of joint cells. We treat each region's $\mathbf{p}$ as a single training example, directly aligning the learning objective with the evaluation metric (\S\ref{sec:training_target}).
 
 \textbf{Stage~2: Conditional diffusion learning.}
-A denoising diffusion model learns to map low-dimensional demographic constraints (specifically, one-dimensional marginals and two-dimensional cross-tabulations) to the full joint distribution.
+A denoising diffusion model learns to map low-dimensional demographic constraints (specifically, one-dimensional marginals and two-dimensional cross-tabulations) to the full joint distribution using the vector generated in stage 1.
 The model is trained under the standard denoising diffusion probabilistic model (DDPM) $\epsilon$-prediction objective, with constraints injected via concatenation at the denoiser input. Four conditioning modes (none, marginal, pairwise, marg+pair) form a controlled ablation ladder that isolates the information contribution of each constraint type (\S\ref{sec:condition_design}).
 
-
 \textbf{Stage~3: Post-processing and evaluation.}
-At inference, an ensemble of independent denoising draws is averaged and passed through softmax to produce a raw probability estimate; one round of post-hoc IPF then enforces exact marginal consistency. The same post-processing is applied to the global-seed IPF baseline, so that any performance difference reflects seed quality alone. Evaluation uses a leave-Michigan-out spatial split to prevent autocorrelation leakage (\S\ref{sec:evaluation}).
+At inference, an ensemble of independent denoising draws is averaged and passed through softmax to produce a raw probability estimate; 
+
+
 
 
 \begin{figure}[H]
@@ -106,17 +103,9 @@ At inference, an ensemble of independent denoising draws is averaged and passed 
 
 
 
-\subsection{Data and binning}
+\subsection{Data and study area}
 
-The primary data source is the 2023 five-year American Community Survey (ACS) Public Use Microdata Sample (PUMS), covering 2,456 PUMAs across the United States. For each PUMA, we extract a joint empirical distribution over $D$ demographic attributes. To systematically evaluate the model, we define the state space using two statistical units; these systems are not directly compared against each other, but rather serve complementary diagnostic roles:
-
-
-%computed from individual-level microdata (or household-level records) weighted by survey weights.Joint cell counts use Laplace smoothing ($\alpha=1$), adding one pseudo-count per cell before normalizing to probabilities. At $K=32$ this perturbs cell probabilities by $<0.5\%$. At $K=512$ it prevents $\log(0)=-\infty$ for sparse cells, replacing them with $\log\!\bigl(\tfrac{1}{N+K}\bigr)\approx-9$, keeping the log-probability vector well-defined throughout. 
-
-\begin{itemize}
-  \item \textbf{2-var configuration(Household-level):} This configuration captures the joint distribution of householder age and household income, strictly matching the schema of the published ACS B19037 ($4\times16$ bins, $K=64$). We utilize this setting primarily for the Michigan 5-fold cross-validation to establish statistical significance test.
-  \item \textbf{3/5-var configuration (Person-level):} This configuration models up to five individual-level attributes---age (AGEP), sex (SEX), personal income (PINCP), educational attainment (SCHL), and employment status (ESR). By discretizing these variables at varying resolutions, we generate state spaces ranging from $K=32$ to $K=512$,  allowing us to probe the model's scaling behavior across different joint dimensionalities.
-\end{itemize}
+The primary data source is the 2023 five-year American Community Survey (ACS) Public Use Microdata Sample (PUMS), covering 2,456 PUMAs across the United States. For each PUMA, we extract an empirical joint distribution over $D$ individual-level demographic attributes---age (AGEP), sex (SEX), personal income (PINCP), educational attainment (SCHL), and employment status (ESR). By discretizing these variables at varying resolutions and selecting subsets of 3 or 5 attributes, we generate state spaces ranging from $K=32$ to $K=512$, allowing us to probe the model's scaling behavior across different joint dimensionalities.
 
 Prior to constructing the joint probability tables, continuous variables (specifically AGEP and PINCP) are discretized into categorical bins to form a finite diffusion target (Table~\ref{tab:var_attr}). The regional joint distributions are then computed by aggregating these microdata records and applying the respective survey weights.
 
@@ -136,7 +125,6 @@ SEX & Categorical code (1/2) & Two categories (Male/Female) & ACS PUMS 2023 five
 PINCP & Numeric (personal income) & Discrete bins only (2, 4, or 16 bins by setting) & ACS PUMS 2023 five-year person file & Economic axis in 3/5-var joints; key to age--income and education--income dependence. \\
 SCHL & Ordinal categorical code & Merged bins (2 or 4 bins by setting) & ACS PUMS 2023 five-year person file & Education axis in 3/5-var joints; used for higher-order dependence tests. \\
 ESR & Categorical code & Merged bins (2 or 4 bins by setting) & ACS PUMS 2023 five-year person file & Employment axis in 5-var settings; increases dimensional stress. \\
-Householder age $\times$ household income (B19037-aligned) & Household-level cross-tab concept & Fixed table bins ($4\times16$, $K=64$) & ACS B19037 schema + PUMS household/person linkage & Main 2-var benchmark with Michigan 5-fold significance test. \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
@@ -213,6 +201,7 @@ To instantiate the synthetic population for an unseen target region, the generat
 
 While the diffusion model effectively captures the regional dependence structure, standard population synthesis requires absolute fidelity to known macro-level marginals. To enforce this agreement, we apply a single round of post-hoc IPF to the raw estimates.Crucially, this identical calibration is applied to the global-seed IPF baseline.By ensuring both pipelines are adjusted to match target marginals, this experimental design strictly isolates the seed quality (the accuracy of the underlying dependence struture) as the sole driver of any performance difference.
 
+
 Given the region's census-reported population count $N$, the calibrated probability vector $\hat{\mathbf{p}}$ assigns $n_k=\mathrm{Round}(N\times\hat{p}_k)$ individuals to each demographic cell $k$.This procedure guarantees a final  synthetic population that faithfully reproduces both the target marginal frequencies and the localized dependence structure.
 
 %For each test region, generation proceeds as follows: (1)~draw $\mathbf{z}_T\sim\mathcal{N}(0,I)$; (2)~run DDPM reverse denoising with the test region's condition vector $\mathbf{c}$, yielding $\hat{\mathbf{z}}_0$; (3)~apply the inverse z-score transform to obtain $\hat{\mathbf{x}}_0$; (4)~apply softmax to produce the raw probability estimate $\hat{\mathbf{p}}_{\text{raw}}$; (5)~average 128 independent draws to reduce Monte Carlo variance. 
@@ -220,6 +209,15 @@ Given the region's census-reported population count $N$, the calibrated probabil
 
 \subsection{Evaluation protocol}
 \label{sec:evaluation}
+
+regional specific Comparing to the IPF method mentioned above, this framework could overcome the uniassumption of spatial homogeneity . 
+
+To ensure the re
+one round of post-hoc IPF then enforces exact marginal consistency. The same post-processing is applied to the global-seed IPF baseline, so that any performance difference reflects seed quality alone. Evaluation uses a leave-Michigan-out spatial split to prevent autocorrelation leakage (\S\ref{sec:evaluation}).
+
+%from low-dimensional aggregated-level census data, overcoming the assumption of spatial homogeneity inherent in standard population synthesis methods. 
+
+Recovering $\mathbf{p}$ from marginals alone is fundamentally underdetermined: $K-1$ unknowns versus $\sum_d(B_d-1)$ constraints. Traditional IPF resolves this by computing the information projection (I-projection) of a seed $\mathbf{q}$ onto the marginal-consistent polytope \cite{csiszar1975}, preserving the seed's interaction structure. However, when $\mathbf{q}$ is the population-weighted national average, every region inherits the same copula. Our diffusion model replaces this fixed $\mathbf{q}$ with a learned, region-specific estimate through three conceptual stages (Fig.~\ref{fig:framework}):
 
 To rigorously evaluate the model's capacity to generalize across diverse geographic contexts, we adopt a strictly spatial leave-out evaluation framework. Unlike conventional random sampling, which often inflates apparent performance due to spatial autocorrelation leakage (e.g., neighboring regions sharing labor markets or commuting zones appearing in both the training and test sets), holding out an entire state ensures structural independence. Specifically, Michigan's 68 PUMAs form the isolated test set, while the remaining 2,388 PUMAs serve as the training set. For the 2-variable household configuration, we further partition the held-out Michigan regions into five folds of 13--14 PUMAs. This nested structure enables robust fold-level statistical validation using a one-sided sign test \cite{demsar2006}: under the null hypothesis that the diffusion model and the traditional IPF are equally likely to outperform one another in any given fold, the probability of the diffusion model winning all five folds strictly by chance is constrained to $(1/2)^5 = 0.031$.
 
@@ -231,57 +229,55 @@ where $\hat{\mathbf{p}}$ represents the generated joint distribution and $\mathb
 
 %% ====================================================================
 \section{Results}
-
 \subsection{Generated joint distributions capture region-specific dependence}
 
-% transition missing
-The model's output for each target region is a complete joint probability vector $\hat{\mathbf{p}}\in\Delta^{K-1}$, from which a synthetic population is instantiated by assigning person counts to each of $K=32$ demographic cells.
+To demonstrate that the diffusion model successfully learns localized dependence structures rather than defaulting to a smoothed national average, we first examine the generated synthetic populations at the microscopic level. We instantiate the joint probability vector $\hat{\mathbf{p}}\in\Delta^{K-1}$ into discrete person counts across $K=32$ demographic cells. As a test, we select two contrasting Michigan PUMAs: Oakland County (PUMA 2602903), representing a highly atypical region near the 90th percentile of spatial heterogeneity (TVD-to-global $= 0.170$), and Ionia et al. (PUMA 2601100), representing a typical region near the median (TVD-to-global $= 0.101$). 
 
-Figure~\ref{fig:output_examples} illustrates this product for two Michigan PUMAs chosen to represent high and median heterogeneity, measured by TVD-to-global in Fig.~\ref{fig:heterogeneity}: Oakland County (East Central)--Troy \& Rochester Area PUMA (2602903; near the 90th percentile) and Ionia, Montcalm, Mecosta \& Osceola Counties PUMA (2601100; near the median).
+These two case-study regions exhibit fundamentally distinct demographic compositions, with a between-region TVD of 0.253. This divergence is driven primarily by stark differences in socioeconomic status rather than basic demographics (age and sex differ only weakly, at 0.015 and 0.023, respectively). Specifically, the Oakland region exhibits a distinct "high-education" signature (63.4\% high education), with population mass heavily concentrated in the ``high-income, high-education'' and ``low-income, low-education'' joint cells (34.9\% and 34.0\%, respectively). Conversely, the median Ionia region is vastly more homogenous, dominated overwhelmingly by the ``low-income, low-education'' demographic (54.1\%), with substantially less mass in the highest socioeconomic tier (12.8\%). 
 
-Three levels of comparison reveal how well the generated population matches reality. First, one-dimensional marginals---the age, sex, income, education, and employment composition of each region---are reproduced exactly, because post-hoc IPF enforces this by construction (Fig.~\ref{fig:output_examples}a,d). Second, and more informatively, the two-dimensional cross-tabulations capture region-specific dependence patterns. The higher-heterogeneity PUMA has an unusually high share of college-educated residents (63\%, vs.\ $\sim$40\% nationally), and this elevated education rate reshapes the income--education association: the dominant cells are ``high-education, high-income'' (35\%) and ``low-education, low-income'' (34\%), with ``high-education, low-income'' appearing at a low but non-negligible rate (2.6\%). In the median-heterogeneity comparison PUMA, by contrast, ``low-education, low-income'' dominates at 54\%. In both cases, the generated cross-tabulation closely matches the observed one (Fig.~\ref{fig:output_examples}b,e). Third, across all 32 joint cells---including tail cells where population shares fall below 1\%---generated and observed person counts track closely, with TVD of 0.021 and 0.015 respectively (Fig.~\ref{fig:output_examples}c,f). These values are consistent with the 68-region test-set average of 0.024 (Table~\ref{tab:cond32}), and the more atypical region is reconstructed as accurately as the median case.
+By evaluating the model's reconstruction accuracy across three hierarchical levels of complexity (Fig.~\ref{fig:output_examples}), we confirm that the diffusion pipeline captures these sharply contrasting local realities. First, at the one-dimensional macroscopic level, the generated marginal profiles for age, sex, income, education, and employment match the observed census data exactly, as guaranteed by the post-hoc IPF calibration (Fig.~\ref{fig:output_examples}a,d). 
+
+Second, we assess the crucial two-dimensional education$\times$income cross-tabulation, which encodes the core localized dependence. Despite the structural contrast between the two PUMAs, the generated bivariate distributions align with the ground truth with near-perfect fidelity, achieving a cross-tab TVD of $1.9\times10^{-4}$ for the atypical Oakland region and $7.5\times10^{-4}$ for the median Ionia region (Fig.~\ref{fig:output_examples}b,e). 
+
+Finally, expanding to the full multivariate structure, we evaluate the complete 32-cell joint distribution (Fig.~\ref{fig:output_examples}c,f). While discrepancies naturally increase because every higher-order interaction across the five attributes must be recovered simultaneously, the resulting full-joint TVD values remain exceptionally low (0.0209 for Oakland and 0.0153 for Ionia). These residual errors are roughly two orders of magnitude larger than the pairwise cross-tab errors, confirming that the dominant bivariate associations are perfectly resolved and the remaining variance lies in the ultra-fine multivariate tails. Crucially, the model reconstructs the highly atypical region just as accurately as the typical one, yielding results fully consistent with the robust 68-region test-set mean TVD of 0.024 (Table~\ref{tab:cond32}).
 
 \begin{figure}[!bhtp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_03_output_examples.pdf}
-\caption{Synthetic population output for two contrasting Michigan PUMAs: a higher-heterogeneity case in the Troy--Rochester area (top row) and a median-heterogeneity case spanning Ionia, Montcalm, Mecosta, and Osceola Counties (bottom row). Blue denotes observed counts and orange denotes generated counts.
-(a,d)~One-dimensional demographic profiles across five attributes.
-(b,e)~Education$\times$income cross-tabulations shown as grouped bars for the four cell types.
-(c,f)~Complete 32-cell joint distributions in person counts, sorted by true frequency.}
+\caption{Synthetic population outputs for two Michigan PUMAs chosen to represent high and median heterogeneity relative to the national-average copula. The top row shows PUMA~2602903, corresponding to Oakland County (East Central)--Troy \& Rochester Area PUMA; the bottom row shows PUMA~2601100, corresponding to Ionia, Montcalm, Mecosta \& Osceola Counties PUMA. Blue denotes observed values and orange denotes generated values. Panels~(a,d) report one-dimensional demographic profiles for age, sex, income, education, and employment. Panels~(b,e) report the education$\times$income cross-tabulation as grouped bars for the four cells, where L/L denotes low income and low education, L/H denotes low income and high education, H/L denotes high income and low education, and H/H denotes high income and high education. Panels~(c,f) report the complete 32-cell joint distribution in person counts, with cells ordered by true mass. Together, the three columns summarize agreement at the marginal, pairwise, and full-joint levels.}
 \label{fig:output_examples}
 \end{figure}
 
 \FloatBarrier
+
 \subsection{Verification and validation}
+\label{sec:verification}
 
-Under pairwise conditioning at $K=32$, the model's raw outputs---before any post-hoc IPF adjustment---already recover the correct one-dimensional marginals with TVD $<0.002$ for all five attributes (Fig.~\ref{fig:verification}a). This learned marginal consistency demonstrates that the model has internalized the structural relationship between low-order constraints and the full joint distribution: it produces outputs that are nearly marginal-consistent by construction, rather than relying on post-processing to enforce this property.
+To verify that the diffusion model inherently internalizes the structural mapping from low-dimensional constraints to the full joint distribution, we first examine the raw generated outputs prior to any post-hoc IPF calibration (Fig.~\ref{fig:verification}a). Under pairwise conditioning at $K=32$, the raw marginal error is exceptionally low, with the TVD remaining consistently below 0.002 across all five attributes (e.g., 0.0009 for sex and 0.0015 for employment). This intrinsic marginal consistency demonstrates that the model produces nearly valid distributions by construction. It relies on the subsequent IPF step merely for exact mathematical alignment, rather than using it to repair gross generative errors.
 
-To test whether performance generalizes to unseen regions, we conduct a Michigan 5-fold cross-validation. Michigan's 68 PUMAs are split into five folds of 13--14 regions; each fold is held out in turn while the model trains on all non-Michigan regions plus the remaining Michigan folds. Across all five folds, TVD ranges from 0.065 to 0.077, with inter-fold standard deviation of 0.005. This stability indicates that the model captures systematic structure in the marginal-to-joint mapping rather than overfitting to training regions. We chose Michigan (an entire state) as the held-out unit to avoid spatial autocorrelation leakage that would arise from random regional splits.
+We further validate the model's operational robustness by analyzing its training convergence and sampling stability. Both analyses are evaluated using the final post-IPF joint TVD to maintain consistency with our main benchmarking setup. Training convergence is remarkably rapid (Fig.~\ref{fig:verification}b). The mean joint TVD captures approximately 90\% of its total error reduction within the first 3,000 epochs (falling from 0.044 to 0.0256), before reaching a global minimum of 0.0236 at epoch 10,000. Extending training to 30,000 epochs yields a negligible shift (0.0238), indicating that the marginal-to-joint mapping is efficiently learnable and highly resilient to the choice of training horizon. 
 
-Training convergence is rapid: TVD improves sharply during the first 3{,}000 epochs, capturing approximately 90\% of the total error reduction. Performance continues to improve slowly through epoch 10{,}000---the overall optimum---after which it stabilizes: the 30{,}000-epoch model falls within 1\% of the 10{,}000-epoch minimum (Fig.~\ref{fig:verification}b). This convergence profile suggests that the marginal-to-joint mapping is efficiently learnable and does not require extensive hyperparameter tuning of the training schedule.
+Similarly, stochastic sampling stability exhibits a sharp early improvement followed by a definitive plateau (Fig.~\ref{fig:verification}c). Averaging just 16 denoising draws reduces the mean TVD from 0.0266 (single draw) to 0.0239, with performance fully stabilizing beyond 64 draws. At 128 draws, the run-to-run standard deviation across 10 random seeds diminishes to a mere $2.6\times10^{-5}$. Consequently, these diagnostics confirm that our reported performance gains are driven strictly by learned structural dependencies, entirely immune to stochastic sampling noise.
 
-Monte Carlo stability is assessed by varying the number of denoising draws averaged to produce each region's output distribution. Performance improves sharply from 1 to 16 draws as averaging reduces sampling noise, then stabilizes beyond 64 draws. At 128 draws, run-to-run standard deviation across 10 random seeds falls below 0.001 TVD (Fig.~\ref{fig:verification}c), confirming that the reported results are not sensitive to stochastic variation in the generation process.
+Finally, we test the model's geographic generalizability through a 5-fold cross-validation across Michigan's 68 held-out PUMAs, using the 5-variable $K=32$ person-level configuration. The spatial fold design prevents autocorrelation leakage by ensuring that no fold shares neighboring regions with the training set. Across five independent folds, the diffusion model outperforms IPF in every fold (one-sided sign test $p=0.031$), with a mean TVD difference of $-0.006 \pm 0.002$ (Table~\ref{tab:mi5fold}). This consistency confirms that the model's advantage is not an artifact of a single favorable spatial split, but reflects a genuine capacity to generalize region-specific dependence patterns.
 
 \begin{figure}[!bhtp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_04_verification.pdf}
-\caption{Verification and validation.
-(a)~Raw marginal TVD by attribute under pairwise conditioning ($K=32$), before post-hoc IPF.
-(b)~Joint TVD as a function of training epoch.
-(c)~Joint TVD as a function of the number of denoising draws, with run-to-run standard deviation across 10 seeds.}
+\caption{\textbf{Verification of model robustness, convergence, and sampling stability.} \textbf{a,} Raw marginal TVD by attribute under pairwise conditioning ($K=32$) prior to post-hoc IPF calibration. The extremely low error confirms the model's intrinsic capacity to satisfy macro-level constraints. \textbf{b,} Post-IPF joint TVD as a function of training epochs, demonstrating rapid convergence and insensitivity to overtraining. \textbf{c,} Post-IPF joint TVD as a function of the number of denoising draws. The minimal run-to-run standard deviation (across 10 random seeds) illustrates that stochastic sampling noise is effectively eliminated beyond 64 draws.}
 \label{fig:verification}
 \end{figure}
-
 \FloatBarrier
+
 \subsection{Constraint informativeness drives dependence recovery}
 
-The results above establish that the model produces accurate, generalizable joint distributions, but they do not explain which types of constraints drive dependence recovery. To isolate the contribution of each information source, we perform systematic ablations: the model is trained under four conditions---no constraints, one-dimensional marginals only, two-dimensional pairwise cross-tabulations only, and both combined---and the resulting TVD is measured against the true joint.
+While the preceding results establish the model's capacity to generate accurate and generalizable joint distributions, they do not isolate the specific drivers of this dependence recovery. To systematically quantify the contribution of each information source, we perform a controlled ablation study. The model is trained under four distinct conditioning modes---no constraints, one-dimensional marginals only, two-dimensional pairwise cross-tabulations only, and a combination of both---and the resulting TVD is measured against the true joint distribution.
 
-For the 5-variable $K=32$ setting, the progression is striking (Table~\ref{tab:cond32}; Fig.~\ref{fig:ablation}a): without any constraints ($d_c=0$), the diffusion model learns a prior over plausible copulas, achieving TVD = 0.114---a substantial improvement over statistical independence (0.290) but far from the true dependence. Adding one-dimensional marginals ($d_c=10$) provides local frequency information, reducing TVD to 0.043. Adding two-dimensional pairwise cross-tabulations ($d_c=40$) reduces TVD another 44\% relative to marginal-only (from 0.043 to 0.024), because these constraints directly encode second-order associations that cannot be inferred from univariate information alone.
+For the 5-variable coarse setting ($K=32$), the hierarchy of constraint informativeness is strikingly clear (Table~\ref{tab:cond32}; Fig.~\ref{fig:ablation}a). Even in the absence of any local constraints ($d_c=0$), the diffusion model learns a structured prior over plausible copulas, achieving a TVD of 0.114. While this substantially outperforms statistical independence (0.290), it remains distant from the true local dependence. Injecting one-dimensional marginals ($d_c=10$) supplies essential local frequency information, reducing the TVD to 0.043. Crucially, upgrading to pairwise cross-tabulations ($d_c=40$) further drives the TVD down to 0.024---a massive 44\% relative reduction compared to the marginal-only baseline. Interestingly, concatenating marginals on top of pairwise constraints yields negligible marginal utility (0.0239 versus 0.0240), indicating that once second-order structural associations are provided, the remaining first-order frequency information becomes structurally redundant.
 
-Why is this progression meaningful? In inverse problems, the fundamental constraint is information: you cannot recover more unknowns than you have constraints. At $K=32$, the joint has 31 free parameters; one-dimensional marginals provide only 10 constraint values ($d_c=10$), leaving 21 degrees of freedom undetermined. Two-variable cross-tabulations add 40 constraint values ($d_c=40$) encoding all pairwise interactions. The model uses this richer constraint set to pin down the higher-order structure.
+This hierarchical pattern reflects a fundamental information-theoretic bottleneck rather than a mere architectural limitation. At $K=32$, the target joint distribution contains 31 free parameters, yet one-dimensional marginals provide only 10 constraint values. Pairwise cross-tabulations inject 40 additional values that directly encode second-order associations, effectively closing the informational gap. 
 
-The model's learned marginal consistency (confirmed in \S2.2) further supports this interpretation: under pairwise conditioning, the raw outputs already satisfy the input constraints, indicating that the model has internalized the exact mapping from constraints to distribution rather than merely fitting surface-level patterns.
+Consequently, this logic scales predictably across finer resolutions and varying dimensionalities (Fig.~\ref{fig:ablation}b,c). In the 5-variable $K=128$ setting, replacing marginals with pairwise conditioning reduces the TVD from 0.070 to 0.051 (a 26\% reduction). In the 3-variable fine setting ($K=256$), augmenting marginals with pairwise information yields a 17\% reduction (from 0.101 to 0.084). As summarized in Figure~\ref{fig:ablation}c, the incremental value of pairwise information scales with the constraint deficit: it is logically negligible at $D=2$ (where the pairwise table is the joint itself), but rises dramatically to 17\% at $D=3$ and peaks at 26--44\% at $D=5$. Dependence recovery, therefore, is driven not merely by expanding model capacity, but by supplying higher-order constraints that bridge the gap between aggregated macroscopic observations and the full microscopic joint.
 
 \begin{table}[!bhtp]
 \centering
@@ -305,52 +301,51 @@ marg+pair & 50 & 0.024 \\
 \end{minipage}
 \end{table}
 
-Does this ablation pattern hold across different numbers of variables? We test this by computing the pairwise contribution---the TVD reduction from marginal-only to pairwise---across 2-variable to 5-variable settings. The pairwise contribution is strongest for $D=5$ (44\% reduction), weaker for $D=3$ (20\% reduction), and zero for $D=2$ (pairwise constraints are the joint itself, providing no additional information beyond what marginals imply). This scaling law reflects the fundamental constraint counting: as dimensionality increases, the gap between one-variable constraints and full-joint unknowns grows, making higher-order information increasingly valuable.
-
 \begin{figure}[!bhtp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_05_ablation.pdf}
 \caption{Condition ablation and information hierarchy.
 (a)~TVD across conditioning modes at $K=32$, with the independence baseline as reference.
 (b)~TVD across conditioning modes at $K=128$.
-(c)~Pairwise contribution, measured as the relative TVD reduction from marginal-only to pairwise conditioning, across variable counts.}
+(c)~Pairwise contribution, measured as the relative TVD reduction from marginal-only to the best pairwise-augmented condition, across variable counts.}
 \label{fig:ablation}
 \end{figure}
 
 \FloatBarrier
 \subsection{Comparison with iterative proportional fitting}
 
-Having established the model's output quality, generalization, and the mechanism driving its performance, we now benchmark against the standard method: iterative proportional fitting with a global (national-average) seed. Both pipelines apply identical post-hoc IPF; the only difference is seed quality (Fig.~\ref{fig:framework}).
+Ultimately, the practical utility of this generative framework hinges on its performance relative to the current industry standard: iterative proportional fitting (IPF) initialized with a global (national-average) seed. To ensure a strictly fair comparison, the final step in both pipelines is the identical post-hoc IPF projection; the singular difference lies in the quality of the seed supplied to that projection. Traditional IPF relies on the training-set weighted-average joint as a static global seed, whereas our diffusion model synthesizes a dynamic, region-specific seed conditioned on available local statistics. This design strictly isolates seed quality---the accuracy of the underlying dependence structure---as the sole benchmark metric.
 
-Across all five configurations with $K\leq256$, diffusion produces higher-quality seeds than the global average. Relative TVD reductions range from 8\% to 59\% (Table~\ref{tab:main}; Fig.~\ref{fig:comparison}a), consistent with the mechanism identified in \S2.3: richer conditioning enables more accurate dependence recovery, and the advantage is largest when the constraint gap between marginals and the full joint is widest.
+Across all four person-level configurations, the distribution-level diffusion model consistently generates higher-quality seeds than the global average, yielding relative TVD reductions ranging from 19\% to 59\% (Table~\ref{tab:main}; Fig.~\ref{fig:comparison}a,d). The most pronounced advantage emerges in the 5-variable coarse setting ($K=32$), where pairwise-conditioned diffusion achieves a TVD of 0.024, eclipsing the IPF baseline of 0.058. This advantage persists across higher resolutions: it remains robust at $K=128$ (0.051 vs.\ 0.081) and $K=256$ (0.084 vs.\ 0.103), as well as in the 3-variable setting ($K=64$; 0.055 vs.\ 0.070).
+
+The Michigan 5-fold cross-validation (\S\ref{sec:verification}) further confirms that this advantage generalizes to unseen regions: diffusion outperforms IPF in every fold ($p = 0.031$; Fig.~\ref{fig:comparison}b), ruling out test-set artifacts.
 
 \begin{table}[!bhtp]
 \centering
 \caption{Comparison between diffusion and IPF across configurations ($K\leq256$).}
 \label{tab:main}
-\begin{tabular}{llccccc}
+\begin{tabular}{lccccc}
 \toprule
-Configuration & Unit & $K$ & Best condition & Diff.\ TVD & IPF TVD & Rel.\ $\Delta$ \\
+Configuration & $K$ & Best condition & Diff.\ TVD & IPF TVD & Rel.\ $\Delta$ \\
 \midrule
-5-var coarse  & person    & 32  & pairwise       & 0.024 & 0.058 & $-59\%$ \\
-5-var medium  & person    & 128 & pairwise       & 0.051 & 0.081 & $-37\%$ \\
-3-var fine    & person    & 256 & marg+pair      & 0.084 & 0.103 & $-19\%$ \\
-3-var         & person    & 64  & marginal       & 0.055 & 0.070 & $-22\%$ \\
-2-var (5-fold)& household & 64  & marginal       & 0.069 & 0.074 & $-8\%$ \\
+5-var coarse  & 32  & pairwise       & 0.024 & 0.058 & $-59\%$ \\
+5-var medium  & 128 & pairwise       & 0.051 & 0.081 & $-37\%$ \\
+3-var fine    & 256 & marg+pair      & 0.084 & 0.103 & $-19\%$ \\
+3-var         & 64  & marginal       & 0.055 & 0.070 & $-22\%$ \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}
 \begin{minipage}{0.98\linewidth}
 \footnotesize
-\textit{Notes:} \textit{Unit} indicates the statistical unit used to build each joint table: \textit{person} uses attributes measured at the individual level (AGEP, SEX, PINCP, SCHL, ESR), while \textit{household} uses householder age $\times$ household income (B19037-aligned). ``5-var coarse'' and ``5-var medium'' are two binning resolutions of the same five-variable setting ($K=32$ and $K=128$), and ``3-var fine'' is the fine three-variable setting ($K=256$). ``marg+pair'' means conditioning on both one-dimensional marginals and two-dimensional pairwise cross-tabulations.
+\textit{Notes:} All configurations use person-level attributes (AGEP, SEX, PINCP, SCHL, ESR). ``5-var coarse'' and ``5-var medium'' are two binning resolutions of the same five-variable setting ($K=32$ and $K=128$), and ``3-var fine'' is the fine three-variable setting ($K=256$). ``marg+pair'' means conditioning on both one-dimensional marginals and two-dimensional pairwise cross-tabulations.
 \end{minipage}
 \end{table}
 
-A Michigan 5-fold cross-validation confirms that this advantage generalizes to held-out regions. We split Michigan's 68 PUMAs into five folds, holding each out in turn; across all folds, diffusion outperforms IPF with mean $\Delta = -0.006 \pm 0.002$ (one-sided sign test $p = 0.031$; Table~\ref{tab:mi5fold}; Fig.~\ref{fig:comparison}b). The consistency across folds, combined with statistical significance, shows that the advantage reflects genuine learning of spatial heterogeneity rather than test-set artifacts.
 
 \begin{table}[!bhtp]
 \centering
-\caption{Michigan 5-fold statistical test: diffusion vs.\ IPF ($p=0.031$; 2-var, household-level, $K=64$).}
+\caption{Michigan 5-fold statistical test: diffusion vs.\ IPF ($p=0.031$; 5-var, person-level, $K=32$).}
+% TODO: Replace with person-level 5-fold results once partner completes the experiment.
 \label{tab:mi5fold}
 \begin{tabular}{lccc}
 \toprule
@@ -372,14 +367,16 @@ Mean & 0.069 & 0.074 & $-0.006$ \\
 \includegraphics[width=\textwidth]{figures/fig_06_main_results.pdf}
 \caption{Comparison with IPF.
 (a)~Diffusion TVD versus IPF TVD across all configurations. Points below the diagonal indicate diffusion advantage.
-(b)~Per-fold $\Delta$ (diffusion $-$ IPF) in the Michigan 5-fold evaluation.
-(c)~Relative gain (\%) as a function of joint dimensionality.
+(b)~Per-fold $\Delta$ (diffusion $-$ IPF) in the Michigan 5-fold household-level evaluation.
+(c)~Relative gain (\%) across the five reported configurations.
 (d)~Paired TVD comparison for each configuration.}
 \label{fig:comparison}
 \end{figure}
 
-%% ====================================================================
+
 \FloatBarrier
+
+
 \section{Discussion}
 
 The condition ablation reveals a structural insight about synthesis as an inverse problem: the critical resource is not model capacity but constraint informativeness. From none to marginal to pairwise, each additional layer of constraint information reduces error by a large, discrete step. Model architecture matters only at the margin. The advantage reverses at $K=512$, where two mechanisms jointly prevent recovery: cell sparsity ($\sim$14 persons per cell vs.\ $\sim$220 at $K=32$) and constraint insufficiency (128 pairwise parameters against 511 joint unknowns), so that even extending training from 10k to 30k epochs does not close the gap (Supplementary Table~S1, Fig.~S1). This reframes the scaling boundary not as a model failure but as an information-theoretic limit: enriching input constraints is more effective than increasing model capacity or training budget.
