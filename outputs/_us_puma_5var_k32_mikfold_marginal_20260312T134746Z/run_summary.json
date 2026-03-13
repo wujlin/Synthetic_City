@@ -1,0 +1,74 @@
+{
+  "created_utc": "2026-03-12T14:21:46Z",
+  "input_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_joint_k32_20260220T172157Z/puma_5var_joint_wide.csv",
+  "n_rows_total": 2456,
+  "n_mi_rows": 68,
+  "n_non_mi_rows": 2388,
+  "shape": {
+    "age": 2,
+    "sex": 2,
+    "income": 2,
+    "schl": 2,
+    "esr": 2
+  },
+  "K_joint_dim": 32,
+  "eval_mode": "mi_kfold",
+  "n_folds": 5,
+  "conditions": [
+    "marginal"
+  ],
+  "condition_dims": {
+    "marginal": 10
+  },
+  "pairwise_dims": {
+    "age__sex": 4,
+    "age__income": 4,
+    "age__schl": 4,
+    "age__esr": 4,
+    "sex__income": 4,
+    "sex__schl": 4,
+    "sex__esr": 4,
+    "income__schl": 4,
+    "income__esr": 4,
+    "schl__esr": 4
+  },
+  "timesteps": 1000,
+  "epochs": 30000,
+  "batch_size": 512,
+  "hidden_dims": [
+    1024,
+    1024
+  ],
+  "condition_injection": "concat",
+  "film_hidden_dim": 128,
+  "n_eval_joint_samples": 128,
+  "ipf_iters": 200,
+  "posthoc_ipf_policy": "marginal",
+  "x_representation": "logp + per-fold z-score",
+  "seed": 0,
+  "device": "cuda",
+  "spatial_features_csv": null,
+  "spatial_feature_sets": [],
+  "spatial_feature_cols": [],
+  "save_epochs": [],
+  "save_final_model": true,
+  "saved_checkpoints": {
+    "marginal": {
+      "mi_fold_0": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_k32_mikfold_marginal_20260312T134746Z/checkpoints/marginal/mi_fold_0/final.pt"
+      ],
+      "mi_fold_1": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_k32_mikfold_marginal_20260312T134746Z/checkpoints/marginal/mi_fold_1/final.pt"
+      ],
+      "mi_fold_2": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_k32_mikfold_marginal_20260312T134746Z/checkpoints/marginal/mi_fold_2/final.pt"
+      ],
+      "mi_fold_3": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_k32_mikfold_marginal_20260312T134746Z/checkpoints/marginal/mi_fold_3/final.pt"
+      ],
+      "mi_fold_4": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_k32_mikfold_marginal_20260312T134746Z/checkpoints/marginal/mi_fold_4/final.pt"
+      ]
+    }
+  }
+}
