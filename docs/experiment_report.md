@@ -282,3 +282,88 @@ Joint TVD (age × income)
 | 训练配置 | timesteps=200, epochs=2000, batch_size=4096 |
 | 交叉验证 | 5-fold PUMA holdout |
 | 消融条件 | demo_only / demo_race / demo_race_puma |
+
+---
+
+## 九、空间条件实验（补充记录）
+
+### 9.1 动机
+
+前述结果已经表明，条件信息的丰富度是联合分布恢复精度的关键来源。一个自然问题是：**在边际与两两联合分布之外，PUMA 的空间位置与邻域人口结构是否还携带额外的 copula 信息？**
+
+为回答这个问题，我们构造了一组统一定义的空间特征，并将其与 5-var full（K=512）person-level 联合分布实验相结合。这里的目的不是替换主文主结果，而是检验：**空间位置能否作为额外条件，进一步改善高维联合分布恢复。**
+
+### 9.2 空间特征定义
+
+空间特征全部在 PUMA 级构造，并统一采用 **KNN 邻域**，不使用 `touches()` 或 fallback 混合定义，以避免不同区域的“邻居”语义不一致。最终使用的特征组为：
+
+- `centroid_pe`：PUMA centroid 的 positional encoding
+- `neigh_1hop`：KNN 邻居的边际分布加权平均
+- `geo_shape`：面积与紧致度等几何特征
+
+两套特征文件均已生成且质量检查通过（2456 个 PUMA、无缺失、主键唯一）：
+
+- `puma_spatial_features_b19037_knn6.csv`
+- `puma_spatial_features_5var_knn6.csv`
+
+### 9.3 实验设定
+
+本轮真正跑通的空间实验并不是主文计划中的 `5-var K=32`，而是 **5-var full / K=512** 的补充实验，因此它们应被理解为一组高维探索性结果，而不是主表的直接替代。
+
+有效 run 共 4 个：
+
+| ID | 条件 | 条件维度 |
+|---|---|---|
+| B4 | spatial | 52 |
+| B5 | marginal + spatial | 70 |
+| B6 | pairwise + spatial | 180 |
+| B7 | marginal + pairwise + spatial | 198 |
+
+四个实验都明确接入了同一套空间特征文件：
+
+- `spatial_features_csv = .../puma_spatial_features_5var_knn6.csv`
+- `spatial_feature_sets = [centroid_pe, neigh_1hop, geo_shape]`
+
+### 9.4 结果
+
+与同口径的非空间 `K=512` baseline 比较，空间条件在四个配置上都没有带来改进，反而出现了不同程度的退化：
+
+| 条件 | 非空间 TVD | 空间版 TVD | Delta | 相对变化 |
+|---|---:|---:|---:|---:|
+| none → spatial | 0.338 | 0.371 | +0.033 | +9.7% |
+| marginal → marginal+spatial | 0.147 | 0.173 | +0.026 | +18.0% |
+| pairwise → pairwise+spatial | 0.249 | 0.331 | +0.083 | +33.3% |
+| marg+pair → marg+pair+spatial | 0.139 | 0.168 | +0.029 | +20.5% |
+
+对应的空间 run joint TVD 为：
+
+- B4 spatial only：`0.371`
+- B5 marginal + spatial：`0.173`
+- B6 pairwise + spatial：`0.331`
+- B7 marginal + pairwise + spatial：`0.168`
+
+共同基线保持不变：
+
+- Independence：`0.512`
+- IPF(train seed)：`0.112`
+
+### 9.5 解读
+
+这批结果给出的是一个**负结果**，但它是有价值的负结果：
+
+1. **空间特征链路已经跑通。**  
+   这不是“目录名叫 spatial，实际上没用空间特征”的假实验；空间特征已真实接入训练，且条件维度与特征组合都与设计一致。
+
+2. **在高维 K=512 设定下，空间位置没有提供额外增益。**  
+   无论是 `marginal` 还是 `pairwise` 条件，加入空间信息后 TVD 都上升，说明当前的空间编码并未补充 marginal / pairwise 之外的有效联合结构线索。
+
+3. **这不能直接推翻空间实验本身。**  
+   更准确的结论是：在 `5-var full / K=512` 这一高维设定中，空间信息没有改善恢复效果。由于主文核心结果使用的是 `K=32`，若要得出“空间位置对主文结论是否有增益”的严格判断，仍需补跑 `5-var K=32` 的同口径空间实验。
+
+### 9.6 当前定位
+
+因此，这批空间实验目前最合理的定位是：
+
+- 作为 **高维扩展场景下的补充分析**
+- 说明“空间位置并非天然优于统计约束”
+- 强化一个更一般的结论：**在当前框架下，真正决定性能的仍然是条件约束本身的信息量，而不是简单加入地理坐标或邻域摘要。**
