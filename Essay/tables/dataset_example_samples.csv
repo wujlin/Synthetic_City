@@ -1,0 +1,13 @@
+puma_uid,statefp,puma,region_label,row_id,AGEP,SEX,PINCP,SCHL,ESR
+2602903,26,2903,PUMA 2602903,1,Old,Male,High,High,Employed
+2602903,26,2903,PUMA 2602903,2,Young,Male,High,High,Employed
+2602903,26,2903,PUMA 2602903,3,Young,Male,Low,Low,Not employed
+2602903,26,2903,PUMA 2602903,4,Young,Male,Low,Low,Employed
+2602903,26,2903,PUMA 2602903,5,Old,Female,Low,High,Employed
+2602903,26,2903,PUMA 2602903,6,Old,Female,Low,High,Not employed
+2601100,26,1100,PUMA 2601100,1,Old,Male,Low,Low,Not employed
+2601100,26,1100,PUMA 2601100,2,Old,Male,High,Low,Not employed
+2601100,26,1100,PUMA 2601100,3,Young,Female,High,High,Employed
+2601100,26,1100,PUMA 2601100,4,Old,Female,Low,High,Not employed
+2601100,26,1100,PUMA 2601100,5,Old,Female,Low,Low,Not employed
+2601100,26,1100,PUMA 2601100,6,Young,Male,Low,Low,Employed

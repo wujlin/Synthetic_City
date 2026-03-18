@@ -1,0 +1,25 @@
+{
+  "joint_wide_csv": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_5var_joint_k32_20260220T172157Z/puma_5var_joint_wide.csv",
+  "checkpoint": "/home/jinlin/projects/Synthetic_City/outputs/_exp2_convergence_train_k32_20260306T032039Z/checkpoints/pairwise/leave_mi_out/final.pt",
+  "condition": "pairwise",
+  "eval_mode": "leave_mi_out",
+  "n_eval_joint_samples": 128,
+  "posthoc_ipf": true,
+  "rows_per_puma": 6,
+  "pumas": [
+    {
+      "puma_uid": "2602903",
+      "region_label": "PUMA 2602903",
+      "tvd_raw": 0.021708003173410716,
+      "tvd_eval": 0.021746073094338583,
+      "total_population": 175634
+    },
+    {
+      "puma_uid": "2601100",
+      "region_label": "PUMA 2601100",
+      "tvd_raw": 0.015089336316551676,
+      "tvd_eval": 0.015156241931792519,
+      "total_population": 197129
+    }
+  ]
+}
