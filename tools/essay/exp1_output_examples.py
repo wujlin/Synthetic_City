@@ -381,9 +381,10 @@ def main() -> None:
         # Row labels identify which PUMA each row corresponds to.
         for row, label in enumerate(region_labels):
             pos = profile_axes[row].get_position()
+            y_offset = 0.016 if row == 0 else 0.01
             fig.text(
                 pos.x0,
-                pos.y1 + 0.01,
+                pos.y1 + y_offset,
                 label,
                 ha="left",
                 va="bottom",
