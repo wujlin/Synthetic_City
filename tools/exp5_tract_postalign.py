@@ -316,9 +316,9 @@ def _derive_scope_columns(df: Any) -> Any:
     # SCHL_25p
     schl25 = pd.Series([None] * int(out.shape[0]), index=out.index, dtype=object)
     schl25.loc[out["is_25p"]] = "less_than_high_school"
-    schl25.loc[out["is_25p"] & schl.isin([19, 20])] = "high_school_or_ged"
-    schl25.loc[out["is_25p"] & schl.isin([21, 22, 23])] = "some_college_or_assoc"
-    schl25.loc[out["is_25p"] & (schl >= 24)] = "bachelor_plus"
+    schl25.loc[out["is_25p"] & schl.isin([16, 17])] = "high_school_or_ged"
+    schl25.loc[out["is_25p"] & schl.isin([18, 19, 20])] = "some_college_or_assoc"
+    schl25.loc[out["is_25p"] & (schl >= 21)] = "bachelor_plus"
     out["SCHL_25p"] = schl25.astype(object)
 
     # PINCP_16p_bin

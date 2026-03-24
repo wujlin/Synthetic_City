@@ -128,7 +128,7 @@ def main() -> None:
     C3 = OKABE_ITO["bluish_green"]
     with paper_style():
         fig, axes = plt.subplots(1, 3, figsize=(10.8, 3.3))
-        fig.subplots_adjust(wspace=0.30)
+        fig.subplots_adjust(wspace=0.30, bottom=0.24)
 
         ax = axes[0]
         ax.hist(us_tvds, bins=40, color=C1, alpha=0.75, edgecolor="white", linewidth=0.5)

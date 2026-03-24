@@ -1,0 +1,7 @@
+interface:
+  display_name: "Research Experiment Ops"
+  short_description: "Organize runs, data, sync, and worktrees"
+  default_prompt: "Use $research-experiment-ops to plan a new experiment run and define its output, sync, and artifact rules."
+
+policy:
+  allow_implicit_invocation: true

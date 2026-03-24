@@ -33,32 +33,62 @@ via Distribution-Level Diffusion for Population Synthesis}}
 \onehalfspacing
 \renewcommand{\figurename}{Supplementary Fig.}
 \renewcommand{\thefigure}{S\arabic{figure}}
-
-\section{Supplementary Methods}
-This SI reports implementation details omitted from the main manuscript, including complete condition definitions, binning mappings, and post-hoc IPF settings.
+\renewcommand{\tablename}{Supplementary Table}
+\renewcommand{\thetable}{S\arabic{table}}
 
 \section{Supplementary Results}
 
-\subsection{Person-level diffusion fails to recover regional dependence}
+This SI reports supplementary results that support the main manuscript, with emphasis on dimensional scaling and the distribution of regional heterogeneity.
 
-To verify that training on individual records is insufficient for copula recovery, we ran a separate experiment using person-level conditional diffusion on Michigan household demographics (age $\times$ income, $K=100$ bins) with region identity as an explicit conditioning variable. The model was evaluated using five-fold spatial cross-validation across Michigan's 68 PUMAs. As shown in Supplementary Fig.~\ref{fig:si_person_level}, person-level diffusion produced \emph{worse} copula TVD (mean = 0.159) than a na\"ive baseline that simply reuses the training-set average dependence structure (mean = 0.137). This degradation was consistent across all five folds and affected 75\% of individual PUMAs (51 of 68 above the diagonal in panel b). The result confirms that per-sample training losses do not provide a sufficient learning signal for aggregate dependence recovery.
+\subsection{S1. Dimensional scaling and the information-sparsity boundary}
 
-\begin{figure}[!htb]
+All four reported person-level configurations with $K\leq256$ show a diffusion advantage over IPF in the main text. To test whether this advantage persists at higher dimensionality, we additionally evaluate the fine-grained 5-variable setting with $K=512$ ($4\times2\times4\times4\times4$ bins). At this resolution, diffusion TVD reaches 0.139 while IPF achieves 0.112, yielding a reversal of $+0.028$ (Supplementary Table~\ref{tab:S1_Kscale}).
+
+Two mechanisms drive this reversal. First, cell sparsity becomes severe: at $K=32$, each joint cell contains roughly 220 persons on average, whereas at $K=512$ the average falls to about 14. Second, the conditioning inputs become much less informative relative to the target joint: the pairwise condition vector provides 128 entries, while the $K=512$ joint has 511 free parameters. Extending training from 10k to 30k epochs reduces TVD from 0.182 to 0.147, but does not reach IPF's 0.112, indicating that the bottleneck is information rather than optimization alone. Pairwise conditioning at $K=512$ is also worse than marginal-only conditioning (0.249 vs.\ 0.147), consistent with a setting in which the available pairwise statistics are no longer sufficient to support accurate recovery of the full joint.
+
+\begin{table}[htbp]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_si_person_level.pdf}
-\caption{\textbf{Person-level diffusion fails to recover copula.}
-\textbf{(a)}~Five-fold mean copula TVD for person-level conditional diffusion (blue) versus training-set average baseline (orange). The diffusion model is systematically worse in every fold.
-\textbf{(b)}~Per-PUMA comparison across all folds. Points above the diagonal indicate PUMAs where diffusion produced worse copula TVD than the baseline; 51 of 68 PUMAs (75\%) fall above the line.}
-\label{fig:si_person_level}
+\caption{Dimensional scaling comparison between diffusion and IPF.}
+\label{tab:S1_Kscale}
+\begin{tabular}{ccccc}
+\toprule
+$K$ & Variables & Diff.\ TVD & IPF TVD & $\Delta$ \\
+\midrule
+32  & 5-var & 0.024 & 0.058 & $-0.034$ \\
+64  & 3-var & 0.055 & 0.070 & $-0.015$ \\
+128 & 5-var & 0.051 & 0.081 & $-0.030$ \\
+256 & 3-var & 0.084 & 0.103 & $-0.019$ \\
+512 & 5-var & 0.139 & 0.112 & $+0.028$ \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\begin{minipage}{0.98\linewidth}
+\footnotesize
+\textit{Notes:} $\Delta = \text{Diffusion TVD} - \text{IPF TVD}$, so negative values indicate an advantage for diffusion. For each $K$, the diffusion entry reports the best available condition setting under the corresponding experiment protocol.
+\end{minipage}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_s01_scaling.pdf}
+\caption{Dimensional scaling and information boundaries. (a) Diffusion TVD and IPF TVD versus joint dimensionality $K$. (b) Training-length sensitivity at $K=512$, comparing 10k and 30k epochs against the IPF reference. (c) Average persons per cell versus $K$, illustrating the growth of sparsity. (d) Pairwise condition dimensions versus joint free parameters.}
+\label{fig:S1_scaling}
 \end{figure}
 
-This SI also provides full ablation outputs, training-length sensitivity, and additional robustness diagnostics across all evaluated configurations.
+\subsection{S2. Distribution of regional dependence heterogeneity}
 
-\section{Run Artifact Index}
-Key result directories and machine-readable summaries are maintained in the project outputs. For submission, include the finalized artifact table matching the camera-ready manuscript.
+Supplementary Fig.~\ref{fig:S2_heterogeneity} expands the heterogeneity analysis behind Fig.~1 in the main text. Across all 2,456 PUMAs, TVD-to-global has a mean of 0.191 and a long right tail, indicating that a substantial minority of regions deviate strongly from the national-average dependence structure. Michigan's 68 PUMAs span a comparable range of values, supporting its use as a held-out test state for evaluating geographic generalization.
 
-\section{Reproducibility Notes}
-All scripts for preprocessing, training, and evaluation are in the repository. Figure-generation scripts are kept outside the Overleaf package and used only for local regeneration.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_s02_heterogeneity_stats.pdf}
+\caption{Distribution of dependence heterogeneity. (a) Histogram of TVD-to-global for 2,456 regions in the United States; the dashed line marks the mean (0.191), and the 90th percentile is 0.265. (b) Rank-ordered TVD across all regions, showing a long right tail. (c) The same metric for Michigan's 68 regions, illustrating that the held-out state covers a representative range of heterogeneity levels.}
+\label{fig:S2_heterogeneity}
+\end{figure}
+
+\section{Reproducibility notes}
+
+All supplementary figures and tables are generated from version-controlled outputs in the project repository. Figure-generation scripts are stored under \texttt{tools/essay/}, while the corresponding machine-readable experiment summaries are stored under \texttt{outputs/}. The standalone SI file reuses the same bibliography as the main manuscript.
 
 \bibliographystyle{unsrt}
 \bibliography{references}

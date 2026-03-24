@@ -134,7 +134,10 @@ def _canon_uid(statefp: object, puma: object) -> str:
 
 
 def _canon_uid_loose(v: object) -> str:
-    d = _digits_only(v)
+    s = str(v).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+    d = "".join(ch for ch in s if ch.isdigit())
     if not d:
         return ""
     if len(d) > 7:

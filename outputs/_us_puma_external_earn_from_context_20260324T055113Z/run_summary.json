@@ -1,0 +1,87 @@
+{
+  "created_utc": "2026-03-24T05:53:18Z",
+  "target_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_earn_v1_pums_2023_puma_us.csv",
+  "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_acs5_2022_puma_us.csv",
+  "n_rows_total": 2456,
+  "n_train": 2388,
+  "n_test_mi": 68,
+  "cond_dim": 22,
+  "latent_dim": 64,
+  "target_dim": 6,
+  "encoder_hidden_dims": [
+    256,
+    256
+  ],
+  "head_hidden_dims": [
+    128,
+    128
+  ],
+  "epochs": 3000,
+  "batch_size": 512,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "seed": 0,
+  "device": "cuda",
+  "condition_meta": {
+    "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_acs5_2022_puma_us.csv",
+    "cond_dim": 22,
+    "block_dims": {
+      "AGEP_bin": 10,
+      "SEX": 2,
+      "SCHL_allpop": 5,
+      "ESR_allpop": 5
+    },
+    "variable_order": [
+      "AGEP_bin",
+      "SEX",
+      "SCHL_allpop",
+      "ESR_allpop"
+    ]
+  },
+  "saved_checkpoints": [
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_20260324T055113Z/checkpoints/external_earn_from_context/leave_mi_out/final.pt"
+  ],
+  "results": {
+    "earn_from_context": {
+      "tvd_earn": {
+        "mean": 0.030606024179552847,
+        "std": 0.016692811417322564,
+        "max": 0.08585787005722523,
+        "p90": 0.056527088955044755,
+        "n": 68
+      },
+      "cosine_earn": {
+        "mean": 0.9980733859429229,
+        "std": 0.002538634394235519,
+        "max": 0.9998385242818789,
+        "p90": 0.9996857688496823,
+        "n": 68
+      },
+      "mae_earn": {
+        "mean": 0.010202008059850949,
+        "std": 0.005564270472440855,
+        "max": 0.028619290019075077,
+        "p90": 0.018842362985014918,
+        "n": 68
+      },
+      "latent_norm": {
+        "mean": 5.942311532357159,
+        "std": 1.774926911622848,
+        "max": 11.28376293182373,
+        "p90": 9.029041671752932,
+        "n": 68
+      }
+    },
+    "baselines": {
+      "train_mean_earn": {
+        "tvd_earn": {
+          "mean": 0.07230967676187024,
+          "std": 0.03281897774109883,
+          "max": 0.16562919649080662,
+          "p90": 0.11723307334218101,
+          "n": 68
+        }
+      }
+    }
+  }
+}

@@ -194,12 +194,12 @@ def _b15003_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
     # Coarse bins aligned with synthetic derivation:
     # - less_than_high_school: B15003_002.._016
     # - high_school_or_ged:   B15003_017.._018
-    # - some_college_or_assoc:B15003_019.._022
-    # - bachelor_plus:        B15003_023.._025
+    # - some_college_or_assoc:B15003_019.._021
+    # - bachelor_plus:        B15003_022.._025
     lt_hs = s([f"B15003_{i:03d}E" for i in range(2, 17)])
     hs_ged = s([f"B15003_{i:03d}E" for i in range(17, 19)])
-    some_assoc = s([f"B15003_{i:03d}E" for i in range(19, 23)])
-    bach_plus = s([f"B15003_{i:03d}E" for i in range(23, 26)])
+    some_assoc = s([f"B15003_{i:03d}E" for i in range(19, 22)])
+    bach_plus = s([f"B15003_{i:03d}E" for i in range(22, 26)])
 
     out: list[dict[str, Any]] = []
     for idx, g in df[group_col].astype(str).items():

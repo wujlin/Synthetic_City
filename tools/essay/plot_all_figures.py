@@ -22,8 +22,6 @@ REPO = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
 from plot_style import (
     OKABE_ITO,
     paper_style,
@@ -68,7 +66,7 @@ def load_ablation_k128() -> dict:
 
 
 def load_mi_kfold() -> dict:
-    p = REPO / "outputs" / "_us_puma_b19037_mikfold_fixscale_20260220T094927Z" / "metrics" / "mi_kfold_significance.json"
+    p = REPO / "outputs" / "_us_puma_5var_k32_mikfold_marginal_20260312T134746Z" / "metrics" / "mi_kfold_significance.json"
     return _load_json(p)
 
 
@@ -235,23 +233,26 @@ def fig1_heterogeneity():
 def fig2_main_results():
     kfold = load_mi_kfold()
 
-    configs = ["5v K=32", "5v K=128", "3v K=256", "3v K=64", "2v K=64"]
-    diff_tvd = [0.024, 0.051, 0.084, 0.055, 0.069]
-    ipf_tvd  = [0.058, 0.081, 0.103, 0.070, 0.074]
-    ks       = [32, 128, 256, 64, 64]
+    configs = ["5v K=32", "5v K=128", "3v K=256", "3v K=64"]
+    diff_tvd = [0.024, 0.051, 0.084, 0.055]
+    ipf_tvd  = [0.058, 0.081, 0.103, 0.070]
+    ks       = [32, 128, 256, 64]
+    soft_diff = "#8CA3B5"
+    soft_diff_dark = "#5F778B"
+    soft_ipf = "#C6A08A"
+    soft_neutral = "#C9CED4"
 
     with paper_style():
         fig, axes = plt.subplots(2, 2, figsize=(6.5, 5.0))
         fig.subplots_adjust(hspace=0.42, wspace=0.35)
 
-        # (a) Scatter: diffusion vs IPF per config — each config gets distinct color + legend
+        # (a) Scatter: overall comparison across the four reported settings.
         ax = axes[0, 0]
-        cfg_colors = [C_DIFF, C_IPF, C_PAIR, C_ACCENT, C_INDEP]
-        cfg_markers = ["o", "s", "^", "D", "v"]
+        cfg_markers = ["o", "s", "^", "D"]
         lim = [0, max(max(ipf_tvd), max(diff_tvd)) * 1.15]
-        ax.plot(lim, lim, color=C_INDEP, linestyle="--", linewidth=1.0, alpha=0.6)
+        ax.plot(lim, lim, color=soft_neutral, linestyle="--", linewidth=1.0, alpha=0.9)
         for i, cfg in enumerate(configs):
-            ax.scatter(ipf_tvd[i], diff_tvd[i], s=60, color=cfg_colors[i],
+            ax.scatter(ipf_tvd[i], diff_tvd[i], s=60, color=soft_diff,
                        marker=cfg_markers[i], zorder=5, edgecolors="white",
                        linewidth=0.8, label=cfg)
         ax.set_xlabel("IPF TVD")
@@ -269,29 +270,27 @@ def fig2_main_results():
         folds = kfold["folds"]
         fold_ids = [f["fold"].replace("mi_fold_", "Fold ") for f in folds]
         deltas = [f["diff_minus_ipf"] for f in folds]
-        colors = [C_DIFF if d < 0 else C_IPF for d in deltas]
-        bars = ax.barh(fold_ids, deltas, color=colors, height=0.6, edgecolor="white", linewidth=0.5)
-        ax.axvline(0, color=C_INDEP, linewidth=0.8)
+        ax.barh(fold_ids, deltas, color=soft_diff, height=0.6, edgecolor="white", linewidth=0.5)
+        ax.axvline(0, color=soft_neutral, linewidth=0.8)
         mean_d = np.mean(deltas)
-        ax.axvline(mean_d, color=C_DIFF, linestyle="--", linewidth=1.5, alpha=0.7)
+        ax.axvline(mean_d, color=soft_diff_dark, linestyle="--", linewidth=1.3, alpha=0.9)
         ax.annotate(f"Mean Δ = {mean_d:.4f}", xy=(mean_d, 0),
                     xytext=(0.02, 0.96), textcoords="axes fraction",
-                    fontsize=7, color=C_DIFF, ha="left", va="top")
+                    fontsize=7, color=soft_diff_dark, ha="left", va="top")
         ax.set_xlabel("Δ TVD (Diffusion − IPF)")
         ax.invert_yaxis()
         despine(ax)
         add_panel_label(ax, "b")
 
-        # (c) Relative gain across the five reported configurations
+        # (c) Relative gain across the four reported configurations
         ax = axes[1, 0]
-        k_vals = [32, 128, 256, 64, 64]
-        rel_gain = [-59, -37, -19, -22, -8]
-        labels_k = ["5v", "5v", "3v", "3v", "2v"]
-        colors_k = [C_DIFF if g < 0 else C_IPF for g in rel_gain]
-        ax.bar(range(len(k_vals)), rel_gain, color=colors_k, edgecolor="white", linewidth=0.5)
+        k_vals = [32, 128, 256, 64]
+        rel_gain = [-59, -37, -19, -22]
+        labels_k = ["5v", "5v", "3v", "3v"]
+        ax.bar(range(len(k_vals)), rel_gain, color=soft_diff, edgecolor="white", linewidth=0.5)
         ax.set_xticks(range(len(k_vals)))
         ax.set_xticklabels([f"{k}({l})" for k, l in zip(k_vals, labels_k)], fontsize=7)
-        ax.axhline(0, color=C_INDEP, linewidth=0.8)
+        ax.axhline(0, color=soft_neutral, linewidth=0.8)
         ax.set_xlabel("Configuration", fontsize=9)
         ax.set_ylabel("Relative gain (%)")
         despine(ax)
@@ -299,11 +298,11 @@ def fig2_main_results():
 
         # (d) Paired TVD comparison
         ax = axes[1, 1]
-        short_labels = ["32(5v)", "128(5v)", "256(3v)", "64(3v)", "64(2v)"]
+        short_labels = ["32(5v)", "128(5v)", "256(3v)", "64(3v)"]
         x_pos = np.arange(len(configs))
         w = 0.35
-        ax.bar(x_pos - w/2, diff_tvd, w, color=C_DIFF, label="Diffusion", edgecolor="white", linewidth=0.5)
-        ax.bar(x_pos + w/2, ipf_tvd, w, color=C_IPF, label="IPF", edgecolor="white", linewidth=0.5)
+        ax.bar(x_pos - w/2, diff_tvd, w, color=soft_diff, label="Diffusion", edgecolor="white", linewidth=0.5)
+        ax.bar(x_pos + w/2, ipf_tvd, w, color=soft_ipf, label="IPF", edgecolor="white", linewidth=0.5)
         ax.set_xticks(x_pos)
         ax.set_xticklabels(short_labels, fontsize=7)
         ax.set_xlabel("K (variables)", fontsize=9)
@@ -333,8 +332,8 @@ def fig3_ablation():
     labels = ["none", "marg.", "pair", "marg.+\npair"]
 
     with paper_style():
-        fig, axes = plt.subplots(1, 3, figsize=(6.8, 2.7))
-        fig.subplots_adjust(wspace=0.42, bottom=0.34)
+        fig, axes = plt.subplots(1, 2, figsize=(5.2, 2.6))
+        fig.subplots_adjust(wspace=0.30, bottom=0.26)
 
         # (a) K=32 ablation
         ax = axes[0]
@@ -349,9 +348,8 @@ def fig3_ablation():
         ax.set_xticks(range(len(conds)))
         ax.set_xticklabels(labels, fontsize=8)
         ax.set_ylabel("TVD")
-        ax.set_title("5-var, K=32", fontsize=10)
         despine(ax)
-        add_panel_label(ax, "a")
+        add_panel_label(ax, "a", dx=-30)
 
         # (b) K=128 ablation
         ax = axes[1]
@@ -366,49 +364,8 @@ def fig3_ablation():
         ax.set_xticks(range(len(conds)))
         ax.set_xticklabels(labels, fontsize=8)
         ax.set_ylabel("TVD")
-        ax.set_title("5-var, K=128", fontsize=10)
         despine(ax)
-        add_panel_label(ax, "b")
-
-        # (c) Pairwise contribution vs D
-        ax = axes[2]
-        d_vals = [2, 3, 5, 5]
-        d_labels = ["D=2\nK=64", "D=3\nK=256", "D=5\nK=32", "D=5\nK=128"]
-        marg_only = [0.069, 0.101, 0.043, 0.070]
-        best_pair = [0.069, 0.084, 0.024, 0.051]
-        pct_change = [0, -17, -44, -26]
-
-        x_pos = np.arange(len(d_vals))
-        w = 0.35
-        ax.bar(x_pos - w/2, marg_only, w, color=C_ACCENT, label="Marginal", edgecolor="white", linewidth=0.5)
-        ax.bar(x_pos + w/2, best_pair, w, color=C_PAIR, label="+Pair", edgecolor="white", linewidth=0.5)
-        for i, pct in enumerate(pct_change):
-            if pct != 0:
-                ax.text(x_pos[i] + w/2, best_pair[i] + 0.003, f"{pct}%",
-                        ha="center", fontsize=6, color=C_PAIR, fontweight="bold")
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(d_labels, fontsize=7)
-        ax.set_ylabel("TVD")
-        ax.set_ylim(0, max(marg_only) * 1.25)
-        despine(ax)
-        add_panel_label(ax, "c")
-
-        legend_handles = [
-            Line2D([0], [0], color=C_IPF, linestyle="--", linewidth=1.5, label="IPF"),
-            Line2D([0], [0], color=C_INDEP, linestyle=":", linewidth=1.2, label="Independence"),
-            Patch(facecolor=C_ACCENT, edgecolor="white", label="Marginal"),
-            Patch(facecolor=C_PAIR, edgecolor="white", label="+Pair"),
-        ]
-        fig.legend(
-            handles=legend_handles,
-            frameon=False,
-            fontsize=7,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 0.02),
-            ncol=4,
-            handlelength=2.0,
-            columnspacing=1.4,
-        )
+        add_panel_label(ax, "b", dx=-20)
 
         save_figure(fig, OUT_DIR / "fig_05_ablation.pdf")
         fig.savefig(OUT_DIR / "fig_05_ablation.png", dpi=200)

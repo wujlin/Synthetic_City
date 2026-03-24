@@ -64,7 +64,7 @@ def main() -> None:
     y_mc = np.array([float(r["mean_over_seeds"]) for r in rows_mc], dtype=float)
     y_mc_std = np.array([float(r["std_over_seeds"]) for r in rows_mc], dtype=float)
 
-    C1 = OKABE_ITO["blue"]
+    C1 = "#B9CCDF"
     C2 = OKABE_ITO["vermillion"]
     C3 = OKABE_ITO["bluish_green"]
 
@@ -74,14 +74,14 @@ def main() -> None:
 
         # (a) marginal consistency
         ax = axes[0]
-        ax.bar(np.arange(len(attrs)), y_vals, color=C1, alpha=0.80, edgecolor="white", linewidth=0.6)
+        ax.bar(np.arange(len(attrs)), y_vals, color=C1, alpha=0.95, edgecolor="white", linewidth=0.6)
         ax.axhline(0.002, color="black", linestyle="--", linewidth=0.8, alpha=0.6)
         ax.set_xticks(np.arange(len(attrs)))
         ax.set_xticklabels(attrs)
         ax.set_ylabel("TVD")
         ax.set_title("Marginal consistency (raw)")
         despine(ax)
-        add_panel_label(ax, "a", dx=-18)
+        add_panel_label(ax, "a", dx=-18, dy=8)
 
         # (b) convergence
         ax = axes[1]
@@ -91,7 +91,7 @@ def main() -> None:
         ax.set_ylabel("TVD")
         ax.set_title("Training convergence")
         despine(ax)
-        add_panel_label(ax, "b", dx=-18)
+        add_panel_label(ax, "b", dx=-18, dy=8)
 
         # (c) MC stability
         ax = axes[2]
@@ -100,9 +100,9 @@ def main() -> None:
         ax.set_xscale("log", base=2)
         ax.set_xlabel("Draw count")
         ax.set_ylabel("TVD")
-        ax.set_title("MC stability")
+        ax.set_title("Sampling stability")
         despine(ax)
-        add_panel_label(ax, "c", dx=-18)
+        add_panel_label(ax, "c", dx=-18, dy=8)
 
         out_pdf = pathlib.Path(args.out_pdf).expanduser().resolve()
         save_figure(fig, out_pdf)

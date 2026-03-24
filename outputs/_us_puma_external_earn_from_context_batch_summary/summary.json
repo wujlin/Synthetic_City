@@ -1,0 +1,88 @@
+{
+  "created_utc": "2026-03-24T06:23:14.793356Z",
+  "label": "external_earn_from_context_batch",
+  "n_runs": 3,
+  "runs": [
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed0",
+      "seed": 0,
+      "tvd_earn": 0.030606024179552847,
+      "cosine_earn": 0.9980733859429229,
+      "mae_earn": 0.010202008059850949,
+      "latent_norm": 5.942311532357159,
+      "baseline_tvd_earn": 0.07230967676187024
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed1",
+      "seed": 1,
+      "tvd_earn": 0.0311242848949726,
+      "cosine_earn": 0.9980795211435696,
+      "mae_earn": 0.010374761631657532,
+      "latent_norm": 5.9135974855983955,
+      "baseline_tvd_earn": 0.07230967676187024
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed2",
+      "seed": 2,
+      "tvd_earn": 0.03132245015791234,
+      "cosine_earn": 0.9978314942063489,
+      "mae_earn": 0.010440816719304113,
+      "latent_norm": 5.355512015959796,
+      "baseline_tvd_earn": 0.07230967676187024
+    }
+  ],
+  "summary": {
+    "tvd_earn": {
+      "mean": 0.031017586410812596,
+      "std": 0.0003020540464978859,
+      "min": 0.030606024179552847,
+      "max": 0.03132245015791234,
+      "n": 3
+    },
+    "cosine_earn": {
+      "mean": 0.9979948004309471,
+      "std": 0.00011550209930601914,
+      "min": 0.9978314942063489,
+      "max": 0.9980795211435696,
+      "n": 3
+    },
+    "mae_earn": {
+      "mean": 0.010339195470270865,
+      "std": 0.00010068468216596189,
+      "min": 0.010202008059850949,
+      "max": 0.010440816719304113,
+      "n": 3
+    },
+    "latent_norm": {
+      "mean": 5.73714034463845,
+      "std": 0.270106472905116,
+      "min": 5.355512015959796,
+      "max": 5.942311532357159,
+      "n": 3
+    },
+    "baseline_tvd_earn": {
+      "mean": 0.07230967676187024,
+      "std": 0.0,
+      "min": 0.07230967676187024,
+      "max": 0.07230967676187024,
+      "n": 3
+    },
+    "relative_gain_vs_baseline_pct": {
+      "mean": 57.10451519101722,
+      "std": 0.4177228553968032,
+      "min": 56.68290668610893,
+      "max": 57.67368137967977,
+      "n": 3
+    },
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "run_dirs": [
+      "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed0",
+      "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed1",
+      "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_earn_from_context_batch_seed2"
+    ]
+  }
+}

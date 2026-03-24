@@ -1,0 +1,15 @@
+{
+  "task": "external_target_v1_build",
+  "schema": "external_target_v1",
+  "statefp": "26",
+  "pums_year": 2023,
+  "pums_period": "5-Year",
+  "alpha": 0.0,
+  "python_bin": "/home/jinlin/miniconda3/bin/python",
+  "raw_root": "/home/jinlin/data/geoexplicit_data",
+  "data_root": "/home/jinlin/data/geoexplicit_data/synthetic_city/data",
+  "pums_dir": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/raw/pums/pums_2023_5-Year",
+  "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/external_conditions/extcond_v1_acs5_2022_puma_state26_michigan.csv",
+  "target_out_dir": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/detroit/processed/external_targets",
+  "run_dir": "outputs/_exttarget_v1_build_mi_puma_20260323T050854Z"
+}

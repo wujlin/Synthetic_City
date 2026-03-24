@@ -1,0 +1,96 @@
+{
+  "created_utc": "2026-03-24T02:19:35.021628Z",
+  "label": "external_joint_hier_full_batch",
+  "n_runs": 3,
+  "runs": [
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed0",
+      "seed": 0,
+      "fine_input_mode": "z_only",
+      "tvd_joint_raw": 0.07285898040754409,
+      "tvd_joint": 0.07248468424209986,
+      "tvd_coarse_head": 0.038709875995419474,
+      "tvd_coarse_from_fine": 0.03843598325299526,
+      "ipf_tvd_joint": 0.0808823584465411,
+      "ind_tvd_joint": 0.6140983629222574
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed1",
+      "seed": 1,
+      "fine_input_mode": "z_only",
+      "tvd_joint_raw": 0.07292786635263537,
+      "tvd_joint": 0.07241473634648866,
+      "tvd_coarse_head": 0.03865624275099212,
+      "tvd_coarse_from_fine": 0.038450093325544714,
+      "ipf_tvd_joint": 0.0808823584465411,
+      "ind_tvd_joint": 0.6140983629222574
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed2",
+      "seed": 2,
+      "fine_input_mode": "z_only",
+      "tvd_joint_raw": 0.07286681800831663,
+      "tvd_joint": 0.07253702151412884,
+      "tvd_coarse_head": 0.038394690334680404,
+      "tvd_coarse_from_fine": 0.038270093646684857,
+      "ipf_tvd_joint": 0.0808823584465411,
+      "ind_tvd_joint": 0.6140983629222574
+    }
+  ],
+  "grouped_by_fine_input_mode": {
+    "z_only": {
+      "tvd_joint_raw": {
+        "mean": 0.07288455492283202,
+        "std": 3.079249865551681e-05,
+        "min": 0.07285898040754409,
+        "max": 0.07292786635263537,
+        "n": 3
+      },
+      "tvd_joint": {
+        "mean": 0.07247881403423913,
+        "std": 5.0094976870227164e-05,
+        "min": 0.07241473634648866,
+        "max": 0.07253702151412884,
+        "n": 3
+      },
+      "tvd_coarse_head": {
+        "mean": 0.038586936360364,
+        "std": 0.0001376905516494736,
+        "min": 0.038394690334680404,
+        "max": 0.038709875995419474,
+        "n": 3
+      },
+      "tvd_coarse_from_fine": {
+        "mean": 0.038385390075074945,
+        "std": 8.173013861267408e-05,
+        "min": 0.038270093646684857,
+        "max": 0.038450093325544714,
+        "n": 3
+      },
+      "ipf_tvd_joint": {
+        "mean": 0.0808823584465411,
+        "std": 0.0,
+        "min": 0.0808823584465411,
+        "max": 0.0808823584465411,
+        "n": 3
+      },
+      "relative_gain_vs_ipf_pct": {
+        "mean": 10.389836020739017,
+        "std": 0.061935603551097486,
+        "min": 10.317870414137433,
+        "max": 10.469059338383508,
+        "n": 3
+      },
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "run_dirs": [
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed0",
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed1",
+        "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_full_batch_z_only_seed2"
+      ]
+    }
+  }
+}

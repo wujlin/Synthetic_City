@@ -430,6 +430,25 @@ Discussion 更适合写成连续的 4 段逻辑：
 - `main.tex` 的 `\includegraphics{}` 与实际文件名完全一致
 - 优先使用 PDF 主图；PNG 仅作预览
 
+### 10.3 每个 panel 都必须提供独立信息
+
+本轮一个反复出现的问题是：某些 panel 只是把正文已经说过的话再画一遍，信息量不足，却会占用图面、分散注意力。
+
+以后统一要求：
+
+- 如果一个 panel 只是对其他 panel 或正文的压缩总结，而没有新增证据，优先删掉
+- panel 数量宁少勿滥，宁可保留 `2` 个有独立功能的 panel，也不要硬凑成 `3` 或 `4`
+- 在决定是否保留某个 panel 时，先问：**读者如果只看这一格，会不会获得正文和其他 panel 中没有的新信息？**
+
+### 10.4 图的视觉风格必须服务信息，而不是抢信息
+
+本轮已经明确，过饱和、过廉价、过演示稿化的配色会削弱学术图的可信度。以后默认遵守：
+
+- 优先使用柔和、克制的科学配色，而不是高饱和撞色
+- 同一类比较优先用**单色 + 不同 marker**，不要无必要地用多种强色
+- 图的颜色层级应服务于主信息：主比较保留对比，辅助线、参考线、背景元素一律弱化
+- caption 和正文负责解释，图面本身只保留必要视觉元素，避免“图像化装饰”
+
 ---
 
 ## 11. LaTeX 源码排版规范
@@ -459,7 +478,129 @@ Discussion 更适合写成连续的 4 段逻辑：
 
 ---
 
-## 12. Partner 提交前自检清单
+## 12. Synthetic City 项目新增写作规则
+
+### 12.1 区分科学对象和计算对象
+
+本项目里最容易混淆的是 `copula` 和 `joint distribution`。
+
+- **Introduction / 问题定义层** 可以强调 `region-specific copula`
+- **Methods / Results / 指标层** 必须以 `regional joint distribution` 为主，因为训练目标、条件构造和 TVD 评估都是围绕 joint distribution 展开
+- 只有在需要连接两者时，才使用这类句子：
+  - `the joint distribution encodes the regional copula`
+
+禁止在同一段里反复来回切换：
+
+- `copula`
+- `joint distribution`
+- `dependence structure`
+
+除非三者分工非常明确，否则读者会误以为你在说三个不同对象。
+
+### 12.2 条件信号和目标向量的来源必须写清楚
+
+本轮已经明确：当前实验里，`PUMS` 同时提供了 target vector 和 condition，但二者的角色不同。
+
+- `PUMA`：地理单元
+- `PUMS`：当前实验的数据来源
+- `condition vector c`：从 `PUMS` 构造的 `PUMA-level joint distribution` 再边缘化得到
+
+以后必须写清：
+
+- 当前实验中的 `condition` 是 **PUMA-level**
+- 但它的数值是 **PUMS-derived**
+- 当前实验不是直接从另一份外部 aggregate census table 读取 `condition`
+
+否则读者会误以为当前论文已经完成了“外源 census constraints 驱动生成”的部署场景。
+
+### 12.3 权重的层级不能写错
+
+本轮的一个关键术语教训是：**不要写 `PUMA survey weight`。**
+
+正确写法是：
+
+- `survey-weighted aggregation of PUMS records within each PUMA`
+
+因为：
+
+- survey weights 属于 `PUMS` 记录
+- `PUMA` 只是聚合层级
+
+同时必须区分：
+
+- `survey-weighted`：PUMA 内部从样本记录恢复总体分布
+- `population-weighted average across training PUMAs`：PUMA 之间构造 global seed
+
+这两类 `weight` 不能混写。
+
+### 12.4 变量选择必须有总括性理由，不能只靠表格分散解释
+
+本轮已经确认：当正文使用 `AGEP, SEX, PINCP, SCHL, ESR` 这五个变量时，不能只在变量表里分散说明它们的作用，而要在 Methods 正文里给出一句总括性 justification。
+
+以后优先使用这类表述：
+
+- 覆盖核心 demographic 和 socioeconomic 维度
+- 存在有意义的 dependence structure
+- 在 `PUMS` 和 aggregate summaries 中稳定可得
+- 构成一个 tractable but demanding 的 joint reconstruction task
+
+不要让读者觉得这五个变量只是“随手挑的 benchmark”。
+
+### 12.5 Results 必须先稳住对象，再解释层次
+
+本轮在 case-study results 中反复暴露出的写法问题包括：
+
+- 把 `expected counts` 写成 `sampled discrete individuals`
+- 用 `profiles` 指代明确的 `marginal distributions`
+- 用 `generated ... are close to observed ones` 这类句子造成比较对象歧义
+
+以后写 Results 时，优先遵守：
+
+1. 先写清**比较对象是谁**
+2. 再写清**比较发生在哪个层次**
+3. 最后再给解释
+
+例如：
+
+- 先区分 `marginal / pairwise / full-joint`
+- 再区分 `generated distribution` 是和 `its observed counterpart` 比，而不是和另一个 region 比
+
+### 12.6 比较性结果必须放在比较性 subsection 里
+
+本轮已经确认，`Michigan 5-fold diffusion vs. IPF` 这类结果不应放在 `Verification and validation` 中，而应放在 `Comparison with IPF` 里。
+
+以后统一分工：
+
+- `Verification`：模型自身是否稳定、是否收敛、采样波动是否可忽略
+- `Comparison`：与 baseline 相比谁更好、优势是否稳定、cross-validation 是否仍成立
+
+不要把：
+
+- intrinsic quality
+- benchmark advantage
+
+混在同一个 subsection 里。
+
+### 12.7 Supplementary Information 不能写成承诺清单
+
+本轮 SI 最大的问题不是语言，而是“承诺了很多，实际没有给”。
+
+以后禁止出现：
+
+- `This SI also provides ...`
+- `for submission, include ...`
+- 空的 `Run Artifact Index`
+- 空的 `Reproducibility Notes`
+
+规则是：
+
+- 只写已经实际放进 SI 的内容
+- 如果某部分还没准备好，就先删掉，不要用占位句占着
+- SI 的功能是补充主文证据链，不是展示一个未来可能完成的目录
+
+---
+
+## 13. Partner 提交前自检清单
 
 每次提交新写的段落前，请至少自查以下问题：
 
@@ -477,7 +618,7 @@ Discussion 更适合写成连续的 4 段逻辑：
 
 ---
 
-## 13. 一句话总原则
+## 14. 一句话总原则
 
 **主文要像一条清楚的科学论证链，而不是一份实验记录、图注合集或防御性说明书。**
 

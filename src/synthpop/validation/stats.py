@@ -340,9 +340,9 @@ def compute_stats_metrics_against_targets_long(
         out = pd.Series([None] * int(syn.shape[0]), index=syn.index, dtype=object)
         # PUMS SCHL coarse mapping to ACS B15003 bins.
         out.loc[mask25] = "less_than_high_school"
-        out.loc[mask25 & schl.isin([19, 20])] = "high_school_or_ged"
-        out.loc[mask25 & schl.isin([21, 22, 23])] = "some_college_or_assoc"
-        out.loc[mask25 & (schl >= 24)] = "bachelor_plus"
+        out.loc[mask25 & schl.isin([16, 17])] = "high_school_or_ged"
+        out.loc[mask25 & schl.isin([18, 19, 20])] = "some_college_or_assoc"
+        out.loc[mask25 & (schl >= 21)] = "bachelor_plus"
         syn["SCHL_25p"] = out.astype(object)
 
     if "PINCP_16p_bin" in variables and "PINCP_16p_bin" not in syn.columns:

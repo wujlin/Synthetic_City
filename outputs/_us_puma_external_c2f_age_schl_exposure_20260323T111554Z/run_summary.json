@@ -1,0 +1,100 @@
+{
+  "created_utc": "2026-03-23T11:22:45Z",
+  "wide_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/extc2f_age_schl_exposure_pums_2023_puma_us_wide.csv",
+  "schema_json": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/extc2f_age_schl_exposure_pums_2023_puma_us.schema.json",
+  "n_rows_total": 14736,
+  "n_mi_rows": 408,
+  "n_non_mi_rows": 14328,
+  "target_shape": {
+    "age": 10,
+    "schl": 5
+  },
+  "coarse_parent_dim": 12,
+  "cond_dim": 18,
+  "eval_mode": "leave_mi_out",
+  "timesteps": 1000,
+  "epochs": 3000,
+  "batch_size": 4096,
+  "hidden_dims": [
+    256,
+    256
+  ],
+  "condition_injection": "concat",
+  "film_hidden_dim": 128,
+  "n_eval_joint_samples": 64,
+  "seed": 0,
+  "device": "cuda",
+  "save_final_model": true,
+  "saved_checkpoints": [
+    "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_c2f_age_schl_exposure_20260323T111554Z/checkpoints/external_c2f_age_schl_teacher/leave_mi_out/final.pt"
+  ],
+  "results": {
+    "teacher_forced_stage2": {
+      "tvd_joint_raw": {
+        "mean": 0.08098269114454605,
+        "std": 0.047871476894581266,
+        "max": 0.19527550134470567,
+        "p90": 0.13543969618967253,
+        "n": 408
+      },
+      "tvd_joint_projected": {
+        "mean": 0.07619131109955463,
+        "std": 0.04517199471195434,
+        "max": 0.18233525764504635,
+        "p90": 0.1300795766532445,
+        "n": 408
+      },
+      "cosine_joint_raw": {
+        "mean": 0.9821841104491922,
+        "std": 0.015972838885539572,
+        "max": 0.9999999950385732,
+        "p90": 0.9999220619291154,
+        "n": 408
+      },
+      "cosine_joint_projected": {
+        "mean": 0.9843154369042899,
+        "std": 0.014695234136891683,
+        "max": 0.9999999947431347,
+        "p90": 0.9999220616564741,
+        "n": 408
+      },
+      "tvd_AGEP_bin_raw": {
+        "mean": 0.04572019077973533,
+        "std": 0.02647125119326051,
+        "max": 0.13230055980352556,
+        "p90": 0.07767134165444085,
+        "n": 408
+      },
+      "tvd_AGEP_bin_projected": {
+        "mean": 0.039900364190126866,
+        "std": 0.023437023172148207,
+        "max": 0.11656506935897992,
+        "p90": 0.07236627235120112,
+        "n": 408
+      },
+      "tvd_SCHL_allpop_raw": {
+        "mean": 0.0449025448885514,
+        "std": 0.03793512608380999,
+        "max": 0.1518770371864488,
+        "p90": 0.09395367887636946,
+        "n": 408
+      },
+      "tvd_SCHL_allpop_projected": {
+        "mean": 0.0423965414824061,
+        "std": 0.036303272306039476,
+        "max": 0.1413228247143176,
+        "p90": 0.09204623044296133,
+        "n": 408
+      }
+    },
+    "baseline_uniform_parent": {
+      "tvd_joint": {
+        "mean": 0.2949748601553155,
+        "std": 0.06645678763154096,
+        "max": 0.42558640314443724,
+        "p90": 0.36799216273770197,
+        "n": 408
+      }
+    }
+  }
+}
