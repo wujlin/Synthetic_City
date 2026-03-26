@@ -34,6 +34,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
 from tools.build_external_target_v1_michigan import AGE_LABELS, ESR_LABELS, SCHL_LABELS, SEX_LABELS, SHAPE
+from tools.external_earn_v1_schema import EARN_LABELS
 from tools.train_us_puma_5var_diffusion import (
     _canon_puma5,
     _canon_statefp,
@@ -59,6 +60,7 @@ PREFIX_BY_VAR: dict[str, str] = {
     "SEX": "p_sex_",
     "SCHL_allpop": "p_schl_",
     "ESR_allpop": "p_esr_",
+    "EARN_16p_bin": "p_earn_",
 }
 
 
@@ -88,6 +90,27 @@ def _load_var_specs_from_schema(*, schema_json: pathlib.Path | None) -> list[tup
         if not isinstance(cats, list) or not cats:
             raise SystemExit(f"schema_json missing categories for variable={var}")
         specs.append((var, pref, [str(x) for x in cats]))
+    return specs
+
+
+def _load_condition_specs_from_schema(
+    *,
+    condition_schema_json: pathlib.Path | None,
+    fallback_var_specs: list[tuple[str, str, list[str]]],
+) -> list[tuple[str, str, list[str]]]:
+    if condition_schema_json is None:
+        return list(fallback_var_specs)
+    obj = json.loads(condition_schema_json.read_text(encoding="utf-8"))
+    order = [str(x) for x in obj.get("variable_order", [])]
+    cats_map = obj.get("categories", {})
+    if not order or not isinstance(cats_map, dict):
+        raise SystemExit(f"Invalid condition_schema_json: {condition_schema_json}")
+    specs: list[tuple[str, str, list[str]]] = []
+    for i, var in enumerate(order):
+        cats = cats_map.get(var)
+        if not isinstance(cats, list) or not cats:
+            raise SystemExit(f"condition_schema_json missing categories for variable={var}")
+        specs.append((var, PREFIX_BY_VAR.get(var, f"cond_extra_{i}_"), [str(x) for x in cats]))
     return specs
 
 
@@ -176,6 +199,7 @@ def main() -> None:
     ap.add_argument("--joint_wide_csv", required=True, help="Path to exttarget_v1_pums_*_joint_wide.csv")
     ap.add_argument("--condition_csv", required=True, help="Path to extcond_v1_acs5_*_puma_*.csv")
     ap.add_argument("--schema_json", default=None, help="Optional schema JSON for external target/condition categories.")
+    ap.add_argument("--condition_schema_json", default=None, help="Optional schema JSON for condition-only blocks.")
     ap.add_argument("--conditions", default="none,external", help='Comma-separated: "none,external"')
     ap.add_argument("--eval_mode", choices=["leave_mi_out", "mi_kfold"], default="leave_mi_out")
     ap.add_argument("--n_folds", type=int, default=5, help="Used when eval_mode=mi_kfold")
@@ -213,14 +237,21 @@ def main() -> None:
     in_path = pathlib.Path(args.joint_wide_csv).expanduser().resolve()
     cond_path = pathlib.Path(args.condition_csv).expanduser().resolve()
     schema_path = pathlib.Path(args.schema_json).expanduser().resolve() if args.schema_json else None
+    condition_schema_path = pathlib.Path(args.condition_schema_json).expanduser().resolve() if args.condition_schema_json else None
     if not in_path.exists():
         raise SystemExit(f"joint_wide_csv not found: {in_path}")
     if not cond_path.exists():
         raise SystemExit(f"condition_csv not found: {cond_path}")
     if schema_path is not None and not schema_path.exists():
         raise SystemExit(f"schema_json not found: {schema_path}")
+    if condition_schema_path is not None and not condition_schema_path.exists():
+        raise SystemExit(f"condition_schema_json not found: {condition_schema_path}")
 
     var_specs = _load_var_specs_from_schema(schema_json=schema_path)
+    cond_var_specs = _load_condition_specs_from_schema(
+        condition_schema_json=condition_schema_path,
+        fallback_var_specs=var_specs,
+    )
 
     run_id = f"_us_puma_external_v1_diffusion_{_dt.datetime.now(_dt.UTC).strftime('%Y%m%dT%H%M%SZ')}"
     out_dir = pathlib.Path(args.out_dir).expanduser().resolve() if args.out_dir else (_REPO_ROOT / "outputs" / run_id)
@@ -270,7 +301,7 @@ def main() -> None:
         arr = arr / np.maximum(arr.sum(axis=1, keepdims=True), 1e-12)
         target_marg_by_var[var] = arr
 
-    cond_ext, cond_block_slices, cond_meta = _load_external_condition_matrix(condition_csv=cond_path, ids=ids, var_specs=var_specs)
+    cond_ext, cond_block_slices, cond_meta = _load_external_condition_matrix(condition_csv=cond_path, ids=ids, var_specs=cond_var_specs)
     ext_marg_by_var: dict[str, np.ndarray] = {var: cond_ext[:, s].copy() for var, s in cond_block_slices.items()}
 
     x_log_all = np.log(np.clip(p_joint, 0.0, None) + 1e-6).astype(np.float32)
@@ -471,6 +502,7 @@ def main() -> None:
         "input_csv": str(in_path),
         "condition_csv": str(cond_path),
         "schema_json": str(schema_path) if schema_path is not None else None,
+        "condition_schema_json": str(condition_schema_path) if condition_schema_path is not None else None,
         "n_rows_total": int(df.shape[0]),
         "n_mi_rows": int(is_mi.sum()),
         "n_non_mi_rows": int((~is_mi).sum()),

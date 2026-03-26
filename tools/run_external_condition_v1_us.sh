@@ -6,6 +6,7 @@ RAW_ROOT="${RAW_ROOT:-/home/jinlin/data/geoexplicit_data}"
 DATA_ROOT="${SYNTHCITY_DATA_ROOT:-$RAW_ROOT/synthetic_city/data}"
 OUT_ROOT="${OUT_ROOT:-outputs}"
 ACS_YEAR="${ACS_YEAR:-2022}"
+INCLUDE_AGE_SEX_CROSS="${INCLUDE_AGE_SEX_CROSS:-0}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 STATEFPS="${STATEFPS:-}"
 SCOPE_TAG="${SCOPE_TAG:-}"
@@ -18,7 +19,8 @@ if [[ -z "$SCOPE_TAG" ]]; then
     SCOPE_TAG="us"
   fi
 fi
-OUT_CSV="${OUT_CSV:-$DATA_ROOT/us/processed/external_conditions/extcond_v1_acs5_${ACS_YEAR}_puma_${SCOPE_TAG}.csv}"
+EXTCOND_TAG="${EXTCOND_TAG:-$([[ "$INCLUDE_AGE_SEX_CROSS" == "1" ]] && echo "v1_agesex" || echo "v1")}"
+OUT_CSV="${OUT_CSV:-$DATA_ROOT/us/processed/external_conditions/extcond_${EXTCOND_TAG}_acs5_${ACS_YEAR}_puma_${SCOPE_TAG}.csv}"
 mkdir -p "$RUN_DIR"
 
 echo ">>> [extcond-v1-us] DATA_ROOT=$DATA_ROOT"
@@ -27,18 +29,26 @@ echo ">>> [extcond-v1-us] OUT_CSV=$OUT_CSV"
 echo ">>> [extcond-v1-us] PYTHON_BIN=$PYTHON_BIN"
 echo ">>> [extcond-v1-us] ACS_YEAR=$ACS_YEAR"
 echo ">>> [extcond-v1-us] STATEFPS=${STATEFPS:-ALL_50_STATES}"
+echo ">>> [extcond-v1-us] INCLUDE_AGE_SEX_CROSS=$INCLUDE_AGE_SEX_CROSS"
+
+EXTRA_ARGS=()
+if [[ "$INCLUDE_AGE_SEX_CROSS" == "1" ]]; then
+  EXTRA_ARGS+=(--include_age_sex_cross)
+fi
 
 if [[ -n "$STATEFPS" ]]; then
   "$PYTHON_BIN" -u tools/build_external_condition_v1_acs_puma.py \
     --acs_year "$ACS_YEAR" \
     --statefps "$STATEFPS" \
     --out_path "$OUT_CSV" \
+    "${EXTRA_ARGS[@]}" \
     --overwrite 2>&1 | tee "$RUN_DIR/run.log"
 else
   "$PYTHON_BIN" -u tools/build_external_condition_v1_acs_puma.py \
     --acs_year "$ACS_YEAR" \
     --all_states \
     --out_path "$OUT_CSV" \
+    "${EXTRA_ARGS[@]}" \
     --overwrite 2>&1 | tee "$RUN_DIR/run.log"
 fi
 
@@ -50,7 +60,7 @@ run_dir = Path("$RUN_DIR")
 out_csv = Path("$OUT_CSV")
 summary = {
     "task": "external_condition_v1_build",
-    "schema": "external_condition_v1",
+    "schema": "external_condition_v1_agesex" if "$INCLUDE_AGE_SEX_CROSS" == "1" else "external_condition_v1",
     "geo_level": "puma",
     "scope": "subset" if "$STATEFPS" else "us",
     "acs_year": int("$ACS_YEAR"),
@@ -59,6 +69,8 @@ summary = {
     "statefps": "$STATEFPS".split(",") if "$STATEFPS" else None,
     "out_csv": str(out_csv),
     "metadata_json": str(out_csv.with_suffix(out_csv.suffix + ".metadata.json")),
+    "schema_json": str(out_csv.with_suffix(out_csv.suffix + ".schema.json")),
+    "include_age_sex_cross": bool(int("$INCLUDE_AGE_SEX_CROSS")),
 }
 run_dir.mkdir(parents=True, exist_ok=True)
 (run_dir / "run_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")

@@ -1,0 +1,178 @@
+[
+  {
+    "epoch": 1.0,
+    "loss": 3.729942798614502,
+    "loss_diffusion": 0.999217689037323,
+    "loss_coarse": 4.167802333831787,
+    "loss_consistency": 0.6468238234519958,
+    "val_tvd_joint": 0.44483604047157155,
+    "val_tvd_joint_raw": 0.9726839782839981,
+    "val_tvd_coarse_head": 0.6280184876461243,
+    "val_tvd_coarse_from_fine": 0.3169052042972202
+  },
+  {
+    "epoch": 200.0,
+    "loss": 2.0680928230285645,
+    "loss_diffusion": 0.4622131884098053,
+    "loss_coarse": 3.087218761444092,
+    "loss_consistency": 0.06227025389671326,
+    "val_tvd_joint": 0.2779615829985708,
+    "val_tvd_joint_raw": 0.8277885173296106,
+    "val_tvd_coarse_head": 0.3220514867780053,
+    "val_tvd_coarse_from_fine": 0.19520233959547373
+  },
+  {
+    "epoch": 400.0,
+    "loss": 2.02339768409729,
+    "loss_diffusion": 0.431194543838501,
+    "loss_coarse": 3.0859055519104004,
+    "loss_consistency": 0.049250271171331406,
+    "val_tvd_joint": 0.1513694986698629,
+    "val_tvd_joint_raw": 0.36543693472879224,
+    "val_tvd_coarse_head": 0.13567119077964518,
+    "val_tvd_coarse_from_fine": 0.09125221663744883
+  },
+  {
+    "epoch": 600.0,
+    "loss": 1.9521303176879883,
+    "loss_diffusion": 0.36688658595085144,
+    "loss_coarse": 3.079042911529541,
+    "loss_consistency": 0.04572227597236633,
+    "val_tvd_joint": 0.10842918220720404,
+    "val_tvd_joint_raw": 0.1771017484962862,
+    "val_tvd_coarse_head": 0.06669960121129641,
+    "val_tvd_coarse_from_fine": 0.05736676493378337
+  },
+  {
+    "epoch": 800.0,
+    "loss": 1.95669424533844,
+    "loss_diffusion": 0.3744048774242401,
+    "loss_coarse": 3.0796189308166504,
+    "loss_consistency": 0.04247983172535896,
+    "val_tvd_joint": 0.09380149989740662,
+    "val_tvd_joint_raw": 0.1324175997422186,
+    "val_tvd_coarse_head": 0.04967631361130595,
+    "val_tvd_coarse_from_fine": 0.04882864485186957
+  },
+  {
+    "epoch": 1000.0,
+    "loss": 1.9650477170944214,
+    "loss_diffusion": 0.38709840178489685,
+    "loss_coarse": 3.07446026802063,
+    "loss_consistency": 0.04071918502449989,
+    "val_tvd_joint": 0.08861015867986816,
+    "val_tvd_joint_raw": 0.11903176843509759,
+    "val_tvd_coarse_head": 0.046040670083583445,
+    "val_tvd_coarse_from_fine": 0.04661675626324673
+  },
+  {
+    "epoch": 1200.0,
+    "loss": 1.9393606185913086,
+    "loss_diffusion": 0.3591921925544739,
+    "loss_coarse": 3.078707218170166,
+    "loss_consistency": 0.040814898908138275,
+    "val_tvd_joint": 0.08726952986755052,
+    "val_tvd_joint_raw": 0.11546124785586741,
+    "val_tvd_coarse_head": 0.043697801259061864,
+    "val_tvd_coarse_from_fine": 0.04601261576544707
+  },
+  {
+    "epoch": 1400.0,
+    "loss": 1.9483036994934082,
+    "loss_diffusion": 0.3710280656814575,
+    "loss_coarse": 3.072929620742798,
+    "loss_consistency": 0.04081084951758385,
+    "val_tvd_joint": 0.08518593325717876,
+    "val_tvd_joint_raw": 0.11256388022722631,
+    "val_tvd_coarse_head": 0.0418514907810488,
+    "val_tvd_coarse_from_fine": 0.04438102827549235
+  },
+  {
+    "epoch": 1600.0,
+    "loss": 1.9242324829101562,
+    "loss_diffusion": 0.34327834844589233,
+    "loss_coarse": 3.0800588130950928,
+    "loss_consistency": 0.04092475399374962,
+    "val_tvd_joint": 0.08393292894441565,
+    "val_tvd_joint_raw": 0.10880570879382094,
+    "val_tvd_coarse_head": 0.04092078852274691,
+    "val_tvd_coarse_from_fine": 0.04413578990151682
+  },
+  {
+    "epoch": 1800.0,
+    "loss": 1.9061436653137207,
+    "loss_diffusion": 0.32717692852020264,
+    "loss_coarse": 3.0787994861602783,
+    "loss_consistency": 0.03956698626279831,
+    "val_tvd_joint": 0.08334899808722569,
+    "val_tvd_joint_raw": 0.10643987590641024,
+    "val_tvd_coarse_head": 0.040254815051356155,
+    "val_tvd_coarse_from_fine": 0.043546688368759835
+  },
+  {
+    "epoch": 2000.0,
+    "loss": 1.9189265966415405,
+    "loss_diffusion": 0.33689650893211365,
+    "loss_coarse": 3.0850703716278076,
+    "loss_consistency": 0.039494838565588,
+    "val_tvd_joint": 0.08309562227481432,
+    "val_tvd_joint_raw": 0.10272707187878803,
+    "val_tvd_coarse_head": 0.039844478107334706,
+    "val_tvd_coarse_from_fine": 0.04315159001611764
+  },
+  {
+    "epoch": 2200.0,
+    "loss": 1.9105451107025146,
+    "loss_diffusion": 0.33543288707733154,
+    "loss_coarse": 3.071661949157715,
+    "loss_consistency": 0.03928118944168091,
+    "val_tvd_joint": 0.08285415572104458,
+    "val_tvd_joint_raw": 0.09854843593300068,
+    "val_tvd_coarse_head": 0.0395243740865718,
+    "val_tvd_coarse_from_fine": 0.04276187529992603
+  },
+  {
+    "epoch": 2400.0,
+    "loss": 1.8762636184692383,
+    "loss_diffusion": 0.30041101574897766,
+    "loss_coarse": 3.08121657371521,
+    "loss_consistency": 0.035244327038526535,
+    "val_tvd_joint": 0.08228640832374211,
+    "val_tvd_joint_raw": 0.09489087930185505,
+    "val_tvd_coarse_head": 0.03926078310330071,
+    "val_tvd_coarse_from_fine": 0.04241171013985447
+  },
+  {
+    "epoch": 2600.0,
+    "loss": 1.898179054260254,
+    "loss_diffusion": 0.3209080100059509,
+    "loss_coarse": 3.0820605754852295,
+    "loss_consistency": 0.03624078631401062,
+    "val_tvd_joint": 0.08238957593474266,
+    "val_tvd_joint_raw": 0.09326938360900709,
+    "val_tvd_coarse_head": 0.03901346937174182,
+    "val_tvd_coarse_from_fine": 0.04242205602777545
+  },
+  {
+    "epoch": 2800.0,
+    "loss": 1.8982893228530884,
+    "loss_diffusion": 0.32269829511642456,
+    "loss_coarse": 3.077434778213501,
+    "loss_consistency": 0.03687367960810661,
+    "val_tvd_joint": 0.08243942645625357,
+    "val_tvd_joint_raw": 0.09206978711056675,
+    "val_tvd_coarse_head": 0.03882186571105016,
+    "val_tvd_coarse_from_fine": 0.04232410627715241
+  },
+  {
+    "epoch": 3000.0,
+    "loss": 1.8863646984100342,
+    "loss_diffusion": 0.30952516198158264,
+    "loss_coarse": 3.083648681640625,
+    "loss_consistency": 0.03501519560813904,
+    "val_tvd_joint": 0.08222764984536622,
+    "val_tvd_joint_raw": 0.09081408494999242,
+    "val_tvd_coarse_head": 0.03869366833688175,
+    "val_tvd_coarse_from_fine": 0.04206307292080357
+  }
+]

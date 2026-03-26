@@ -1,0 +1,17 @@
+{
+  "schema": "external_condition_v1_plus_earn_v1",
+  "created_utc": "2026-03-26T01:20:17Z",
+  "base_condition_csv": "/Users/jinlin/Desktop/Project/Synthetic_City/outputs/_smoke_extcond_v1_agesex_mi.csv",
+  "earn_condition_csv": "/Users/jinlin/Desktop/Project/Synthetic_City/outputs/_smoke_extcond_earn_mi.csv",
+  "out_path": "/Users/jinlin/Desktop/Project/Synthetic_City/outputs/_smoke_extcond_v1_agesex_earn_mi.csv",
+  "n_rows": 3264,
+  "n_pumas": 68,
+  "variables": [
+    "AGEP_SEX_cross",
+    "AGEP_bin",
+    "EARN_16p_bin",
+    "ESR_allpop",
+    "SCHL_allpop",
+    "SEX"
+  ]
+}

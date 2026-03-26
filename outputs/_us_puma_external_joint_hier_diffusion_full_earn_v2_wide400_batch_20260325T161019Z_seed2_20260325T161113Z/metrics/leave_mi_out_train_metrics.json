@@ -1,0 +1,38 @@
+[
+  {
+    "epoch": 1.0,
+    "loss": 4.853084564208984,
+    "loss_diffusion": 1.000867247581482,
+    "loss_coarse": 5.577707290649414,
+    "loss_consistency": 0.828070878982544,
+    "loss_marginal": 0.23529253900051117,
+    "val_tvd_joint": 0.7680076241221365,
+    "val_tvd_joint_raw": 0.985249529756398,
+    "val_tvd_coarse_head": 0.792645021247946,
+    "val_tvd_coarse_from_fine": 0.6511487914299854
+  },
+  {
+    "epoch": 200.0,
+    "loss": 3.1379168033599854,
+    "loss_diffusion": 1.074439525604248,
+    "loss_coarse": 3.634889602661133,
+    "loss_consistency": 0.17735658586025238,
+    "loss_marginal": 0.0686759352684021,
+    "val_tvd_joint": 0.6596363289157521,
+    "val_tvd_joint_raw": 0.972093108942124,
+    "val_tvd_coarse_head": 0.47640088398081337,
+    "val_tvd_coarse_from_fine": 0.5156309415354824
+  },
+  {
+    "epoch": 400.0,
+    "loss": 3.092000961303711,
+    "loss_diffusion": 1.0757396221160889,
+    "loss_coarse": 3.6001574993133545,
+    "loss_consistency": 0.15904557704925537,
+    "loss_marginal": 0.05713704973459244,
+    "val_tvd_joint": 0.5367195058501267,
+    "val_tvd_joint_raw": 0.8965861554271772,
+    "val_tvd_coarse_head": 0.1691064786939774,
+    "val_tvd_coarse_from_fine": 0.3722104486696158
+  }
+]

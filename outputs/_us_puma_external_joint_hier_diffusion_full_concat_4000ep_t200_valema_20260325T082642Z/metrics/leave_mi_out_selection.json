@@ -1,0 +1,8 @@
+{
+  "best_epoch": 4000,
+  "best_val_tvd_joint": 0.08203096186375204,
+  "selected_state": "best_val_ema",
+  "ema_decay": 0.999,
+  "train_core_size": 2269,
+  "val_size": 119
+}

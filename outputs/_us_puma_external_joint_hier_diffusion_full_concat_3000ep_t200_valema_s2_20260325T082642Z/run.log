@@ -1,0 +1,277 @@
+[info] RAW_ROOT=/home/jinlin/data/geoexplicit_data
+[info] DATA_ROOT=/home/jinlin/data/geoexplicit_data/synthetic_city/data
+[info] TARGET_WIDE_CSV=/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us_joint_wide.csv
+[info] CONDITION_CSV=/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv
+[info] SCHEMA_JSON=/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us.schema.json
+[info] PYTHON_BIN=/home/jinlin/miniconda3/bin/python
+[info] DEVICE=auto
+[info] EVAL_EVERY=200
+[info] VAL_FRAC=0.05
+[info] VAL_MIN_GROUPS=96
+[info] N_VAL_JOINT_SAMPLES=32
+[info] N_EVAL_JOINT_SAMPLES=64
+[info] EMA_DECAY=0.999
+[info] CMD=/home/jinlin/miniconda3/bin/python -u tools/train_external_joint_hier_diffusion_full.py --joint_wide_csv /home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us_joint_wide.csv --condition_csv /home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv --schema_json /home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us.schema.json --eval_mode leave_mi_out --n_folds 5 --timesteps 200 --epochs 3000 --batch_size 512 --encoder_hidden_dims 256\,256 --coarse_hidden_dims 256 --diffusion_hidden_dims 512\,512 --latent_dim 128 --lr 1e-3 --weight_decay 1e-4 --condition_injection concat --film_hidden_dim 128 --coarse_weight 0.5 --consistency_weight 1.0 --seed 2 --log_every 200 --eval_every 200 --val_frac 0.05 --val_min_groups 96 --n_val_joint_samples 32 --val_ipf_iters 200 --n_eval_joint_samples 64 --ipf_iters 200 --ema_decay 0.999 --run_label external_joint_hier_diffusion_full --out_dir outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_t200_valema_s2_20260325T082642Z --save_best_checkpoint 
+[train] fold=leave_mi_out epoch=1 loss=3.738525 diff=0.995239 coarse=4.190827 cons=0.647872
+[train] fold=leave_mi_out epoch=200 loss=2.027399 diff=0.420352 coarse=3.089190 cons=0.062452
+[train] fold=leave_mi_out epoch=400 loss=1.976065 diff=0.387252 coarse=3.079096 cons=0.049265
+[train] fold=leave_mi_out epoch=600 loss=1.937996 diff=0.349618 coarse=3.079999 cons=0.048378
+[train] fold=leave_mi_out epoch=800 loss=1.935083 diff=0.351427 coarse=3.078406 cons=0.044453
+[train] fold=leave_mi_out epoch=1000 loss=1.944153 diff=0.362398 coarse=3.080003 cons=0.041754
+[train] fold=leave_mi_out epoch=1200 loss=1.936592 diff=0.349793 coarse=3.087945 cons=0.042826
+[train] fold=leave_mi_out epoch=1400 loss=1.936760 diff=0.358071 coarse=3.078875 cons=0.039252
+[train] fold=leave_mi_out epoch=1600 loss=1.930194 diff=0.350523 coarse=3.077816 cons=0.040763
+[train] fold=leave_mi_out epoch=1800 loss=1.945725 diff=0.365526 coarse=3.085256 cons=0.037572
+[train] fold=leave_mi_out epoch=2000 loss=1.941254 diff=0.366184 coarse=3.076634 cons=0.036753
+[train] fold=leave_mi_out epoch=2200 loss=1.898082 diff=0.315921 coarse=3.081333 cons=0.041495
+[train] fold=leave_mi_out epoch=2400 loss=1.911151 diff=0.335241 coarse=3.076501 cons=0.037659
+[train] fold=leave_mi_out epoch=2600 loss=1.874169 diff=0.297284 coarse=3.080173 cons=0.036799
+[train] fold=leave_mi_out epoch=2800 loss=1.896625 diff=0.318837 coarse=3.086348 cons=0.034615
+[train] fold=leave_mi_out epoch=3000 loss=1.911482 diff=0.333502 coarse=3.083991 cons=0.035985
+{
+  "hier_diffusion_joint": {
+    "tvd_joint_raw": {
+      "mean": 0.08295176536577384,
+      "std": 0.0,
+      "max": 0.08295176536577384,
+      "p90": 0.08295176536577384,
+      "n": 1
+    },
+    "tvd_joint": {
+      "mean": 0.07479853692600476,
+      "std": 0.0,
+      "max": 0.07479853692600476,
+      "p90": 0.07479853692600476,
+      "n": 1
+    },
+    "cosine_joint_raw": {
+      "mean": 0.9904676529543105,
+      "std": 0.0,
+      "max": 0.9904676529543105,
+      "p90": 0.9904676529543105,
+      "n": 1
+    },
+    "cosine_joint": {
+      "mean": 0.9926788897249565,
+      "std": 0.0,
+      "max": 0.9926788897249565,
+      "p90": 0.9926788897249565,
+      "n": 1
+    },
+    "tvd_coarse_head": {
+      "mean": 0.03921017205583289,
+      "std": 0.0,
+      "max": 0.03921017205583289,
+      "p90": 0.03921017205583289,
+      "n": 1
+    },
+    "tvd_coarse_from_fine": {
+      "mean": 0.04092869305649766,
+      "std": 0.0,
+      "max": 0.04092869305649766,
+      "p90": 0.04092869305649766,
+      "n": 1
+    },
+    "tvd_AGEP_bin": {
+      "mean": 3.766945697706247e-05,
+      "std": 0.0,
+      "max": 3.766945697706247e-05,
+      "p90": 3.766945697706247e-05,
+      "n": 1
+    },
+    "tvd_AGEP_bin_raw": {
+      "mean": 0.021663338585133144,
+      "std": 0.0,
+      "max": 0.021663338585133144,
+      "p90": 0.021663338585133144,
+      "n": 1
+    },
+    "tvd_SEX": {
+      "mean": 9.435971767847195e-07,
+      "std": 0.0,
+      "max": 9.435971767847195e-07,
+      "p90": 9.435971767847195e-07,
+      "n": 1
+    },
+    "tvd_SEX_raw": {
+      "mean": 0.0034606477838680784,
+      "std": 0.0,
+      "max": 0.0034606477838680784,
+      "p90": 0.0034606477838680784,
+      "n": 1
+    },
+    "tvd_SCHL_allpop": {
+      "mean": 5.803775156847408e-08,
+      "std": 0.0,
+      "max": 5.803775156847408e-08,
+      "p90": 5.803775156847408e-08,
+      "n": 1
+    },
+    "tvd_SCHL_allpop_raw": {
+      "mean": 0.021151516230561336,
+      "std": 0.0,
+      "max": 0.021151516230561336,
+      "p90": 0.021151516230561336,
+      "n": 1
+    },
+    "tvd_ESR_allpop": {
+      "mean": 6.356532044822119e-09,
+      "std": 0.0,
+      "max": 6.356532044822119e-09,
+      "p90": 6.356532044822119e-09,
+      "n": 1
+    },
+    "tvd_ESR_allpop_raw": {
+      "mean": 0.013065905991711722,
+      "std": 0.0,
+      "max": 0.013065905991711722,
+      "p90": 0.013065905991711722,
+      "n": 1
+    }
+  },
+  "baselines": {
+    "ipf_train_seed_external": {
+      "tvd_joint": {
+        "mean": 0.08088863883953305,
+        "std": 0.0,
+        "max": 0.08088863883953305,
+        "p90": 0.08088863883953305,
+        "n": 1
+      }
+    },
+    "independence_external": {
+      "tvd_joint": {
+        "mean": 0.6140983629222574,
+        "std": 0.0,
+        "max": 0.6140983629222574,
+        "p90": 0.6140983629222574,
+        "n": 1
+      }
+    }
+  },
+  "by_fold": {
+    "leave_mi_out": {
+      "n_eval": 68,
+      "n_reference_train": 2269,
+      "tvd_joint_raw": {
+        "mean": 0.08295176536577384,
+        "std": 0.016743227357939393,
+        "max": 0.1452397028399248,
+        "p90": 0.10562601152603633,
+        "n": 68
+      },
+      "tvd_joint": {
+        "mean": 0.07479853692600476,
+        "std": 0.014333069526108506,
+        "max": 0.1142574235380133,
+        "p90": 0.09419704495913782,
+        "n": 68
+      },
+      "cosine_joint_raw": {
+        "mean": 0.9904676529543105,
+        "std": 0.005271938740834888,
+        "max": 0.9961792757502517,
+        "p90": 0.9947909990215102,
+        "n": 68
+      },
+      "cosine_joint": {
+        "mean": 0.9926788897249565,
+        "std": 0.0031378641056853643,
+        "max": 0.9967894331348938,
+        "p90": 0.9959184164620521,
+        "n": 68
+      },
+      "tvd_coarse_head": {
+        "mean": 0.03921017205583289,
+        "std": 0.011346663221458294,
+        "max": 0.07797324664033745,
+        "p90": 0.05406971505413429,
+        "n": 68
+      },
+      "tvd_coarse_from_fine": {
+        "mean": 0.04092869305649766,
+        "std": 0.011130304066169983,
+        "max": 0.06583927249958947,
+        "p90": 0.05632802032589375,
+        "n": 68
+      },
+      "ipf_train_seed_external": {
+        "tvd_joint": {
+          "mean": 0.08088863883953305,
+          "std": 0.013869912022959743,
+          "max": 0.12235699116980131,
+          "p90": 0.10397216150730988,
+          "n": 68
+        }
+      },
+      "independence_external": {
+        "tvd_joint": {
+          "mean": 0.6140983629222574,
+          "std": 0.02233287258812504,
+          "max": 0.6704645363021833,
+          "p90": 0.6426687551556928,
+          "n": 68
+        }
+      },
+      "tvd_AGEP_bin": {
+        "mean": 3.766945697706247e-05,
+        "std": 6.0631047731288946e-06,
+        "max": 5.008309359458719e-05,
+        "p90": 4.5226460463649974e-05,
+        "n": 68
+      },
+      "tvd_AGEP_bin_raw": {
+        "mean": 0.021663338585133144,
+        "std": 0.012876875471674895,
+        "max": 0.10438728594076539,
+        "p90": 0.02805995821116025,
+        "n": 68
+      },
+      "tvd_SEX": {
+        "mean": 9.435971767847195e-07,
+        "std": 2.7039274675037435e-07,
+        "max": 1.7303187953288113e-06,
+        "p90": 1.3083606028974071e-06,
+        "n": 68
+      },
+      "tvd_SEX_raw": {
+        "mean": 0.0034606477838680784,
+        "std": 0.0028506633753824346,
+        "max": 0.01360348387560667,
+        "p90": 0.00641980105961538,
+        "n": 68
+      },
+      "tvd_SCHL_allpop": {
+        "mean": 5.803775156847408e-08,
+        "std": 1.7657913545853883e-08,
+        "max": 1.1203301108347885e-07,
+        "p90": 7.559876323420812e-08,
+        "n": 68
+      },
+      "tvd_SCHL_allpop_raw": {
+        "mean": 0.021151516230561336,
+        "std": 0.010826554027979675,
+        "max": 0.07556185111644007,
+        "p90": 0.03040314895972093,
+        "n": 68
+      },
+      "tvd_ESR_allpop": {
+        "mean": 6.356532044822119e-09,
+        "std": 4.087020230223381e-09,
+        "max": 1.6938429286462477e-08,
+        "p90": 1.1725569484948188e-08,
+        "n": 68
+      },
+      "tvd_ESR_allpop_raw": {
+        "mean": 0.013065905991711722,
+        "std": 0.00919626024963945,
+        "max": 0.05883656840115535,
+        "p90": 0.026915311523446547,
+        "n": 68
+      },
+      "n_train": 2269,
+      "n_val": 119,
+      "n_test": 68
+    }
+  }
+}

@@ -1,0 +1,178 @@
+[
+  {
+    "epoch": 1.0,
+    "loss": 3.7385246753692627,
+    "loss_diffusion": 0.9952394366264343,
+    "loss_coarse": 4.190827369689941,
+    "loss_consistency": 0.6478715538978577,
+    "val_tvd_joint": 0.45047312612734725,
+    "val_tvd_joint_raw": 0.9736102633489306,
+    "val_tvd_coarse_head": 0.6307719105503211,
+    "val_tvd_coarse_from_fine": 0.3298260674687977
+  },
+  {
+    "epoch": 200.0,
+    "loss": 2.0273993015289307,
+    "loss_diffusion": 0.42035171389579773,
+    "loss_coarse": 3.0891904830932617,
+    "loss_consistency": 0.06245223432779312,
+    "val_tvd_joint": 0.277158057639036,
+    "val_tvd_joint_raw": 0.832917851490376,
+    "val_tvd_coarse_head": 0.3400216508924485,
+    "val_tvd_coarse_from_fine": 0.18822502647721093
+  },
+  {
+    "epoch": 400.0,
+    "loss": 1.976064682006836,
+    "loss_diffusion": 0.3872520923614502,
+    "loss_coarse": 3.0790956020355225,
+    "loss_consistency": 0.04926479607820511,
+    "val_tvd_joint": 0.15083570535271798,
+    "val_tvd_joint_raw": 0.37364398715858077,
+    "val_tvd_coarse_head": 0.13870325076361295,
+    "val_tvd_coarse_from_fine": 0.09071326259701704
+  },
+  {
+    "epoch": 600.0,
+    "loss": 1.9379956722259521,
+    "loss_diffusion": 0.34961822628974915,
+    "loss_coarse": 3.0799994468688965,
+    "loss_consistency": 0.04837780445814133,
+    "val_tvd_joint": 0.10514513414935142,
+    "val_tvd_joint_raw": 0.1784916987385434,
+    "val_tvd_coarse_head": 0.06750899672723842,
+    "val_tvd_coarse_from_fine": 0.0550102932019061
+  },
+  {
+    "epoch": 800.0,
+    "loss": 1.9350827932357788,
+    "loss_diffusion": 0.3514266610145569,
+    "loss_coarse": 3.0784056186676025,
+    "loss_consistency": 0.04445330426096916,
+    "val_tvd_joint": 0.09156322871336187,
+    "val_tvd_joint_raw": 0.13372211679679483,
+    "val_tvd_coarse_head": 0.04976829444479047,
+    "val_tvd_coarse_from_fine": 0.04824522254088273
+  },
+  {
+    "epoch": 1000.0,
+    "loss": 1.94415283203125,
+    "loss_diffusion": 0.3623978793621063,
+    "loss_coarse": 3.080002546310425,
+    "loss_consistency": 0.041753701865673065,
+    "val_tvd_joint": 0.08597915467396153,
+    "val_tvd_joint_raw": 0.11848474074399666,
+    "val_tvd_coarse_head": 0.04600167922249053,
+    "val_tvd_coarse_from_fine": 0.045256752758798514
+  },
+  {
+    "epoch": 1200.0,
+    "loss": 1.936591625213623,
+    "loss_diffusion": 0.3497928977012634,
+    "loss_coarse": 3.087944507598877,
+    "loss_consistency": 0.042826395481824875,
+    "val_tvd_joint": 0.0839391783609353,
+    "val_tvd_joint_raw": 0.11243852628096072,
+    "val_tvd_coarse_head": 0.043762838668926406,
+    "val_tvd_coarse_from_fine": 0.04461967430042622
+  },
+  {
+    "epoch": 1400.0,
+    "loss": 1.9367603063583374,
+    "loss_diffusion": 0.35807090997695923,
+    "loss_coarse": 3.0788745880126953,
+    "loss_consistency": 0.03925218805670738,
+    "val_tvd_joint": 0.08285792876457691,
+    "val_tvd_joint_raw": 0.10897619646922749,
+    "val_tvd_coarse_head": 0.041998461684784404,
+    "val_tvd_coarse_from_fine": 0.043268183838518826
+  },
+  {
+    "epoch": 1600.0,
+    "loss": 1.930193543434143,
+    "loss_diffusion": 0.35052287578582764,
+    "loss_coarse": 3.0778157711029053,
+    "loss_consistency": 0.04076281934976578,
+    "val_tvd_joint": 0.0824636883590049,
+    "val_tvd_joint_raw": 0.10587531086139639,
+    "val_tvd_coarse_head": 0.04080610666423711,
+    "val_tvd_coarse_from_fine": 0.04351493981180103
+  },
+  {
+    "epoch": 1800.0,
+    "loss": 1.9457250833511353,
+    "loss_diffusion": 0.36552557349205017,
+    "loss_coarse": 3.0852558612823486,
+    "loss_consistency": 0.03757159411907196,
+    "val_tvd_joint": 0.08211284087014559,
+    "val_tvd_joint_raw": 0.1038873428118526,
+    "val_tvd_coarse_head": 0.040104232120465516,
+    "val_tvd_coarse_from_fine": 0.042945957467471124
+  },
+  {
+    "epoch": 2000.0,
+    "loss": 1.9412540197372437,
+    "loss_diffusion": 0.3661840856075287,
+    "loss_coarse": 3.076634407043457,
+    "loss_consistency": 0.03675268962979317,
+    "val_tvd_joint": 0.08139266721756154,
+    "val_tvd_joint_raw": 0.1008012584611115,
+    "val_tvd_coarse_head": 0.03973613633627337,
+    "val_tvd_coarse_from_fine": 0.04260233554239843
+  },
+  {
+    "epoch": 2200.0,
+    "loss": 1.8980822563171387,
+    "loss_diffusion": 0.3159213662147522,
+    "loss_coarse": 3.0813326835632324,
+    "loss_consistency": 0.04149455949664116,
+    "val_tvd_joint": 0.08072083162195003,
+    "val_tvd_joint_raw": 0.09623791618613865,
+    "val_tvd_coarse_head": 0.03941660961550764,
+    "val_tvd_coarse_from_fine": 0.042390734136140855
+  },
+  {
+    "epoch": 2400.0,
+    "loss": 1.911150574684143,
+    "loss_diffusion": 0.3352414071559906,
+    "loss_coarse": 3.0765011310577393,
+    "loss_consistency": 0.03765861690044403,
+    "val_tvd_joint": 0.07993089695191455,
+    "val_tvd_joint_raw": 0.09297275742206865,
+    "val_tvd_coarse_head": 0.03912322903723377,
+    "val_tvd_coarse_from_fine": 0.04223267432380623
+  },
+  {
+    "epoch": 2600.0,
+    "loss": 1.8741694688796997,
+    "loss_diffusion": 0.2972840964794159,
+    "loss_coarse": 3.0801727771759033,
+    "loss_consistency": 0.03679896891117096,
+    "val_tvd_joint": 0.0801876201287381,
+    "val_tvd_joint_raw": 0.09182970231178564,
+    "val_tvd_coarse_head": 0.038920378108312594,
+    "val_tvd_coarse_from_fine": 0.04164507284561449
+  },
+  {
+    "epoch": 2800.0,
+    "loss": 1.896625280380249,
+    "loss_diffusion": 0.3188365697860718,
+    "loss_coarse": 3.086347818374634,
+    "loss_consistency": 0.03461480885744095,
+    "val_tvd_joint": 0.08081903431144359,
+    "val_tvd_joint_raw": 0.0915249106827826,
+    "val_tvd_coarse_head": 0.03874353239528354,
+    "val_tvd_coarse_from_fine": 0.042046378258855925
+  },
+  {
+    "epoch": 3000.0,
+    "loss": 1.9114824533462524,
+    "loss_diffusion": 0.3335016667842865,
+    "loss_coarse": 3.083991050720215,
+    "loss_consistency": 0.03598519787192345,
+    "val_tvd_joint": 0.08077324001795466,
+    "val_tvd_joint_raw": 0.09123410098365212,
+    "val_tvd_coarse_head": 0.03865087349491272,
+    "val_tvd_coarse_from_fine": 0.04188128756043909
+  }
+]

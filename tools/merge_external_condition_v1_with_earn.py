@@ -16,21 +16,103 @@ if str(_REPO_ROOT) not in sys.path:
 from tools.build_external_condition_v1_michigan import _utc_now_iso
 
 
+def _infer_schema_from_df(df: pd.DataFrame, *, schema_name: str) -> dict[str, Any]:
+    variable_order = df["variable"].astype(str).drop_duplicates().tolist()
+    categories: dict[str, list[str]] = {}
+    for var in variable_order:
+        cats = df.loc[df["variable"].astype(str) == str(var), "category"].astype(str).drop_duplicates().tolist()
+        categories[str(var)] = cats
+    return {
+        "schema": schema_name,
+        "variable_order": variable_order,
+        "categories": categories,
+    }
+
+
+def _load_schema_sidecar(csv_path: pathlib.Path) -> dict[str, Any] | None:
+    schema_path = csv_path.with_suffix(csv_path.suffix + ".schema.json")
+    if not schema_path.exists():
+        return None
+    try:
+        return json.loads(schema_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _load_schema_json(path: pathlib.Path | None) -> dict[str, Any] | None:
+    if path is None or not path.exists():
+        return None
+    obj = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(obj, dict):
+        raise SystemExit(f"invalid schema json: {path}")
+    return obj
+
+
+def _merge_condition_schemas(
+    *,
+    base_schema: dict[str, Any] | None,
+    earn_schema: dict[str, Any] | None,
+    reference_schema: dict[str, Any] | None,
+    merged_df: pd.DataFrame,
+) -> dict[str, Any]:
+    if base_schema is None and earn_schema is None:
+        return _infer_schema_from_df(merged_df, schema_name="external_condition_v1_plus_earn_v1")
+
+    variable_order: list[str] = []
+    categories: dict[str, list[str]] = {}
+    ref_categories = dict(reference_schema.get("categories", {})) if isinstance(reference_schema, dict) else {}
+    for obj in [base_schema, earn_schema]:
+        if not isinstance(obj, dict):
+            continue
+        for var in [str(x) for x in obj.get("variable_order", [])]:
+            if var not in variable_order:
+                variable_order.append(var)
+        for var, cats in dict(obj.get("categories", {})).items():
+            var = str(var)
+            if var in ref_categories:
+                categories[var] = [str(x) for x in list(ref_categories[var])]
+            else:
+                categories[var] = [str(x) for x in list(cats)]
+    inferred = _infer_schema_from_df(merged_df, schema_name="external_condition_v1_plus_earn_v1")
+    for var in inferred["variable_order"]:
+        if var not in variable_order:
+            variable_order.append(var)
+    for var, cats in inferred["categories"].items():
+        var = str(var)
+        if var in ref_categories:
+            categories.setdefault(var, [str(x) for x in list(ref_categories[var])])
+        else:
+            categories.setdefault(var, [str(x) for x in list(cats)])
+    return {
+        "schema": "external_condition_v1_plus_earn_v1",
+        "variable_order": variable_order,
+        "categories": categories,
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="merge_external_condition_v1_with_earn")
     ap.add_argument("--base_condition_csv", required=True)
     ap.add_argument("--earn_condition_csv", required=True)
+    ap.add_argument(
+        "--reference_schema_json",
+        default=None,
+        help="Optional schema JSON that defines canonical category order for overlapping variables.",
+    )
     ap.add_argument("--out_path", required=True)
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
 
     base_path = pathlib.Path(args.base_condition_csv).expanduser().resolve()
     earn_path = pathlib.Path(args.earn_condition_csv).expanduser().resolve()
+    reference_schema_path = pathlib.Path(args.reference_schema_json).expanduser().resolve() if args.reference_schema_json else None
     out_path = pathlib.Path(args.out_path).expanduser().resolve()
     if not base_path.exists():
         raise SystemExit(f"base_condition_csv not found: {base_path}")
     if not earn_path.exists():
         raise SystemExit(f"earn_condition_csv not found: {earn_path}")
+    if reference_schema_path is not None and not reference_schema_path.exists():
+        raise SystemExit(f"reference_schema_json not found: {reference_schema_path}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists() and not args.overwrite:
         raise SystemExit(f"out_path exists: {out_path} (use --overwrite)")
@@ -59,11 +141,19 @@ def main() -> None:
     merged = merged.sort_values(["statefp", "puma", "variable", "category"], kind="stable").reset_index(drop=True)
     merged.to_csv(out_path, index=False)
 
+    merged_schema = _merge_condition_schemas(
+        base_schema=_load_schema_sidecar(base_path),
+        earn_schema=_load_schema_sidecar(earn_path),
+        reference_schema=_load_schema_json(reference_schema_path),
+        merged_df=merged,
+    )
+
     meta = {
         "schema": "external_condition_v1_plus_earn_v1",
         "created_utc": _utc_now_iso(),
         "base_condition_csv": str(base_path),
         "earn_condition_csv": str(earn_path),
+        "reference_schema_json": str(reference_schema_path) if reference_schema_path is not None else None,
         "out_path": str(out_path),
         "n_rows": int(merged.shape[0]),
         "n_pumas": int(merged["puma_uid"].astype(str).nunique()),
@@ -71,6 +161,8 @@ def main() -> None:
     }
     meta_path = out_path.with_suffix(out_path.suffix + ".metadata.json")
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    schema_path = out_path.with_suffix(out_path.suffix + ".schema.json")
+    schema_path.write_text(json.dumps(merged_schema, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"[ok] wrote: {out_path}")
 
 

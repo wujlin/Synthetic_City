@@ -813,3 +813,1120 @@ wsA batch run：
 - `regional context` 可自然外推到收入类 proxy 的扩展证据
 
 而不是当前 full joint 主结果的替代定义。
+
+## 11. 条件收入分配：把 earnings 真正落到 4 属性个体上
+
+前面的 earnings 扩展仍然有一个明显逻辑缺口：
+
+- 它预测的是 **地区级 earnings 分布**
+- 不是“给定某个人的年龄、性别、教育、就业后，这个人应该落在哪个 earnings 档”
+
+因此，这一步改成更具体的目标：
+
+> `p(EARN_16p_bin | AGEP_bin, SEX, SCHL_allpop, ESR_allpop, regional context)`
+
+也就是说：
+
+- 先保留当前已经稳定的 4 属性主 joint
+- 再对每个 `PUMA × 4-attr cell` 学一个条件 earnings 分布
+
+这样以后 materialize synthetic individuals 时，earnings 的分配就不再是“整区统一抽签”，而是：
+
+- 先确定这个人属于哪个 4-attr cell
+- 再从该 cell 在该地区对应的 earnings 条件分布中抽样
+
+### 11.1 新增 target 与训练入口
+
+新增脚本：
+
+- `tools/build_external_target_earn_conditional_v1_us.py`
+- `tools/train_external_earn_conditional_from_context.py`
+- `tools/run_external_earn_conditional_from_context.sh`
+
+新 target 的形式是：
+
+- 每一行对应一个 `PUMA × 4-attr cell`
+- 列出：
+  - `AGEP_bin`
+  - `SEX`
+  - `SCHL_allpop`
+  - `ESR_allpop`
+  - 该 cell 的 mass
+  - 该 cell 上的 `EARN_16p_bin` 条件分布
+
+所以这里学习的对象不再是：
+
+- `p(EARN | region)`
+
+而是：
+
+- `p(EARN | region, 4-attr cell)`
+
+### 11.2 merged5 pilot 结果
+
+wsA run：
+
+- `outputs/_us_puma_external_earn_conditional_merged5_retry_20260324T114309Z`
+
+本地已同步：
+
+- `outputs/_us_puma_external_earn_conditional_merged5_retry_20260324T114309Z_run_summary.json`
+- `outputs/_us_puma_external_earn_conditional_merged5_retry_20260324T114309Z_earn_conditional_summary.json`
+
+输入：
+
+- regional condition：merged 5-condition
+  - `AGEP_bin`
+  - `SEX`
+  - `SCHL_allpop`
+  - `ESR_allpop`
+  - `EARN_16p_bin`
+- person-side attributes：4-attr one-hot
+
+数据规模：
+
+- total conditional rows: `390,155`
+- train rows: `379,457`
+- Michigan test rows: `10,698`
+
+pilot（single seed, `epochs=1500`）结果：
+
+- 条件收入主指标（按 cell mass 加权）：
+  - `weighted_tvd_earn = 0.09229`
+  - `weighted_cosine_earn = 0.97147`
+  - `weighted_mae_earn = 0.03076`
+
+- 区域聚合后的 earnings 重构：
+  - `aggregated_region_tvd_earn = 0.01873`
+
+对照 baseline：
+
+1. 完全不看 cell，只看训练集总体 earnings 均值：
+   - `weighted_tvd_earn = 0.51451`
+   - `aggregated_region_tvd_earn = 0.07218`
+
+2. 只看 4-attr cell，不看地区 context 的 train-cell mean baseline：
+   - `weighted_tvd_earn = 0.09458`
+   - `aggregated_region_tvd_earn = 0.03689`
+
+### 11.3 当前最稳的结论
+
+这条 pilot 说明三件事：
+
+1. 这条 conditional earnings 管线是可行的  
+- 不需要再把问题写成 3000-cell 的 5-variable joint
+- 但 earnings 已经可以真正依附到 4 属性个体上
+
+2. 只靠 4-attr cell 的全局平均还不够  
+- `0.09458 -> 0.09229`
+- 虽然提升不大，但说明 `regional context` 不是冗余的
+
+3. 在区域聚合层面，conditional model 的提升更明显  
+- `0.03689 -> 0.01873`
+- 说明这条模型确实在利用地区上下文，把 earnings 分配得更符合地区结构
+
+因此，这一步解决的不是“再多预测一个地区级 histogram”，而是：
+
+> 把 earnings 从地区级附加分布，推进成一个真正可用于 person-level assignment 的条件属性。
+
+### 11.4 3-seed batch 结果
+
+为避免把 single-seed pilot 误写成正式结论，这里补充 3-seed batch：
+
+- wsA summary：
+  - `outputs/_us_puma_external_earn_conditional_batch_20260324T115257Z_summary/summary.json`
+- 本地已同步：
+  - `outputs/_us_puma_external_earn_conditional_batch_20260324T115257Z_summary.json`
+
+3 seeds（`0,1,2`）结果：
+
+- 条件收入主指标：
+  - `weighted_tvd_earn = 0.09288 ± 0.00048`
+  - `weighted_cosine_earn = 0.97109 ± 0.00028`
+  - `weighted_mae_earn = 0.03096 ± 0.00016`
+
+- 区域聚合后的 earnings 重构：
+  - `aggregated_region_tvd_earn = 0.01950 ± 0.00108`
+
+对照 baseline：
+
+1. 完全不看 cell，只看训练集总体 earnings 均值：
+   - `weighted_tvd_earn = 0.51451`
+   - `aggregated_region_tvd_earn = 0.07218`
+   - 相对提升：
+     - cell-level：`81.95% ± 0.09%`
+     - region-level：`72.99% ± 1.49%`
+
+2. 只看 4-attr cell，不看地区 context 的 train-cell mean baseline：
+   - `weighted_tvd_earn = 0.09458`
+   - `aggregated_region_tvd_earn = 0.03689`
+   - 相对提升：
+     - cell-level：`1.80% ± 0.51%`
+     - region-level：`47.15% ± 2.92%`
+
+这说明：
+
+1. 这条 conditional earnings 管线在多 seed 下是稳定的  
+- 它不只是 single-seed 偶然值
+
+2. `regional context` 对个体条件收入分配的增益是存在的，但层次分明  
+- 在 cell-level 条件分布上，增益相对 train-cell mean baseline 不大但稳定  
+- 在 region-level 聚合结构上，增益明显更大
+
+3. 因此，当前最合理的收入扩展不是 3000-cell 的 5-way full joint  
+- 而是：
+  - `4-attr joint`
+  - `+ conditional earnings assignment`
+
+### 11.5 当前状态定位
+
+这条结果现在已经从：
+
+- `single-seed pilot`
+
+升级成了：
+
+- **3-seed 稳定结果**
+
+因此它已经足够支持下面这个更具体的说法：
+
+> 当前最合理的收入扩展方式，是在已经稳定的 4 属性主 joint 之上，再学习 `p(EARN_16p_bin | AGEP_bin, SEX, SCHL_allpop, ESR_allpop, regional context)`，从而把 earnings 真正落到 synthetic persons 上。
+
+但它还不支持下面这个更强的说法：
+
+- “earnings 已经应该直接并入 5-way full joint，替代当前主产品定义”
+
+所以这条线当前最适合的位置是：
+
+- **正式的模型扩展结果**
+- 不是新的主 full-joint 定义
+
+## 12. 直接 5-way full joint：single-seed exploratory pilot
+
+用户提出了一个更直接的问题：
+
+> 既然现在已经有了 `EARN_16p_bin`，是否应该直接把它并入新的 5-way full joint，而不是继续走“4-attr joint + conditional earnings assignment”这条两段式路线？
+
+这一步的 rationale 不是“它一定更好”，而是：
+
+- 它是更直接的最终产品定义
+- 如果 shared `regional context` 真能自然支撑收入轴，那么它应当至少在 5-way full joint 上给出一个可运行、可比较的结果
+
+### 12.1 最小实现策略
+
+这次没有再人为设计一个 earnings coarse hierarchy。  
+相反，采用的是更干净的 diagnostic setting：
+
+- fine target：
+  - `AGEP_bin(10) × SEX(2) × SCHL_allpop(5) × ESR_allpop(5) × EARN_16p_bin(6)`
+  - `K = 3000`
+- coarse head：
+  - 仍保持已经验证过的 4-attr lite schema
+  - `AGEP_lite(4) × SEX(2) × SCHL_lite(3) × ESR_lite(3)`
+  - `K = 72`
+- earnings 轴在 coarse 侧直接被聚合掉
+
+这样做的目的很明确：
+
+- 先回答 `regional context` 是否能直接支撑完整 5 属性 joint
+- 不把结果混入新的 hand-crafted earnings coarse 设计
+
+### 12.2 新增数据与训练入口
+
+新增脚本：
+
+- `tools/build_external_target_v1_full_earn.py`
+- `tools/train_external_joint_hier_full_earn.py`
+- `tools/run_external_joint_hier_full_earn.sh`
+
+其中：
+
+- `build_external_target_v1_full_earn.py`
+  - 不是重新发明 target
+  - 而是把已经构造好的
+    - `p(AGEP, SEX, SCHL, ESR | region)`
+    - `p(EARN | AGEP, SEX, SCHL, ESR, region)`
+  - 精确展开成：
+    - `p(AGEP, SEX, SCHL, ESR, EARN | region)`
+
+因此这条 5-way target 是：
+
+- 与现有 conditional earnings target 同源
+- 不依赖额外近似
+
+### 12.3 exploratory pilot 结果
+
+wsA run：
+
+- `outputs/_us_puma_external_joint_hier_full_earn_z_only_20260324T121638Z`
+
+本地已同步：
+
+- `outputs/run_summary_full5_earn_20260324T121638Z.json`
+- `outputs/hierarchical_summary_full5_earn_20260324T121638Z.json`
+
+single-seed 结果：
+
+- 5-way full joint raw：
+  - `tvd_joint_raw = 0.12614`
+- 5-way full joint（post-IPF）：
+  - `tvd_joint = 0.12540`
+
+对照：
+
+- full 5-way IPF baseline：
+  - `0.12698`
+- independence：
+  - `0.77473`
+
+同时，coarse 72 侧仍然能被学到：
+
+- `tvd_coarse_head = 0.03821`
+- `tvd_coarse_from_fine = 0.03723`
+
+### 12.4 当前解释
+
+这轮结果说明三点：
+
+1. 直接 5-way full joint **不是跑不动**  
+- 它已经能稳定优于 independence
+- 也略优于 full 5-way IPF baseline
+
+2. 但它当前的收益 **很弱**
+- `0.12698 -> 0.12540`
+- 这说明 shared `regional context` 在 3000-cell 设定下并没有像 4-attr full joint 那样带来明显优势
+
+3. 因此，这轮 pilot 目前更像一个**边界测试**
+- 它证明了 5-way full joint 方向可以运行
+- 但还没有证明它已经优于
+  - `4-attr joint + conditional earnings assignment`
+  这条当前更稳的产品路线
+
+更具体地说：
+
+- 当前 4-attr full shared-latent 的主结果在多 seed 下是：
+  - `tvd_joint = 0.07248 ± 0.00005`
+- 而 5-way full pilot 当前是：
+  - `0.12540`
+
+所以至少在现在这个阶段：
+
+- 5-way full joint 还不能替代当前主产品定义
+- 它更适合作为一个 exploratory extension
+
+### 12.5 3-seed batch 结果
+
+为避免把 single-seed exploratory 结果误读成稳定结论，这里继续补 3-seed batch：
+
+- wsA summary：
+  - `outputs/_us_puma_external_joint_hier_full_earn_batch_20260324T122734Z_summary/summary.json`
+- 本地已同步：
+  - `outputs/_us_puma_external_joint_hier_full_earn_batch_20260324T122734Z_summary.json`
+
+3 seeds（`0,1,2`）结果：
+
+- `tvd_joint_raw = 0.12630 ± 0.00051`
+- `tvd_joint = 0.12544 ± 0.00033`
+- `tvd_coarse_head = 0.03809 ± 0.00010`
+- `tvd_coarse_from_fine = 0.03722 ± 0.00026`
+
+对照：
+
+- full 5-way IPF baseline：
+  - `0.12698`
+- relative gain vs IPF：
+  - `1.21% ± 0.26%`
+
+这说明：
+
+1. single-seed 的结论不是偶然  
+- 5-way full joint 的确能稳定略优于 full 5-way IPF
+
+2. 但这个优势仍然很弱  
+- 不是随机波动
+- 也还没有达到“应该接管主产品定义”的强度
+
+3. 所以当前更稳的判断是  
+- `5-way full joint` 已经证明“可行”
+- 但还没有证明“值得作为主路线替代 4+1 方案”
+
+### 12.6 当前状态定位
+
+这条线现在已经从：
+
+- `single-seed exploratory pilot`
+
+升级成了：
+
+- **3-seed 稳定 exploratory extension**
+
+它已经回答了一个问题：
+
+- 直接 5-way full joint 值得不值得尝试？  
+  - 值得，因为它不是不可训练的死路，而且在多 seed 下能稳定略优于 5-way IPF
+
+但它给出的答案仍然是：
+
+- 它是否已经优于当前的
+  - `4-attr joint + conditional earnings assignment`
+  - 并因此应当接管主产品定义？  
+  - **目前答案仍然是否定的**
+
+## 13. Shared-Latent Hierarchical Diffusion Pilot
+
+### 13.1 目的
+
+前面的 shared-latent 机制实验帮助我们识别出：
+
+- `regional context`
+- `group-level latent variable`
+
+是高维外源条件设定下的关键状态表示；但那些 strongest results 本身并不是 diffusion。  
+因此，这一轮新增一个最小可行的：
+
+- **shared-latent hierarchical diffusion**
+
+目标不是立即替代现有主结果，而是先回答一个更基础的问题：
+
+- shared `regional context` 能否被真正并回 diffusion 主线？
+
+### 13.2 实现
+
+新增脚本：
+
+- `tools/train_external_joint_hier_diffusion_full.py`
+- `tools/run_external_joint_hier_diffusion_full.sh`
+
+当前实现是最小可行版，而不是双层 diffusion：
+
+1. `external condition -> encoder -> regional context z`
+2. `z -> diffusion denoiser -> fine/full joint`
+3. `z -> coarse head -> 72-cell coarse joint`
+4. 用 coarse auxiliary loss 和 fine-to-coarse consistency loss 约束层级结构
+
+这里 diffusion 仍然是主 joint generator；shared latent 通过 condition injection 进入 diffusion，而不是用 MLP head 替代 diffusion。
+
+### 13.3 本地 smoke
+
+本地先用 Michigan staging 数据做了一个 2-fold smoke：
+
+- Python 静态检查通过
+- shell 语法检查通过
+- 训练、fold 评估、metrics 写出都已跑通
+
+期间修了两个兼容性/稳定性问题：
+
+1. `datetime.UTC` 改为 `datetime.timezone.utc`
+2. coarse aggregation 增加 `nan/inf` 清洗，避免在 nonfatal warning 下中断整体流程
+
+另一个发现是：
+
+- 本地 Michigan 条件文件 `extcond_v1_acs5_2022_puma_state26_michigan.csv`
+- 缺少显式的 `statefp/puma_uid`
+
+这不影响 nationwide remote pilot，但说明 Michigan 旧条件文件的 geography 键仍需后续刷新。
+
+### 13.4 wsA exploratory pilot
+
+已在 wsA 上完成一轮 exploratory pilot：
+
+- run:
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_pilot_20260325T064159Z`
+- split:
+  - `leave_mi_out`
+- setting:
+  - `timesteps=200`
+  - `epochs=300`
+  - `latent_dim=128`
+  - `encoder_hidden_dims=256,256`
+  - `diffusion_hidden_dims=512,512`
+  - `coarse_weight=0.5`
+  - `consistency_weight=1.0`
+
+本地已同步：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_pilot_20260325T064159Z/run_summary.json`
+- `outputs/_us_puma_external_joint_hier_diffusion_full_pilot_20260325T064159Z/hier_diffusion_summary.json`
+
+核心结果：
+
+- `tvd_joint_raw = 0.21269`
+- `tvd_joint = 0.11235`
+- `tvd_coarse_head = 0.04890`
+- `tvd_coarse_from_fine = 0.05981`
+
+对照：
+
+- old full diffusion baseline:
+  - `0.1188`
+- IPF baseline:
+  - `0.08088`
+
+### 13.5 当前判断
+
+这轮 pilot 给出的信号是清楚的：
+
+1. 这条线已经真正进入 diffusion 主线  
+- 它不是概念草图
+- 也不是非 diffusion 机制探针
+- 而是一个可运行、可评估的 shared-latent diffusion 实现
+
+2. 当前 300-epoch pilot 还没有追上 IPF  
+- `0.11235 > 0.08088`
+- 因此它现在不能进入主文结果
+
+3. 但它已经显著改善了 old full diffusion  
+- `0.1188 -> 0.11235`
+- relative drop 约为 `5.4%`
+
+4. coarse signal 已经学出来了  
+- `tvd_coarse_head = 0.04890`
+- `tvd_coarse_from_fine = 0.05981`
+
+这说明：
+
+- shared `regional context` 并回 diffusion 后，不是完全无效
+- 当前主要问题不是 coarse state 没学到
+- 而是 fine/full joint generation 还没有充分把这一状态转化成比 IPF 更强的最终 joint recovery
+
+### 13.6 定位
+
+因此，这条 shared-latent hierarchical diffusion 线当前最合理的定位是：
+
+- **positive pilot**
+
+它已经回答了：
+
+- 这条路能不能实现、能不能运行、有没有正向信号？  
+  - **能**
+
+但它还没有回答：
+
+- 它是否已经足够强，可以替代当前 non-diffusion shared-latent 主结果？  
+  - **目前还不能**
+
+### 13.7 训练长度与注入方式 screening
+
+在 300-epoch pilot 之后，这条 diffusion 线最先需要回答的不是“再换什么结构”，而是两个更基本的问题：
+
+1. 当前 gap 是否主要来自训练深度不足？
+2. `regional context` 的注入方式，`concat` 与 `FiLM` 是否存在决定性差异？
+
+因此先做了一轮最小 screening：
+
+- `concat + 1000 epochs`
+- `FiLM + 1000 epochs`
+
+关键 run：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_concat_1000ep_20260325T000000Z`
+- `outputs/_us_puma_external_joint_hier_diffusion_full_film_1000ep_20260325T000000Z`
+
+结果：
+
+- `concat + 1000 epochs`
+  - `tvd_joint_raw = 0.10062`
+  - `tvd_joint = 0.08098`
+  - `tvd_coarse_head = 0.04168`
+  - `tvd_coarse_from_fine = 0.04331`
+- `FiLM + 1000 epochs`
+  - `tvd_joint_raw = 0.10134`
+  - `tvd_joint = 0.08112`
+  - `tvd_coarse_head = 0.04192`
+  - `tvd_coarse_from_fine = 0.04392`
+
+对照：
+
+- IPF baseline：
+  - `0.08088`
+
+结论：
+
+- 训练长度确实是当前 diffusion 主线的关键因素：
+  - `300 epochs` 时仍明显落后于 IPF
+  - `1000 epochs` 后已经基本追平 IPF
+- `FiLM` 没有优于 `concat`
+  - `0.08112` 略差于 `0.08098`
+  - coarse 指标也没有显示出更强的优势
+
+因此，这轮 screening 最直接的结论不是“注入方式决定成败”，而是：
+
+> shared-latent diffusion 的主要瓶颈首先在训练深度，而不在 `concat` 与 `FiLM` 的选择。
+
+这一步也很重要，因为它说明：
+
+- `regional context` 并回 diffusion 后，确实已经进入可竞争区间
+- 但当前最需要做的不是继续堆 condition injection trick，而是继续把主训练跑到稳定区间
+
+### 13.8 `concat + 2000 epochs` 的 3-seed 结果
+
+在确认 `1000 epochs` 已基本追平 IPF 后，下一步只继续沿当前最优设定推进：
+
+- `condition injection = concat`
+- `epochs = 2000`
+
+这样做的目的很明确：
+
+- 不是再做广泛超参 sweep
+- 而是判断这条 diffusion 主线在合理训练长度下，是否能稳定超过 IPF，而不是只在单 seed 上偶然追平
+
+关键 run：
+
+- seed 0：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_2000ep_20260325T000000Z`
+- seed 1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_2000ep_s1_20260325T000000Z`
+- seed 2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_2000ep_s2_20260325T000000Z`
+- 3-seed 汇总：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_2000ep_batch_20260325T000000Z_summary.json`
+
+单 seed 结果：
+
+- seed 0：
+  - `tvd_joint_raw = 0.08763`
+  - `tvd_joint = 0.07826`
+  - `tvd_coarse_head = 0.04029`
+  - `tvd_coarse_from_fine = 0.04243`
+- seed 1：
+  - `tvd_joint_raw = 0.09879`
+  - `tvd_joint = 0.08005`
+  - `tvd_coarse_head = 0.04019`
+  - `tvd_coarse_from_fine = 0.04396`
+- seed 2：
+  - `tvd_joint_raw = 0.09061`
+  - `tvd_joint = 0.08020`
+  - `tvd_coarse_head = 0.04028`
+  - `tvd_coarse_from_fine = 0.04406`
+
+3-seed 汇总：
+
+- `tvd_joint = 0.07950 ± 0.00108`
+- `tvd_joint_raw = 0.09234 ± 0.00578`
+- `tvd_coarse_head = 0.04025 ± 0.00006`
+- `tvd_coarse_from_fine = 0.04348 ± 0.00091`
+- IPF baseline：
+  - `0.08088`
+- 相对 IPF 提升：
+  - `1.70%`
+
+结论：
+
+- 在 `concat + 2000 epochs` 下，shared-latent diffusion 已经不再只是 positive pilot
+- 三个 seed 的平均结果已经稳定略优于 IPF
+- coarse 指标的方差极小，说明 `regional context` 对 coarse state 的组织已经很稳定
+- full joint 的优势仍然不大，这说明当前 diffusion 主线已经进入“可竞争但尚未强势领先”的区间
+
+因此，这条线当前最准确的定位应该是：
+
+> 这是一个 **mechanism-informed diffusion improvement**：它已经证明 shared `regional context` 可以被真正并回 diffusion 主线，并在 full `K=500` 设定下稳定带来小幅但一致的增益；但它还不是一个足以取代所有现有主结果的强优势模型。
+
+这一步非常关键，因为它把当前 diffusion 主线从：
+
+- “概念上可行”
+
+推进到了：
+
+- “结果上已经可引用，但需要谨慎措辞”
+
+### 13.9 旧的 `3000/4000` 崩塌结果是 confounded，不足以单独解释 epoch 效应
+
+在 `concat + 2000 epochs` 之后，最初又做了两条更长训练：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_20260325T000000Z`
+- `outputs/_us_puma_external_joint_hier_diffusion_full_concat_4000ep_20260325T000000Z`
+
+这两条 run 表面上对应：
+
+- `concat + 3000 epochs`
+- `concat + 4000 epochs`
+
+但回查配置后发现，这两条结果**不能**被直接解释成“只增加训练长度后的表现”，因为它们同时把 diffusion chain 从：
+
+- `timesteps = 200`
+
+改成了：
+
+- `timesteps = 1000`
+
+因此，这两条 run 混入了两个变化：
+
+1. 训练更长  
+2. diffusion reverse chain 更长
+
+结果确实出现了明显崩塌：
+
+- `3000ep`：
+  - `tvd_joint = 0.97865`
+  - `tvd_coarse_head = 0.04362`
+  - `tvd_coarse_from_fine = 0.84975`
+- `4000ep`：
+  - `tvd_joint = 0.97549`
+  - `tvd_coarse_head = 0.04486`
+  - `tvd_coarse_from_fine = 0.84636`
+
+但这批结果更准确的含义是：
+
+> 在当前 shared-latent diffusion 设定下，`1000-step` diffusion chain 明显不稳定；它不能被直接拿来支持“训练越久越差”这一结论。
+
+因此，这两条 run 的主要价值是：
+
+- 暴露 `timesteps` 是一个强影响因子
+- 说明后续讨论 epoch 时，必须固定 `timesteps = 200`
+- 推动我们把重点从“继续盲目加 epoch”转到：
+  - validation selection
+  - EMA
+  - sampling stability
+
+### 13.10 固定 `timesteps=200` 后，validation + EMA 明显改善 diffusion 主线
+
+在识别出旧 `3000/4000` run 的 confound 之后，下一步重新固定回与 `2000ep` 最优结果可比的设置：
+
+- `timesteps = 200`
+- `n_eval_joint_samples = 64`
+- `condition injection = concat`
+
+并额外加入三项训练管理机制：
+
+- validation split
+- EMA
+- best checkpoint selection
+
+这样做的目的很明确：
+
+- 把“训练更长”与“diffusion chain 更长”分开
+- 检查当前瓶颈究竟来自训练深度不足，还是来自 checkpoint / sampling 管理
+
+首先得到的严格可比单 seed run 是：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_t200_valema_20260325T000000Z`
+
+结果：
+
+- `best_epoch = 3000`
+- `best_val_tvd_joint = 0.08223`
+- `tvd_joint_raw = 0.08186`
+- `tvd_joint = 0.07501`
+- `tvd_coarse_head = 0.03881`
+- `tvd_coarse_from_fine = 0.04026`
+
+对照：
+
+- `concat + 2000 epochs` 的 3-seed mean：
+  - `tvd_joint = 0.07950`
+- IPF baseline：
+  - `0.08089`
+
+这一步已经说明：
+
+- 问题不只是“训练还不够久”
+- 更关键的是：
+  - final checkpoint 选择
+  - EMA 稳定性
+  - training objective 与最终 sample quality 之间的管理
+
+也就是说，shared-latent diffusion 并不是本体上卡住了，而是训练管理不足掩盖了它的真实能力。
+
+### 13.11 `3000ep_t200_valema` 的 3-seed 结果：优势扩大到 `7.45%`
+
+在确认 `3000ep_t200_valema` 的 seed 0 已明显优于旧 `2000ep` 结果后，继续补齐：
+
+- seed 1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_t200_valema_s1_20260325T082642Z`
+- seed 2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_t200_valema_s2_20260325T082642Z`
+- 3-seed 汇总：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_concat_3000ep_t200_valema_batch_20260325T082642Z_summary.json`
+
+三个 seed 的 best epoch 分别为：
+
+- seed 0：
+  - `3000`
+- seed 1：
+  - `2600`
+- seed 2：
+  - `2400`
+
+3-seed 汇总结果：
+
+- `tvd_joint = 0.07485 ± 0.00014`
+- `tvd_joint_raw = 0.08238 ± 0.00055`
+- `tvd_coarse_head = 0.03906 ± 0.00022`
+- `tvd_coarse_from_fine = 0.04053 ± 0.00035`
+- IPF baseline：
+  - `0.08088 ± 0.00002`
+- 相对 IPF 提升：
+  - `7.45%`
+
+这一步的重要性在于：
+
+- diffusion 主线不再只是“略微优于 IPF”
+- `regional context` 被并回 diffusion 之后，full `K=500` 的优势已经进入 manuscript-relevant 区间
+- 且结果非常稳定：
+  - `tvd_joint` 的 seed 间标准差只有 `0.00014`
+  - `tvd_coarse_head` 和 `tvd_coarse_from_fine` 也都极稳
+
+因此，这条 diffusion 主线现在最准确的定位已经不再是：
+
+- “small pilot gain”
+
+而应更新为：
+
+> shared-latent hierarchical diffusion 在 full `K=500` external-condition setting 下，已经能稳定并且非微弱地优于 IPF；其主要提升来自把 `regional context` 真正并入 diffusion，并通过 validation + EMA + best checkpoint 管理释放这条主线的性能。
+
+### 13.12 `4000ep_t200_valema` 没有继续提升，`3000ep` 更像当前 sweet spot
+
+在 `3000ep_t200_valema` 3-seed 已经稳定后，又追加了一条严格可比的更长训练：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_concat_4000ep_t200_valema_20260325T082642Z`
+
+结果：
+
+- `best_epoch = 4000`
+- `best_val_tvd_joint = 0.08203`
+- `tvd_joint_raw = 0.08147`
+- `tvd_joint = 0.07513`
+- `tvd_coarse_head = 0.03846`
+- `tvd_coarse_from_fine = 0.03985`
+- IPF baseline：
+  - `0.08089`
+- 相对 IPF 提升：
+  - `7.12%`
+
+与 `3000ep_t200_valema` 的 3-seed mean 对比：
+
+- `3000ep`：
+  - `0.07485 ± 0.00014`
+- `4000ep` seed 0：
+  - `0.07513`
+
+差异很小，但方向上没有继续提升，反而略微回退：
+
+- `4000ep - 3000ep mean = +0.00028`
+
+因此，现在更合理的结论是：
+
+> 在 fixed `timesteps=200`、带 validation + EMA + best checkpoint 的设定下，继续把训练上限从 `3000` 推到 `4000` 并不会带来进一步收益；`3000ep` 更像当前 shared-latent diffusion 的有效 sweet spot。
+
+这一步把训练问题收得更清楚了：
+
+- 之前的主要问题并不是“必须无限加长训练”
+- 而是：
+  - 训练配置要严格可比
+  - checkpoint 选择要显式控制
+  - sampling stability 要纳入主流程
+
+一旦这些管理机制补上，diffusion 主线就已经能稳定达到当前最强区间。
+
+### 13.13 `5-way full diffusion` 的 failure 定位：问题不在 regional context，而在 added earnings axis 没有被训练口径显式锚定
+
+对 `5-way full joint diffusion` 的首次 3-seed 结果：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_batch_.json`
+
+显示：
+
+- `tvd_joint = 0.58083 ± 0.00446`
+- `tvd_joint_raw = 0.91984 ± 0.00124`
+- `tvd_coarse_head = 0.03938 ± 0.00021`
+- `tvd_coarse_from_fine = 0.27648 ± 0.00692`
+- `5-way IPF = 0.12699 ± 0.00002`
+
+这组数字的关键含义是：
+
+- coarse head 仍然很好
+- 但 raw diffusion sample 对 full `3000-cell` joint 基本失控
+
+因此 failure 不是：
+
+- `regional context` 学不到
+
+而是：
+
+- `5-way` 新增的 earnings 轴没有被当前 hierarchy 显式约束
+- raw fine sample 也缺少直接的 marginal consistency training signal
+
+进一步检查 target 稀疏度：
+
+- `4-attr`：
+  - zero fraction `0.682`
+- `5-way`：
+  - zero fraction `0.858`
+
+说明 direct `3000-cell` diffusion 确实把模型推到了更稀疏、更不稳定的 simplex 上。
+
+### 13.14 `5-way full diffusion v2`：加入 earnings-aware coarse auxiliary 和 marginal consistency loss 后，failure 明显缓解
+
+在新的 `v2` 训练口径中，做了两件最小修复：
+
+1. coarse auxiliary 从旧的 `72-cell` 四属性 lite state，扩成含 earnings 的 `288-cell` coarse state
+2. 在训练中对 full joint 的 raw `x0` prediction 增加显式 marginal consistency loss
+
+相关脚本：
+
+- `tools/train_external_joint_hier_diffusion_full.py`
+- `tools/train_external_joint_hier_diffusion_full_earn.py`
+- `tools/run_external_joint_hier_diffusion_full_earn.sh`
+
+先做了一个 single-seed pilot：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_pilot_20260325T160301Z`
+
+结果：
+
+- `best_epoch = 600`
+- `best_val_tvd_joint = 0.53615`
+- `tvd_joint = 0.52594`
+- `tvd_joint_raw = 0.88984`
+- `tvd_coarse_head = 0.09021`
+- `tvd_coarse_from_fine = 0.37133`
+
+相对旧版 `5-way` seed 0：
+
+- old:
+  - `tvd_joint = 0.57877`
+  - `tvd_joint_raw = 0.92000`
+- v2:
+  - `tvd_joint = 0.52594`
+  - `tvd_joint_raw = 0.88984`
+
+说明：
+
+- 训练口径修复是有效的
+- `5-way full diffusion` 的 failure 不是不可救的
+- 但当前 `v2` 还没有进入可引用区间
+
+### 13.15 `marginal_weight` 不能简单拉大；当前更像 denoiser capacity bottleneck
+
+在同一 `v2` 设定下，追加了：
+
+- `marginal_weight = 10`
+- run:
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_m10_20260325T160558Z`
+
+结果反而更差：
+
+- `best_val_tvd_joint = 0.60625`
+- `tvd_joint = 0.60577`
+
+这说明当前问题不是：
+
+- marginal consistency signal 不存在
+
+而更像是：
+
+- 这个 signal 过强时会直接压坏 diffusion denoising
+
+因此下一步更合理的方向不是继续加大 `marginal_weight`，而是提升 denoiser 对 `3000-cell` sparse joint 的表达能力。
+
+### 13.16 更宽的 denoiser 是当前最有希望的方向，3-seed 正在运行
+
+在 `v2` 基础上，只做一个改动：
+
+- `diffusion_hidden_dims = 1024,1024`
+
+single-seed pilot：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_wide_20260325T160811Z`
+
+结果：
+
+- `best_epoch = 400`
+- `best_val_tvd_joint = 0.46666`
+- `tvd_joint = 0.43957`
+- `tvd_joint_raw = 0.77289`
+- `tvd_coarse_head = 0.19262`
+- `tvd_coarse_from_fine = 0.28123`
+
+相对 `v2` baseline：
+
+- `0.52594 -> 0.43957`
+
+说明：
+
+- 在训练口径修复之后，capacity 的确成为下一阶段主要瓶颈
+- 更宽的 denoiser 能显著改善 `5-way` full diffusion
+
+为验证这个提升是否稳定，又启动了：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_wide400_batch_20260325T161019Z_*`
+
+这组 `3 seeds` 目前正在远端运行，用来确认：
+
+- `v2 + wide denoiser + 400ep`
+
+是否能把 `5-way full diffusion` 继续从 exploratory failure 推向 manuscript-relevant regime。
+
+### 13.17 `5-way` 问题重新回到数据源头：3000-cell target 的主矛盾是 dead-cell 占比过高，而不是 drift 仍未解决
+
+在 `rawclip3` 之后，`5-way` 的症状已经从：
+
+- old `5-way`：
+  - `tvd_joint ≈ 0.58`
+
+收缩到：
+
+- `rawclip3`：
+  - `tvd_joint = 0.15584 ± 0.00002`
+  - `tvd_joint_raw = 0.24248 ± 0.00116`
+  - `5-way IPF = 0.12699`
+
+相关 summary：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_rawclip3_batch_20260326T000000Z_summary.json`
+
+这说明：
+
+- raw sample drift 的主要症状已经被显著压住
+- 当前真正剩下的 gap 是：
+  - `0.15584 -> 0.12699`
+
+为定位这条剩余 gap，又直接对 `3000-cell` target 做了支持度统计：
+
+- `outputs/_us_puma_external_joint_deadcell_summary_20260326T000000Z.json`
+
+结果非常极端：
+
+- 每个区域平均只有 `424.93 / 3000` 个非零 cells
+- 平均零占比：
+  - `0.85836`
+- 在全部 `2456` 个 PUMA 中始终为零的 cells 有：
+  - `1776`
+- 只在 `1` 个区域非零的 cells 有：
+  - `23`
+- 只在 `2-5` 个区域非零的 cells 有：
+  - `62`
+
+这说明当前 `5-way` 训练面对的不是“稍微稀疏”的 joint，而是：
+
+- 大多数维度都没有真实概率质量
+- 真正承载 copula 异质性的 live cells 只占很小一部分
+
+因此 `5-way` 当前最像的问题，不再是：
+
+- `regional context` 学不到
+- 或 raw drift 还没压住
+
+而是：
+
+- `epsilon MSE` 对 3000 个 cells 一视同仁
+- 导致 dead cells 抢走了大量梯度预算
+
+### 13.18 对 `epsilon MSE` 做 cell-weighted reweighting 出现正向信号；`alpha` 过大开始回退
+
+基于上面的 dead-cell 诊断，在 `rawclip` baseline 上进一步做了最小改动：
+
+- 训练脚本：
+  - `tools/train_external_joint_hier_diffusion_full.py`
+- 运行脚本：
+  - `tools/run_external_joint_hier_diffusion_full_earn.sh`
+
+改动内容：
+
+- 对 `loss_diff = mse(eps_pred, noise)` 做 cell-wise reweighting
+- 权重来自真实 `x0` 对应的 probability mass
+- 目标是让 live cells 比 dead cells 获得更大的 diffusion 梯度
+
+先做了 `alpha = 0.5` 的 single-seed pilot：
+
+- `outputs/run_summary_full5diff_weighted_a05_20260326T003011Z.json`
+
+结果：
+
+- `tvd_joint = 0.15325`
+- `tvd_joint_raw = 0.22327`
+
+相对 `rawclip3` seed-level baseline：
+
+- `tvd_joint`：
+  - `0.15583 -> 0.15325`
+- `tvd_joint_raw`：
+  - `0.24401 -> 0.22327`
+
+再叠加 `detach_coarse_encoder`：
+
+- `outputs/run_summary_full5diff_weighted_a05_detach_20260326T003141Z.json`
+
+结果进一步改善：
+
+- `tvd_joint = 0.15280`
+- `tvd_joint_raw = 0.21873`
+
+最后试了更强的 `alpha = 1.0`（同时保留 detach）：
+
+- `outputs/run_summary_full5diff_weighted_a10_detach_20260326T003303Z.json`
+
+结果是：
+
+- `tvd_joint = 0.15475`
+- `tvd_joint_raw = 0.21835`
+
+这说明：
+
+- dead-cell reweighting 的方向是对的
+- `alpha = 0.5` 已经能把 `5-way` seed 从 `0.15583` 再往下压一小步
+- 再加 `detach` 也有轻微叠加收益
+- 但 `alpha` 继续加大时，`raw` 还会继续变好一点，`post-IPF joint` 已经开始回退
+
+因此当前最合理的判断是：
+
+- `cell-weighted epsilon loss` 已经给出了正向信号
+- 但还需要更系统的 sweep 和多 seed，不能直接据 single-seed 结果下结论
+- 当前最值得继续围绕的配置是：
+  - `rawclip + diff_loss_reweight_alpha = 0.5 + detach`
+
+### 13.19 `rawclip + weighted epsilon + detach` 的 3-seed 已经稳定复现正向提升
+
+沿着 13.18 中最有希望的 single-seed 配置，进一步固定：
+
+- `logp_clip_quantile_low = 0.001`
+- `logp_clip_quantile_high = 0.999`
+- `selection_metric = val_tvd_joint_raw`
+- `diff_loss_reweight_alpha = 0.5`
+- `diff_loss_reweight_floor = 0.05`
+- `diff_loss_reweight_cap = 5.0`
+- `detach_coarse_encoder = true`
+
+并补了正式 `3 seeds` batch：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_batch_20260326T004000Z_summary.json`
+
+结果：
+
+- `tvd_joint = 0.15244 ± 0.00033`
+- `tvd_joint_raw = 0.21821 ± 0.00069`
+- `tvd_coarse_head = 0.10490 ± 0.00447`
+- `tvd_coarse_from_fine = 0.08602 ± 0.00034`
+- `5-way IPF = 0.12699`
+
+相对 `rawclip3`：
+
+- `tvd_joint`：
+  - `0.15584 -> 0.15244`
+- `tvd_joint_raw`：
+  - `0.24248 -> 0.21821`
+
+三个 seeds 都很一致：
+
+- seed0:
+  - `0.15280`
+- seed1:
+  - `0.15200`
+- seed2:
+  - `0.15251`
+
+说明：
+
+- dead-cell reweighting 的改进不是 single-seed 偶然结果
+- 这条线已经稳定地把 `5-way` 的 raw sample 和 post-IPF joint 都往下压了一步
+
+但同时也要诚实地说：
+
+- 这条配置虽然显著优于 `rawclip3`
+- 仍然没有追上 `5-way IPF = 0.12699`
+
+因此当前最准确的判断是：
+
+- `dead-cell gradient budget` 的确是主矛盾
+- `cell-weighted epsilon loss` 是有效方向
+- 但还需要继续优化，才能真正把 `5-way full diffusion` 推到超过 IPF 的区间

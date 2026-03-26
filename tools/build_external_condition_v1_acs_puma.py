@@ -15,6 +15,9 @@ Schema v1 (all-population variables):
 - SCHL_allpop: {not_25p, less_than_high_school, high_school_or_ged,
                 some_college_or_assoc, bachelor_plus}
 - ESR_allpop: {not_16p, employed, unemployed, armed_forces, not_in_labor_force}
+
+Optional cross block:
+- AGEP_SEX_cross: 20 age-by-sex categories kept directly from B01001
 """
 
 import argparse
@@ -32,9 +35,11 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.build_external_condition_v1_michigan import (
+    AGE_SEX_CROSS_VAR,
     _b01001_records,
     _b15003_records,
     _b23025_records,
+    _condition_schema_bundle,
     _utc_now_iso,
 )
 from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
@@ -109,7 +114,7 @@ def _fetch_acs_puma_table(*, acs_year: int, table_id: str, statefp: str, api_key
     return df
 
 
-def _build_state_records(*, acs_year: int, statefp: str, api_key: str | None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _build_state_records(*, acs_year: int, statefp: str, api_key: str | None, include_age_sex_cross: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     pd = _require("pandas")
 
     dfs = {
@@ -124,7 +129,7 @@ def _build_state_records(*, acs_year: int, statefp: str, api_key: str | None) ->
     total_pop_b23025 = dfs["B23025"]["puma_uid"].astype(str).map(pop_map).fillna(0.0)
 
     records: list[dict[str, Any]] = []
-    records.extend(_b01001_records(dfs["B01001"], group_col="puma_uid"))
+    records.extend(_b01001_records(dfs["B01001"], group_col="puma_uid", include_age_sex_cross=bool(include_age_sex_cross)))
     records.extend(_b15003_records(dfs["B15003"], group_col="puma_uid", total_pop=total_pop_b15003))
     records.extend(_b23025_records(dfs["B23025"], group_col="puma_uid", total_pop=total_pop_b23025))
 
@@ -153,6 +158,7 @@ def main() -> None:
     ap.add_argument("--statefps", default="")
     ap.add_argument("--all_states", action="store_true")
     ap.add_argument("--api_key", default=None, help="Optional Census API key or set CENSUS_API_KEY.")
+    ap.add_argument("--include_age_sex_cross", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--out_path", default=None)
     args = ap.parse_args()
@@ -162,7 +168,13 @@ def main() -> None:
     out_path = (
         pathlib.Path(args.out_path).expanduser().resolve()
         if args.out_path
-        else (default_root / "us" / "processed" / "external_conditions" / f"extcond_v1_acs5_{int(args.acs_year)}_puma_{scope_tag}.csv").resolve()
+        else (
+            default_root
+            / "us"
+            / "processed"
+            / "external_conditions"
+            / f"extcond_{'v1_agesex' if bool(args.include_age_sex_cross) else 'v1'}_acs5_{int(args.acs_year)}_puma_{scope_tag}.csv"
+        ).resolve()
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists() and not args.overwrite:
@@ -173,7 +185,12 @@ def main() -> None:
     records: list[dict[str, Any]] = []
     state_infos: list[dict[str, Any]] = []
     for statefp in states:
-        st_records, st_info = _build_state_records(acs_year=int(args.acs_year), statefp=statefp, api_key=api_key)
+        st_records, st_info = _build_state_records(
+            acs_year=int(args.acs_year),
+            statefp=statefp,
+            api_key=api_key,
+            include_age_sex_cross=bool(args.include_age_sex_cross),
+        )
         records.extend(st_records)
         state_infos.append(st_info)
         print(f"[ok] state={statefp} n_pumas={st_info['n_pumas']}", file=sys.stderr)
@@ -188,6 +205,7 @@ def main() -> None:
         ),
     )
 
+    schema_name = "external_condition_v1_agesex" if bool(args.include_age_sex_cross) else "external_condition_v1"
     cols = [
         "statefp",
         "puma",
@@ -219,13 +237,14 @@ def main() -> None:
                     "source": "acs5_api",
                     "acs_year": int(args.acs_year),
                     "geo_level": "puma",
-                    "schema": "external_condition_v1",
+                    "schema": schema_name,
                 }
             )
 
+    schema_bundle = _condition_schema_bundle(include_age_sex_cross=bool(args.include_age_sex_cross))
     meta = {
         "dataset": "US ACS external condition v1 at PUMA geography",
-        "schema": "external_condition_v1",
+        "schema": schema_name,
         "acs_year": int(args.acs_year),
         "geo_level": "puma",
         "scope": scope_tag,
@@ -234,19 +253,29 @@ def main() -> None:
         "n_rows": int(len(records)),
         "n_pumas": int(len(sorted({str(r["puma_uid"]) for r in records}))),
         "api_key_used": bool(api_key),
+        "include_age_sex_cross": bool(args.include_age_sex_cross),
+        "variable_order": schema_bundle["variable_order"],
         "variables": {
-            "SEX": {"source_table": "B01001", "categories": ["1", "2"], "universe": "all_persons"},
-            "AGEP_bin": {"source_table": "B01001", "categories": "10 coarse bins", "universe": "all_persons"},
-            "SCHL_allpop": {
-                "source_table": "B15003",
-                "categories": ["not_25p", "less_than_high_school", "high_school_or_ged", "some_college_or_assoc", "bachelor_plus"],
-                "universe": "all_persons",
+            **{
+                var: {
+                    "source_table": "B01001" if var in {"SEX", "AGEP_bin", AGE_SEX_CROSS_VAR} else ("B15003" if var == "SCHL_allpop" else "B23025"),
+                    "categories": cats,
+                    "universe": "all_persons",
+                }
+                for var, cats in schema_bundle["categories"].items()
             },
-            "ESR_allpop": {
-                "source_table": "B23025",
-                "categories": ["not_16p", "employed", "unemployed", "armed_forces", "not_in_labor_force"],
-                "universe": "all_persons",
-            },
+            **(
+                {
+                    AGE_SEX_CROSS_VAR: {
+                        "source_table": "B01001",
+                        "categories": schema_bundle["categories"][AGE_SEX_CROSS_VAR],
+                        "universe": "all_persons",
+                        "note": "Age-by-sex cross block kept directly from B01001 instead of being split into separate age and sex marginals only.",
+                    }
+                }
+                if bool(args.include_age_sex_cross)
+                else {}
+            ),
         },
         "state_summaries": state_infos,
         "created_utc": _utc_now_iso(),
@@ -254,6 +283,20 @@ def main() -> None:
     }
     meta_path = out_path.with_suffix(out_path.suffix + ".metadata.json")
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    schema_path = out_path.with_suffix(out_path.suffix + ".schema.json")
+    schema_path.write_text(
+        json.dumps(
+            {
+                "schema": schema_name,
+                "variable_order": schema_bundle["variable_order"],
+                "categories": schema_bundle["categories"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     print(f"[ok] wrote: {out_path}")
 
 

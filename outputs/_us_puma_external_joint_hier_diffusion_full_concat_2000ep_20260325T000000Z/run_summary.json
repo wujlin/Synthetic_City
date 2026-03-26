@@ -1,0 +1,304 @@
+{
+  "created_utc": "2026-03-25T07:29:39Z",
+  "joint_wide_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us_joint_wide.csv",
+  "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv",
+  "schema_json": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us.schema.json",
+  "n_rows_total": 2456,
+  "n_test_mi": 68,
+  "cond_raw_dim": 22,
+  "latent_dim": 128,
+  "fine_shape": [
+    10,
+    2,
+    5,
+    5
+  ],
+  "coarse_shape": [
+    4,
+    2,
+    3,
+    3
+  ],
+  "timesteps": 200,
+  "epochs": 2000,
+  "batch_size": 512,
+  "encoder_hidden_dims": [
+    256,
+    256
+  ],
+  "coarse_hidden_dims": [
+    256
+  ],
+  "diffusion_hidden_dims": [
+    512,
+    512
+  ],
+  "condition_injection": "concat",
+  "coarse_weight": 0.5,
+  "consistency_weight": 1.0,
+  "n_eval_joint_samples": 64,
+  "ipf_iters": 200,
+  "saved_checkpoints": {
+    "leave_mi_out": []
+  },
+  "condition_meta": {
+    "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv",
+    "cond_dim": 22,
+    "block_dims": {
+      "AGEP_bin": 10,
+      "SEX": 2,
+      "SCHL_allpop": 5,
+      "ESR_allpop": 5
+    },
+    "variable_order": [
+      "AGEP_bin",
+      "SEX",
+      "SCHL_allpop",
+      "ESR_allpop"
+    ]
+  },
+  "summary": {
+    "hier_diffusion_joint": {
+      "tvd_joint_raw": {
+        "mean": 0.08762706389766543,
+        "std": 0.0,
+        "max": 0.08762706389766543,
+        "p90": 0.08762706389766543,
+        "n": 1
+      },
+      "tvd_joint": {
+        "mean": 0.07826156086611659,
+        "std": 0.0,
+        "max": 0.07826156086611659,
+        "p90": 0.07826156086611659,
+        "n": 1
+      },
+      "cosine_joint_raw": {
+        "mean": 0.9890796849161546,
+        "std": 0.0,
+        "max": 0.9890796849161546,
+        "p90": 0.9890796849161546,
+        "n": 1
+      },
+      "cosine_joint": {
+        "mean": 0.9920253426459236,
+        "std": 0.0,
+        "max": 0.9920253426459236,
+        "p90": 0.9920253426459236,
+        "n": 1
+      },
+      "tvd_coarse_head": {
+        "mean": 0.04029132788124469,
+        "std": 0.0,
+        "max": 0.04029132788124469,
+        "p90": 0.04029132788124469,
+        "n": 1
+      },
+      "tvd_coarse_from_fine": {
+        "mean": 0.04243114026684913,
+        "std": 0.0,
+        "max": 0.04243114026684913,
+        "p90": 0.04243114026684913,
+        "n": 1
+      },
+      "tvd_AGEP_bin": {
+        "mean": 3.803016377964809e-05,
+        "std": 0.0,
+        "max": 3.803016377964809e-05,
+        "p90": 3.803016377964809e-05,
+        "n": 1
+      },
+      "tvd_AGEP_bin_raw": {
+        "mean": 0.025079569423269783,
+        "std": 0.0,
+        "max": 0.025079569423269783,
+        "p90": 0.025079569423269783,
+        "n": 1
+      },
+      "tvd_SEX": {
+        "mean": 1.277379470657611e-06,
+        "std": 0.0,
+        "max": 1.277379470657611e-06,
+        "p90": 1.277379470657611e-06,
+        "n": 1
+      },
+      "tvd_SEX_raw": {
+        "mean": 0.004883289976729669,
+        "std": 0.0,
+        "max": 0.004883289976729669,
+        "p90": 0.004883289976729669,
+        "n": 1
+      },
+      "tvd_SCHL_allpop": {
+        "mean": 5.9009078277273225e-08,
+        "std": 0.0,
+        "max": 5.9009078277273225e-08,
+        "p90": 5.9009078277273225e-08,
+        "n": 1
+      },
+      "tvd_SCHL_allpop_raw": {
+        "mean": 0.02420867593485847,
+        "std": 0.0,
+        "max": 0.02420867593485847,
+        "p90": 0.02420867593485847,
+        "n": 1
+      },
+      "tvd_ESR_allpop": {
+        "mean": 6.356532039767724e-09,
+        "std": 0.0,
+        "max": 6.356532039767724e-09,
+        "p90": 6.356532039767724e-09,
+        "n": 1
+      },
+      "tvd_ESR_allpop_raw": {
+        "mean": 0.017237136531626313,
+        "std": 0.0,
+        "max": 0.017237136531626313,
+        "p90": 0.017237136531626313,
+        "n": 1
+      }
+    },
+    "baselines": {
+      "ipf_train_seed_external": {
+        "tvd_joint": {
+          "mean": 0.0808823584465411,
+          "std": 0.0,
+          "max": 0.0808823584465411,
+          "p90": 0.0808823584465411,
+          "n": 1
+        }
+      },
+      "independence_external": {
+        "tvd_joint": {
+          "mean": 0.6140983629222574,
+          "std": 0.0,
+          "max": 0.6140983629222574,
+          "p90": 0.6140983629222574,
+          "n": 1
+        }
+      }
+    },
+    "by_fold": {
+      "leave_mi_out": {
+        "n_train": 2388,
+        "n_test": 68,
+        "tvd_joint_raw": {
+          "mean": 0.08762706389766543,
+          "std": 0.016226698460100598,
+          "max": 0.15242860787045284,
+          "p90": 0.10968026461216834,
+          "n": 68
+        },
+        "tvd_joint": {
+          "mean": 0.07826156086611659,
+          "std": 0.013851467955960279,
+          "max": 0.11770051018137603,
+          "p90": 0.09881628683009834,
+          "n": 68
+        },
+        "cosine_joint_raw": {
+          "mean": 0.9890796849161546,
+          "std": 0.005795978393106508,
+          "max": 0.9950831774420151,
+          "p90": 0.9937632718622201,
+          "n": 68
+        },
+        "cosine_joint": {
+          "mean": 0.9920253426459236,
+          "std": 0.0031965692533445188,
+          "max": 0.996370838874309,
+          "p90": 0.9947860355059113,
+          "n": 68
+        },
+        "tvd_coarse_head": {
+          "mean": 0.04029132788124469,
+          "std": 0.0113496548541092,
+          "max": 0.07640589379873577,
+          "p90": 0.05639397225726697,
+          "n": 68
+        },
+        "tvd_coarse_from_fine": {
+          "mean": 0.04243114026684913,
+          "std": 0.009992834277309485,
+          "max": 0.06417296090682809,
+          "p90": 0.05721146474446073,
+          "n": 68
+        },
+        "ipf_train_seed_external": {
+          "tvd_joint": {
+            "mean": 0.0808823584465411,
+            "std": 0.013836738602933765,
+            "max": 0.12229591764384792,
+            "p90": 0.10383675822024648,
+            "n": 68
+          }
+        },
+        "independence_external": {
+          "tvd_joint": {
+            "mean": 0.6140983629222574,
+            "std": 0.02233287258812504,
+            "max": 0.6704645363021833,
+            "p90": 0.6426687551556928,
+            "n": 68
+          }
+        },
+        "tvd_AGEP_bin": {
+          "mean": 3.803016377964809e-05,
+          "std": 6.047373700020882e-06,
+          "max": 5.2549423783966945e-05,
+          "p90": 4.626934174051254e-05,
+          "n": 68
+        },
+        "tvd_AGEP_bin_raw": {
+          "mean": 0.025079569423269783,
+          "std": 0.01483209327847393,
+          "max": 0.11090463077014054,
+          "p90": 0.034202955695855616,
+          "n": 68
+        },
+        "tvd_SEX": {
+          "mean": 1.277379470657611e-06,
+          "std": 3.173385971560916e-07,
+          "max": 2.2501589194423577e-06,
+          "p90": 1.702998945951606e-06,
+          "n": 68
+        },
+        "tvd_SEX_raw": {
+          "mean": 0.004883289976729669,
+          "std": 0.0033072083344524274,
+          "max": 0.01736300938601984,
+          "p90": 0.008612354538625794,
+          "n": 68
+        },
+        "tvd_SCHL_allpop": {
+          "mean": 5.9009078277273225e-08,
+          "std": 1.5136729593654074e-08,
+          "max": 9.055046542444378e-08,
+          "p90": 7.566010373563637e-08,
+          "n": 68
+        },
+        "tvd_SCHL_allpop_raw": {
+          "mean": 0.02420867593485847,
+          "std": 0.010111665557161899,
+          "max": 0.08262392699696275,
+          "p90": 0.03418240676036996,
+          "n": 68
+        },
+        "tvd_ESR_allpop": {
+          "mean": 6.356532039767724e-09,
+          "std": 4.087020226093435e-09,
+          "max": 1.693842927789728e-08,
+          "p90": 1.1725569467788656e-08,
+          "n": 68
+        },
+        "tvd_ESR_allpop_raw": {
+          "mean": 0.017237136531626313,
+          "std": 0.008908140376124573,
+          "max": 0.05147479931944207,
+          "p90": 0.027676709420910516,
+          "n": 68
+        }
+      }
+    }
+  }
+}

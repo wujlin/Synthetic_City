@@ -1,0 +1,304 @@
+{
+  "created_utc": "2026-03-25T06:42:06Z",
+  "joint_wide_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us_joint_wide.csv",
+  "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv",
+  "schema_json": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_targets/exttarget_v1_full_pums_2023_puma_us.schema.json",
+  "n_rows_total": 2456,
+  "n_test_mi": 68,
+  "cond_raw_dim": 22,
+  "latent_dim": 128,
+  "fine_shape": [
+    10,
+    2,
+    5,
+    5
+  ],
+  "coarse_shape": [
+    4,
+    2,
+    3,
+    3
+  ],
+  "timesteps": 200,
+  "epochs": 300,
+  "batch_size": 512,
+  "encoder_hidden_dims": [
+    256,
+    256
+  ],
+  "coarse_hidden_dims": [
+    256
+  ],
+  "diffusion_hidden_dims": [
+    512,
+    512
+  ],
+  "condition_injection": "concat",
+  "coarse_weight": 0.5,
+  "consistency_weight": 1.0,
+  "n_eval_joint_samples": 64,
+  "ipf_iters": 200,
+  "saved_checkpoints": {
+    "leave_mi_out": []
+  },
+  "condition_meta": {
+    "condition_csv": "/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_conditions/extcond_v1_full_acs5_2022_puma_us.csv",
+    "cond_dim": 22,
+    "block_dims": {
+      "AGEP_bin": 10,
+      "SEX": 2,
+      "SCHL_allpop": 5,
+      "ESR_allpop": 5
+    },
+    "variable_order": [
+      "AGEP_bin",
+      "SEX",
+      "SCHL_allpop",
+      "ESR_allpop"
+    ]
+  },
+  "summary": {
+    "hier_diffusion_joint": {
+      "tvd_joint_raw": {
+        "mean": 0.21269320643824804,
+        "std": 0.0,
+        "max": 0.21269320643824804,
+        "p90": 0.21269320643824804,
+        "n": 1
+      },
+      "tvd_joint": {
+        "mean": 0.11235013538142369,
+        "std": 0.0,
+        "max": 0.11235013538142369,
+        "p90": 0.11235013538142369,
+        "n": 1
+      },
+      "cosine_joint_raw": {
+        "mean": 0.9398775441361056,
+        "std": 0.0,
+        "max": 0.9398775441361056,
+        "p90": 0.9398775441361056,
+        "n": 1
+      },
+      "cosine_joint": {
+        "mean": 0.9852628451525355,
+        "std": 0.0,
+        "max": 0.9852628451525355,
+        "p90": 0.9852628451525355,
+        "n": 1
+      },
+      "tvd_coarse_head": {
+        "mean": 0.0489043643573518,
+        "std": 0.0,
+        "max": 0.0489043643573518,
+        "p90": 0.0489043643573518,
+        "n": 1
+      },
+      "tvd_coarse_from_fine": {
+        "mean": 0.05980866293220451,
+        "std": 0.0,
+        "max": 0.05980866293220451,
+        "p90": 0.05980866293220451,
+        "n": 1
+      },
+      "tvd_AGEP_bin": {
+        "mean": 4.483276955642744e-05,
+        "std": 0.0,
+        "max": 4.483276955642744e-05,
+        "p90": 4.483276955642744e-05,
+        "n": 1
+      },
+      "tvd_AGEP_bin_raw": {
+        "mean": 0.09895387367350697,
+        "std": 0.0,
+        "max": 0.09895387367350697,
+        "p90": 0.09895387367350697,
+        "n": 1
+      },
+      "tvd_SEX": {
+        "mean": 1.0121517796966443e-06,
+        "std": 0.0,
+        "max": 1.0121517796966443e-06,
+        "p90": 1.0121517796966443e-06,
+        "n": 1
+      },
+      "tvd_SEX_raw": {
+        "mean": 0.015151273509642888,
+        "std": 0.0,
+        "max": 0.015151273509642888,
+        "p90": 0.015151273509642888,
+        "n": 1
+      },
+      "tvd_SCHL_allpop": {
+        "mean": 5.606334989793935e-08,
+        "std": 0.0,
+        "max": 5.606334989793935e-08,
+        "p90": 5.606334989793935e-08,
+        "n": 1
+      },
+      "tvd_SCHL_allpop_raw": {
+        "mean": 0.10418795986703074,
+        "std": 0.0,
+        "max": 0.10418795986703074,
+        "p90": 0.10418795986703074,
+        "n": 1
+      },
+      "tvd_ESR_allpop": {
+        "mean": 6.356532041033939e-09,
+        "std": 0.0,
+        "max": 6.356532041033939e-09,
+        "p90": 6.356532041033939e-09,
+        "n": 1
+      },
+      "tvd_ESR_allpop_raw": {
+        "mean": 0.08730071999883131,
+        "std": 0.0,
+        "max": 0.08730071999883131,
+        "p90": 0.08730071999883131,
+        "n": 1
+      }
+    },
+    "baselines": {
+      "ipf_train_seed_external": {
+        "tvd_joint": {
+          "mean": 0.0808823584465411,
+          "std": 0.0,
+          "max": 0.0808823584465411,
+          "p90": 0.0808823584465411,
+          "n": 1
+        }
+      },
+      "independence_external": {
+        "tvd_joint": {
+          "mean": 0.6140983629222574,
+          "std": 0.0,
+          "max": 0.6140983629222574,
+          "p90": 0.6140983629222574,
+          "n": 1
+        }
+      }
+    },
+    "by_fold": {
+      "leave_mi_out": {
+        "n_train": 2388,
+        "n_test": 68,
+        "tvd_joint_raw": {
+          "mean": 0.21269320643824804,
+          "std": 0.023355482339306812,
+          "max": 0.3215989704834982,
+          "p90": 0.2379245769471652,
+          "n": 68
+        },
+        "tvd_joint": {
+          "mean": 0.11235013538142369,
+          "std": 0.01328840489628749,
+          "max": 0.15378983741224367,
+          "p90": 0.13057656410931895,
+          "n": 68
+        },
+        "cosine_joint_raw": {
+          "mean": 0.9398775441361056,
+          "std": 0.018476114193168486,
+          "max": 0.9725038430498157,
+          "p90": 0.9627612253737775,
+          "n": 68
+        },
+        "cosine_joint": {
+          "mean": 0.9852628451525355,
+          "std": 0.004276446273471579,
+          "max": 0.9931587197775745,
+          "p90": 0.9902799457629718,
+          "n": 68
+        },
+        "tvd_coarse_head": {
+          "mean": 0.0489043643573518,
+          "std": 0.015737547269188454,
+          "max": 0.09340765197083176,
+          "p90": 0.06911046952167003,
+          "n": 68
+        },
+        "tvd_coarse_from_fine": {
+          "mean": 0.05980866293220451,
+          "std": 0.009200673180218277,
+          "max": 0.0892521314340621,
+          "p90": 0.06962932316412832,
+          "n": 68
+        },
+        "ipf_train_seed_external": {
+          "tvd_joint": {
+            "mean": 0.0808823584465411,
+            "std": 0.013836738602933765,
+            "max": 0.12229591764384792,
+            "p90": 0.10383675822024648,
+            "n": 68
+          }
+        },
+        "independence_external": {
+          "tvd_joint": {
+            "mean": 0.6140983629222574,
+            "std": 0.02233287258812504,
+            "max": 0.6704645363021833,
+            "p90": 0.6426687551556928,
+            "n": 68
+          }
+        },
+        "tvd_AGEP_bin": {
+          "mean": 4.483276955642744e-05,
+          "std": 1.1107903422971446e-05,
+          "max": 7.267492960016941e-05,
+          "p90": 5.977987450556388e-05,
+          "n": 68
+        },
+        "tvd_AGEP_bin_raw": {
+          "mean": 0.09895387367350697,
+          "std": 0.021975998237959093,
+          "max": 0.16952150317036313,
+          "p90": 0.12939749661072295,
+          "n": 68
+        },
+        "tvd_SEX": {
+          "mean": 1.0121517796966443e-06,
+          "std": 4.30718796857986e-07,
+          "max": 2.40287309097309e-06,
+          "p90": 1.57182640866671e-06,
+          "n": 68
+        },
+        "tvd_SEX_raw": {
+          "mean": 0.015151273509642888,
+          "std": 0.010672357644325073,
+          "max": 0.056674392336177076,
+          "p90": 0.027269782876520113,
+          "n": 68
+        },
+        "tvd_SCHL_allpop": {
+          "mean": 5.606334989793935e-08,
+          "std": 1.6677759182655983e-08,
+          "max": 1.0616836156746023e-07,
+          "p90": 7.22995672150506e-08,
+          "n": 68
+        },
+        "tvd_SCHL_allpop_raw": {
+          "mean": 0.10418795986703074,
+          "std": 0.03319178832327604,
+          "max": 0.2534698634318032,
+          "p90": 0.14527941990342033,
+          "n": 68
+        },
+        "tvd_ESR_allpop": {
+          "mean": 6.356532041033939e-09,
+          "std": 4.0870202355818535e-09,
+          "max": 1.6938429357044038e-08,
+          "p90": 1.1725569517037861e-08,
+          "n": 68
+        },
+        "tvd_ESR_allpop_raw": {
+          "mean": 0.08730071999883131,
+          "std": 0.017062137287762777,
+          "max": 0.13529639628660012,
+          "p90": 0.1106917932919145,
+          "n": 68
+        }
+      }
+    }
+  }
+}

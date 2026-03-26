@@ -82,7 +82,7 @@ In this paper, we therefore ask whether a diffusion model trained on PUMA-level 
 \section{Methods}
 
 \subsection{Overview}
-As discussed in Section~\ref{sec:intro}, our goal is to reconstruct synthetic populations whose five attributes follow observed regional joint distributions derived from public-use microdata, while preserving realistic spatial heterogeneity through region-specific copulas. The framework comprises three stages, summarized in Figure~\ref{fig:framework}. First, for each of the 2,456 Public Use Microdata Areas in the United States, we construct an empirical joint probability vector describing multiple attributes (e.g., age, sex, income, education, and employment status). Second, a conditional denoising diffusion probabilistic model (DDPM) will be trained using the vector from the previous step along with census data. Lastly, the trained model will generate a region-specific joint distribution of each PUMA reflecting the local copula of the five demographic attributes, which is then utilized to generate individual synthetic records.
+As discussed in Section~\ref{sec:intro}, our goal is to reconstruct synthetic populations whose four core attributes follow observed regional joint distributions derived from public-use microdata, while preserving realistic spatial heterogeneity through region-specific copulas; earnings are then assigned conditionally to obtain five-attribute synthetic individuals. The framework comprises three stages, summarized in Figure~\ref{fig:framework}. First, for each of the 2,456 Public Use Microdata Areas in the United States, we construct PUMS-derived regional targets together with external census conditions describing age, sex, education, employment, and earnings-related summaries. Second, a conditional denoising diffusion probabilistic model (DDPM) is trained to reconstruct the regional joint distribution from these conditions, with the conditioning signal encoded as a regional context. Lastly, the trained model generates a region-specific four-attribute joint distribution for each PUMA, which is then used to sample synthetic persons and assign earnings conditionally, producing five-attribute synthetic records.
 
 %map aggregate census constraints to this joint distribution with a conditional denoising diffusion probabilistic model (DDPM). The model is trained with the standard $\epsilon$-prediction objective, with the condition vector concatenated to the denoiser input (Section~\ref{sec:experiment}). 
 
@@ -99,13 +99,17 @@ As discussed in Section~\ref{sec:intro}, our goal is to reconstruct synthetic po
 
 
 
-\subsection{Data Preparation and Study Area}\label{sec:data_and_study_area}
+\subsection{Data Sources and Study Area}\label{sec:data_and_study_area}
 
-The primary input data is the 2023 five-year American Community Survey (i.e., ACS) Public Use Microdata Sample (i.e., PUMS), covering 2,456 Public Use Microdata Areas (i.e., PUMAs) in the United States \cite{acs, pums}. The rationale is that the PUMS is an individual-level dataset representing approximately 5\% of the real population, in which the copula structure and spatial heterogeneity can be captured to construct an empirical joint distribution of multiple individual-level demographic attributes for each PUMA. For this work, we selected five individual-level demographic attributes: age (AGEP), sex (SEX), personal income (PINCP), educational attainment (SCHL), and employment status (ESR), as existing synthetic population datasets commonly contain age, sex, education, and employment information, while income is often described only using levels (e.g., low-, middle-, and high-income) and seldom as an explicit number (Table~\ref{tab:var_attr}).
+This framework uses two complementary data sources. The first is the 2023 five-year American Community Survey (i.e., ACS) Public Use Microdata Sample (i.e., PUMS), covering 2,456 Public Use Microdata Areas (i.e., PUMAs) in the United States \cite{acs, pums}. PUMS provides person-level microdata and survey weights, which we use to construct region-specific training targets. The rationale is that PUMS is an individual-level dataset representing approximately 5\% of the real population, so the copula structure and spatial heterogeneity can be preserved when each PUMA is represented by an empirical regional joint distribution rather than by marginal frequencies alone.
 
-For the model's training purposes in Step~2, we also collect the census block group level data, because the statistical formats for census and PUMS are different. For example, in the census, age is predefined in categories such as 0 to 5, 6--10, etc., instead of recording the explicit continuous values in PUMS, such as 4, indicating that a specific person is 4 years old. While training the model requires the same statistical format for both census block group level data and PUMS, we pre-process the continuous demographic attributes (i.e., AGEP and PINCP) in PUMS by aggregating them to fit the census group level statistical format.
+The second data source is the published ACS summary tables. In this framework, PUMS is used to construct the regional training targets, whereas the published ACS summary tables provide the conditioning inputs used during both training and inference. Specifically, we use B01001 for age and sex, B15003 for educational attainment, B23025 for employment status, and B20001 for earnings. These tables are selected because they are publicly available, defined on standard census categories, and match the type of regional information that would be observable at deployment.
 
-As discussed in Section~\ref{sec:intro}, this work proposes a generative framework to generate the synthetic population; thus, to test the capability of this framework, we select Michigan as the study area. Also, as shown in Figure~\ref{fig:heterogeneity} and Supplementary Fig.~\ref{fig:S2_heterogeneity}, Michigan spans a representative range of heterogeneity values rather than behaving as an extreme outlier. This is another rationale to select Michigan. Michigan includes metropolitan, suburban, and more rural contexts, whose copula structures differ clearly from one another.
+The final synthetic population contains five person-level attributes. The regional distribution jointly models four core attributes (age, sex, education, and employment). Earnings are then assigned conditionally after the four-attribute synthetic persons are sampled. We use this design because the first four attributes have the cleanest shared conditioning schema across PUMS and ACS summary tables, while earnings enter through a separate but aligned external summary (B20001) and a person-level target constructed from PUMS earnings records (Table~\ref{tab:var_attr}).
+
+To align the two data sources, we map person-level records to the categorical support used by the ACS summary tables. Age is discretized into census-aligned bins. Education and employment are represented with operational categories that preserve all-population coverage. For example, the education variable includes a \texttt{not\_25p} category for people below the ACS education universe, and the employment variable includes a \texttt{not\_16p} category for people below the ACS employment universe. Earnings are represented as EARN\_16p\_bin, a six-category variable constructed from ACS table B20001 and the PUMS earnings measure PERNP. People younger than 16 or with no reported earnings are assigned to \texttt{not\_in\_earnings\_universe}; the remaining records are grouped into \$0--25k, \$25k--50k, \$50k--75k, \$75k--100k, and \$100k+ bins. This preprocessing ensures that the regional targets and the external conditions live on the same discrete state space.
+
+For out-of-sample spatial evaluation, we use Michigan as the study area and hold it out from nationwide training. Michigan contains 68 test PUMAs and spans metropolitan, suburban, and rural contexts. As shown in Figure~\ref{fig:heterogeneity} and Supplementary Fig.~\ref{fig:S2_heterogeneity}, its heterogeneity values lie well within the national range rather than forming an extreme outlier, making it a suitable held-out state for evaluating whether the model recovers region-specific dependence rather than a national-average copula.
 
 
 %Model fitting uses nationwide data, while Michigan is held out as the out-of-sample study area for spatial evaluation, yielding 68 test PUMAs. This state-level holdout reduces the spatial leakage that would arise under random region splits. To illustrate the generated outputs, we select two Michigan PUMAs from the held-out set to represent high and median heterogeneity relative to the national-average joint distribution: Oakland County (East Central)--Troy \& Rochester Area PUMA (2602903; TVD-to-global $= 0.170$) and Ionia, Montcalm, Mecosta \& Osceola Counties PUMA (2601100; TVD-to-global $= 0.101$).
@@ -126,67 +130,70 @@ As discussed in Section~\ref{sec:intro}, this work proposes a generative framewo
 \begin{table}[!bhtp]
 \centering
 \small
-\caption{Variable attributes selected from the ACS PUMS dataset.}
+\caption{Operational variables and ACS--PUMS alignment in the current framework. The first four variables define the regional joint distribution, and earnings is assigned conditionally afterward.}
 \label{tab:var_attr}
-\begin{tabular}{p{0.12\linewidth}p{0.24\linewidth}p{0.50\linewidth}}
+\begin{tabular}{p{0.11\linewidth}p{0.13\linewidth}p{0.14\linewidth}p{0.24\linewidth}p{0.28\linewidth}}
 \toprule
-Variable & ACS Data Format & Description \\
+Variable & ACS Source & PUMS Variable & Format & Description \\
 \midrule
-AGEP & Numeric (person age) & Core demographic attribute; discretized before joint-table construction. \\
-SEX & Categorical code (1/2) & Core demographic attribute. \\
-PINCP & Numeric (personal income) & Economic attribute; discretized before joint-table construction. \\
-SCHL & Ordinal categorical code & Education attribute; important for dependence structure. \\
-ESR & Categorical code & Employment attribute; adds labor-market structure to the joint distribution. \\
+Age & B01001 & AGEP & Census-aligned age bins & Fine-grained age groups used in the regional state space. \\
+Sex & B01001 & SEX & Binary sex categories & Directly aligned across ACS and PUMS. \\
+Education & B15003 & SCHL & All-population categories with \texttt{not\_25p} & Includes an explicit category for people below the ACS education universe. \\
+Employment & B23025 & ESR & All-population categories with \texttt{not\_16p} & Includes an explicit category for people below the ACS employment universe. \\
+Earnings & B20001 & PERNP & Six-category earnings bins with \texttt{not\_in\_earnings\_universe} & People younger than 16 or with no reported earnings are placed outside the earnings universe. \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 
-\subsection{Step1: Extracting distribution representation}
+\subsection{Constructing Regional Targets and External Conditions}
 \label{sec:training_target}
 
-Based on the discretized regional joint tables constructed above, we define the training unit at the regional distribution level. Each PUMA is represented by its empirical joint probability vector $\mathbf{p}$, yielding 2,456 region-level training examples. This representation aligns the learning target with the quantity evaluated throughout the paper: the regional joint distribution, which encodes both marginal frequencies and dependence structure.
+Step 1 produces two region-level objects for each PUMA: a PUMS-derived training target and an external condition vector built from published ACS summary tables. The training target is the four-attribute regional joint distribution over age, sex, education, and employment. The condition vector contains the observable regional summaries for age, sex, education, employment, and earnings. Across the United States, this yields 2,456 aligned region-level examples.
 
-We construct $\mathbf{p}$ from survey-weighted joint cell counts. To avoid zero-probability cells in sparse tables, we add a Laplace pseudo-count ($\alpha=1$) to each cell and then normalize the table to sum to one. The resulting vector $\mathbf{p}$ is the empirical regional joint distribution used for training.
+We construct the target joint vector $\mathbf{p}$ from survey-weighted joint cell counts. To avoid zero-probability cells in sparse tables, we add a Laplace pseudo-count ($\alpha=1$) to each cell and then normalize the table to sum to one. The resulting vector $\mathbf{p}$ is the empirical four-attribute regional joint distribution used for training.
+
+For the same PUMA, we construct an external condition vector $\mathbf{c}$ by concatenating the normalized ACS summary blocks for age, sex, education, employment, and earnings. Each block is normalized to sum to one within variable, so $\mathbf{c}$ records the regional composition implied by the published census summaries rather than the raw population size. The target vector $\mathbf{p}$ and the condition vector $\mathbf{c}$ therefore share the same geography and the same categorical support, while playing different roles in the model: $\mathbf{p}$ provides the supervision target, and $\mathbf{c}$ provides the observable conditioning input.
 
 We then map each probability vector to log-probability space before training:
 \[
   \mathbf{x}_0 = \log(\mathbf{p}+\phi), \quad \phi=10^{-6}.
 \]
 
-This transformation compresses the dynamic range of rare cells and moves the target representation closer to the approximately Gaussian regime assumed by the diffusion noise schedule.
+This transformation compresses the gap between common and rare cells and makes the continuous diffusion target numerically more stable.
 
 We further standardize the log-probability vectors within each training fold:
 \[
   \mathbf{z}_0 = \frac{\mathbf{x}_0 - \boldsymbol{\mu}_{\text{train}}}{\boldsymbol{\sigma}_{\text{train}}},
 \]
-where $\boldsymbol{\mu}_{\text{train}}$ and $\boldsymbol{\sigma}_{\text{train}}$ are computed from the training split only, and a small-variance floor of $10^{-6}$ is applied to $\boldsymbol{\sigma}_{\text{train}}$ for numerical stability. This fold-specific normalization centers and rescales the targets without leaking information from held-out regions.
+where $\boldsymbol{\mu}_{\text{train}}$ and $\boldsymbol{\sigma}_{\text{train}}$ are computed from the training split only, and a small-variance floor of $10^{-6}$ is applied to $\boldsymbol{\sigma}_{\text{train}}$ for numerical stability. This fold-specific normalization centers and rescales the target vectors without leaking information from held-out regions.
 
 % edit from here
-\subsection{Training the diffusion model}
+\subsection{Training the Regional-Context Diffusion Model}
 \label{sec:training_model}
-As discussed in Section~\ref{sec:intro}, the central challenge is to recover region-specific copulas from aggregate, low-dimensional census constraints. Conditional diffusion is well suited to this inverse problem because it can encode regional demographic summaries (specifically, one-dimensional marginals and two-dimensional cross-tabulations) as conditioning signals while allowing the generated copula to vary across space. 
+As discussed in Section~\ref{sec:intro}, the central challenge is to recover a PUMA-specific joint distribution from published regional summaries rather than from the joint distribution itself. In the current framework, the model receives external census conditions and must reconstruct the four-attribute regional joint distribution over age, sex, education, and employment. We therefore train a conditional denoising diffusion model in which the raw external condition vector is first encoded into a \emph{regional context} vector $\mathbf{r}$. This regional context summarizes the age, sex, education, employment, and earnings-related signals available for a target PUMA and is provided to the diffusion generator throughout denoising.
 
-We therefore train a conditional denoising diffusion model to map aggregate
-demographic constraints to a regional joint distribution. The denoiser $
-\epsilon_\theta$ is implemented as a two-hidden-layer multilayer perceptron (MLP)
-with hidden dimensions [1024, 1024], sigmoid linear unit (SiLU) activations, and a
-128-dimensional sinusoidal timestep embedding. To condition generation on regional
-statistics, the condition vector $\mathbf{c}$ (defined in Section~\ref{sec:experiment}) is concatenated with the noised input $\mathbf{z}_t$
-and the timestep embedding at the first layer.
+The main diffusion branch generates the full 500-cell joint distribution defined by the fine age, sex, education, and employment categories. To stabilize this high-dimensional state space, we add a coarse auxiliary branch that uses the same regional context $\mathbf{r}$ to predict a 72-cell coarse joint distribution, obtained by merging the fine age, education, and employment categories into the coarser schema used in our mechanism analysis. During training, the fine distribution implied by the diffusion prediction is aggregated to the same 72-cell space and penalized when it disagrees with the coarse auxiliary prediction. This auxiliary branch is used to anchor the full generator to large-scale regional structure; the final synthetic population is still generated from the full four-attribute diffusion model.
 
-Training minimizes the standard $\epsilon$-prediction mean squared error (MSE)
-objective:
+The diffusion component follows the standard noise-prediction objective. The denoiser $\epsilon_\theta$ is implemented as a two-hidden-layer multilayer perceptron with hidden dimensions [512, 512], sigmoid linear unit (SiLU) activations, and a 128-dimensional sinusoidal timestep embedding. Conditioning is injected by concatenating the regional context $\mathbf{r}$ with the noised input $\mathbf{z}_t$ and the timestep embedding. Let $\mathbf{z}_0$ denote the standardized log-probability vector defined in Section~\ref{sec:training_target}. The diffusion loss is
 \begin{equation}
-  \mathcal{L} = \mathbb{E}_{t,\,\mathbf{z}_0,\,\boldsymbol{\epsilon}}\bigl[\|
-\boldsymbol{\epsilon} - \epsilon_\theta(\mathbf{z}_t, t, \mathbf{c})\|^2\bigr],
+  \mathcal{L}_{\mathrm{diff}}=
+  \mathbb{E}_{t,\,\mathbf{z}_0,\,\boldsymbol{\epsilon}}
+  \bigl[\|\boldsymbol{\epsilon}-\epsilon_\theta(\mathbf{z}_t,t,\mathbf{r})\|^2\bigr],
 \end{equation}
-where $\mathbf{z}_t = \sqrt{\bar\alpha_t}\,\mathbf{z}_0 + \sqrt{1-\bar\alpha_t}\,
-\boldsymbol{\epsilon}$, $\boldsymbol{\epsilon}\sim\mathcal{N}(0,I)$, and $
-\bar\alpha_t$ follows a linear noise schedule with $\beta_1=10^{-4}$ and $
-\beta_T=0.02$ over $T=1000$ timesteps. We optimize the model with AdamW (learning
-rate $=10^{-3}$, weight decay $=10^{-4}$), gradient clipping at 1.0, batch size 512,
-and 30,000 training epochs.
+where $\mathbf{z}_t = \sqrt{\bar\alpha_t}\,\mathbf{z}_0 + \sqrt{1-\bar\alpha_t}\,\boldsymbol{\epsilon}$, $\boldsymbol{\epsilon}\sim\mathcal{N}(0,I)$, and $\bar\alpha_t$ follows a linear noise schedule with $\beta_1=10^{-4}$ and $\beta_T=0.02$ over $T=200$ timesteps.
+
+We train the full model with a combined objective,
+\begin{equation}
+  \mathcal{L}
+  =
+  \mathcal{L}_{\mathrm{diff}}
+  +
+  \lambda_{\mathrm{coarse}}\mathcal{L}_{\mathrm{coarse}}
+  +
+  \lambda_{\mathrm{cons}}\mathcal{L}_{\mathrm{cons}},
+\end{equation}
+where $\mathcal{L}_{\mathrm{coarse}}$ is the cross-entropy loss for the 72-cell coarse target and $\mathcal{L}_{\mathrm{cons}}$ is the total-variation penalty between the coarse auxiliary prediction and the coarse distribution obtained by aggregating the fine diffusion prediction. In the experiments reported below, we use $\lambda_{\mathrm{coarse}}=0.5$ and $\lambda_{\mathrm{cons}}=1.0$. Optimization uses AdamW (learning rate $=10^{-3}$, weight decay $=10^{-4}$), gradient clipping at 1.0, and batch size 512. To avoid relying on the last checkpoint by default, we maintain an exponential moving average of model weights (decay $=0.999$), evaluate every 200 epochs on a held-out validation split drawn from the training geographies, and select the checkpoint with the lowest validation TVD for final testing.
 
 \subsection{Inferring the joint distribution}
 \label{sec:inference}

@@ -1,0 +1,107 @@
+{
+  "created_utc": "2026-03-26T00:51:39.228922Z",
+  "label": "external_joint_hier_diffusion_full_earn_v2_batch",
+  "n_runs": 3,
+  "runs": [
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_masked_weighted_a05_detach_batch_20260326T005000Z_seed0_20260326T004956Z",
+      "condition_injection": "concat",
+      "timesteps": 200,
+      "epochs": 600,
+      "tvd_joint_raw": 0.2264388734883084,
+      "tvd_joint": 0.15167270006662176,
+      "tvd_coarse_head": 0.09906215515008086,
+      "tvd_coarse_from_fine": 0.08745688961115979,
+      "ipf_tvd_joint": 0.12697349666443347,
+      "selection_by_fold": {
+        "leave_mi_out": {
+          "best_epoch": 600,
+          "best_val_metric": 0.2333830929108445,
+          "best_val_tvd_joint": 0.1569948058760546,
+          "best_val_tvd_joint_raw": 0.2333830929108445,
+          "selection_metric": "val_tvd_joint_raw",
+          "selected_state": "best_val_ema",
+          "ema_decay": 0.999,
+          "train_core_size": 2269,
+          "val_size": 119
+        }
+      }
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_masked_weighted_a05_detach_batch_20260326T005000Z_seed1_20260326T005030Z",
+      "condition_injection": "concat",
+      "timesteps": 200,
+      "epochs": 600,
+      "tvd_joint_raw": 0.2239131030094482,
+      "tvd_joint": 0.15223413108550135,
+      "tvd_coarse_head": 0.0971342460830182,
+      "tvd_coarse_from_fine": 0.08765165787257435,
+      "ipf_tvd_joint": 0.12697915535868412,
+      "selection_by_fold": {
+        "leave_mi_out": {
+          "best_epoch": 600,
+          "best_val_metric": 0.2313618062722834,
+          "best_val_tvd_joint": 0.15750031516268764,
+          "best_val_tvd_joint_raw": 0.2313618062722834,
+          "selection_metric": "val_tvd_joint_raw",
+          "selected_state": "best_val_ema",
+          "ema_decay": 0.999,
+          "train_core_size": 2269,
+          "val_size": 119
+        }
+      }
+    },
+    {
+      "run_dir": "/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_masked_weighted_a05_detach_batch_20260326T005000Z_seed2_20260326T005104Z",
+      "condition_injection": "concat",
+      "timesteps": 200,
+      "epochs": 600,
+      "tvd_joint_raw": 0.21912580295555617,
+      "tvd_joint": 0.15067747025339606,
+      "tvd_coarse_head": 0.09721361522913015,
+      "tvd_coarse_from_fine": 0.08568316431708202,
+      "ipf_tvd_joint": 0.12701234767986547,
+      "selection_by_fold": {
+        "leave_mi_out": {
+          "best_epoch": 600,
+          "best_val_metric": 0.2237777423575211,
+          "best_val_tvd_joint": 0.1550180866705662,
+          "best_val_tvd_joint_raw": 0.2237777423575211,
+          "selection_metric": "val_tvd_joint_raw",
+          "selected_state": "best_val_ema",
+          "ema_decay": 0.999,
+          "train_core_size": 2269,
+          "val_size": 119
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "tvd_joint": {
+      "mean": 0.1515281004685064,
+      "std": 0.0006436769476396405,
+      "n": 3
+    },
+    "tvd_joint_raw": {
+      "mean": 0.22315925981777093,
+      "std": 0.0030327610986778915,
+      "n": 3
+    },
+    "tvd_coarse_head": {
+      "mean": 0.09780333882074306,
+      "std": 0.0008907071267984191,
+      "n": 3
+    },
+    "tvd_coarse_from_fine": {
+      "mean": 0.08693057060027205,
+      "std": 0.0008856261421239754,
+      "n": 3
+    },
+    "ipf": {
+      "mean": 0.12698833323432768,
+      "std": 1.7137199324293696e-05,
+      "n": 3
+    }
+  },
+  "relative_gain_vs_ipf_pct": -19.324426590351607
+}

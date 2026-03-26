@@ -203,6 +203,20 @@ def main() -> None:
     }
     meta_path = out_path.with_suffix(out_path.suffix + ".metadata.json")
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    schema_path = out_path.with_suffix(out_path.suffix + ".schema.json")
+    schema_path.write_text(
+        json.dumps(
+            {
+                "schema": "external_condition_earn_v1",
+                "variable_order": ["EARN_16p_bin"],
+                "categories": {"EARN_16p_bin": EARN_LABELS},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     print(f"[ok] wrote: {out_path}")
 
 

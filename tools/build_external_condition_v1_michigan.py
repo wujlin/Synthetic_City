@@ -16,6 +16,9 @@ Schema v1 (all-population variables):
                 some_college_or_assoc, bachelor_plus}
 - ESR_allpop: {not_16p, employed, unemployed, armed_forces, not_in_labor_force}
 
+Optional cross block:
+- AGEP_SEX_cross: 20 categories from the same B01001 age-by-sex table
+
 Why this schema:
 - B01001, B15003, and B23025 are already present in the repo
 - education and employment universes differ from "all persons", so we convert them
@@ -91,6 +94,49 @@ def _interval_labels(edges: list[float]) -> list[str]:
     for i in range(len(edges) - 1):
         labels.append(str(pd.Interval(float(edges[i]), float(edges[i + 1]), closed="left")))
     return labels
+
+
+SEX_LABELS = ["1", "2"]
+AGE_EDGES = [0.0, 5.0, 18.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 1000.0]
+AGE_LABELS = _interval_labels(AGE_EDGES)
+AGE_SEX_CROSS_VAR = "AGEP_SEX_cross"
+SCHL_ALLPOP_LABELS = [
+    "not_25p",
+    "less_than_high_school",
+    "high_school_or_ged",
+    "some_college_or_assoc",
+    "bachelor_plus",
+]
+ESR_ALLPOP_LABELS = [
+    "not_16p",
+    "employed",
+    "unemployed",
+    "armed_forces",
+    "not_in_labor_force",
+]
+
+
+def _age_sex_cross_categories() -> list[str]:
+    out: list[str] = []
+    for age_lab in AGE_LABELS:
+        for sex_lab in SEX_LABELS:
+            out.append(f"{age_lab}__{sex_lab}")
+    return out
+
+
+def _condition_schema_bundle(*, include_age_sex_cross: bool) -> dict[str, Any]:
+    variable_order = ["SEX", "AGEP_bin"]
+    categories: dict[str, list[str]] = {
+        "SEX": list(SEX_LABELS),
+        "AGEP_bin": list(AGE_LABELS),
+        "SCHL_allpop": list(SCHL_ALLPOP_LABELS),
+        "ESR_allpop": list(ESR_ALLPOP_LABELS),
+    }
+    if include_age_sex_cross:
+        variable_order.append(AGE_SEX_CROSS_VAR)
+        categories[AGE_SEX_CROSS_VAR] = _age_sex_cross_categories()
+    variable_order.extend(["SCHL_allpop", "ESR_allpop"])
+    return {"variable_order": variable_order, "categories": categories}
 
 
 def _default_table_path(*, acs_dir: pathlib.Path, acs_year: int, table_id: str) -> pathlib.Path:
@@ -185,17 +231,26 @@ def _build_tract_puma_map(*, tract_zip: pathlib.Path, puma_zip: pathlib.Path, st
     return dict(zip(result["tract_geoid"], result["puma"]))
 
 
-def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
+def _b01001_records(df: Any, *, group_col: str, include_age_sex_cross: bool = False) -> list[dict[str, Any]]:
     pd = _require("pandas")
 
     def num(col: str) -> Any:
         return pd.to_numeric(df.get(col), errors="coerce").fillna(0.0)
 
-    age_edges = [0.0, 5.0, 18.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 1000.0]
-    age_labels = _interval_labels(age_edges)
-
     sex_male = num("B01001_002E")
     sex_female = num("B01001_026E")
+    age_bin_cols_by_sex = {
+        AGE_LABELS[0]: {"1": ["B01001_003E"], "2": ["B01001_027E"]},
+        AGE_LABELS[1]: {"1": ["B01001_004E", "B01001_005E", "B01001_006E"], "2": ["B01001_028E", "B01001_029E", "B01001_030E"]},
+        AGE_LABELS[2]: {"1": ["B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E"], "2": ["B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E"]},
+        AGE_LABELS[3]: {"1": ["B01001_011E", "B01001_012E"], "2": ["B01001_035E", "B01001_036E"]},
+        AGE_LABELS[4]: {"1": ["B01001_013E", "B01001_014E"], "2": ["B01001_037E", "B01001_038E"]},
+        AGE_LABELS[5]: {"1": ["B01001_015E", "B01001_016E"], "2": ["B01001_039E", "B01001_040E"]},
+        AGE_LABELS[6]: {"1": ["B01001_017E", "B01001_018E", "B01001_019E"], "2": ["B01001_041E", "B01001_042E", "B01001_043E"]},
+        AGE_LABELS[7]: {"1": ["B01001_020E", "B01001_021E", "B01001_022E"], "2": ["B01001_044E", "B01001_045E", "B01001_046E"]},
+        AGE_LABELS[8]: {"1": ["B01001_023E", "B01001_024E"], "2": ["B01001_047E", "B01001_048E"]},
+        AGE_LABELS[9]: {"1": ["B01001_025E"], "2": ["B01001_049E"]},
+    }
 
     def s(cols: list[str]) -> Any:
         out = None
@@ -204,22 +259,6 @@ def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
             out = v if out is None else (out + v)
         return out if out is not None else 0.0
 
-    age_bin_cols = {
-        age_labels[0]: ["B01001_003E", "B01001_027E"],
-        age_labels[1]: ["B01001_004E", "B01001_005E", "B01001_006E", "B01001_028E", "B01001_029E", "B01001_030E"],
-        age_labels[2]: [
-            "B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E",
-            "B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E",
-        ],
-        age_labels[3]: ["B01001_011E", "B01001_012E", "B01001_035E", "B01001_036E"],
-        age_labels[4]: ["B01001_013E", "B01001_014E", "B01001_037E", "B01001_038E"],
-        age_labels[5]: ["B01001_015E", "B01001_016E", "B01001_039E", "B01001_040E"],
-        age_labels[6]: ["B01001_017E", "B01001_018E", "B01001_019E", "B01001_041E", "B01001_042E", "B01001_043E"],
-        age_labels[7]: ["B01001_020E", "B01001_021E", "B01001_022E", "B01001_044E", "B01001_045E", "B01001_046E"],
-        age_labels[8]: ["B01001_023E", "B01001_024E", "B01001_047E", "B01001_048E"],
-        age_labels[9]: ["B01001_025E", "B01001_049E"],
-    }
-
     out: list[dict[str, Any]] = []
     for idx, g in df[group_col].astype(str).items():
         g = str(g)
@@ -227,8 +266,23 @@ def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
             continue
         out.append({group_col: g, "variable": "SEX", "category": "1", "target": float(sex_male.loc[idx]), "table_id": "B01001", "universe": "all_persons"})
         out.append({group_col: g, "variable": "SEX", "category": "2", "target": float(sex_female.loc[idx]), "table_id": "B01001", "universe": "all_persons"})
-        for label, cols in age_bin_cols.items():
-            out.append({group_col: g, "variable": "AGEP_bin", "category": str(label), "target": float(s(cols).loc[idx]), "table_id": "B01001", "universe": "all_persons"})
+        for label, sex_map in age_bin_cols_by_sex.items():
+            age_total = 0.0
+            for sex_lab in SEX_LABELS:
+                value = float(s(sex_map[sex_lab]).loc[idx])
+                age_total += value
+                if include_age_sex_cross:
+                    out.append(
+                        {
+                            group_col: g,
+                            "variable": AGE_SEX_CROSS_VAR,
+                            "category": f"{label}__{sex_lab}",
+                            "target": value,
+                            "table_id": "B01001",
+                            "universe": "all_persons",
+                        }
+                    )
+            out.append({group_col: g, "variable": "AGEP_bin", "category": str(label), "target": age_total, "table_id": "B01001", "universe": "all_persons"})
     return out
 
 
@@ -327,6 +381,7 @@ def main() -> None:
     ap.add_argument("--acs_year", type=int, default=2022)
     ap.add_argument("--statefp", default="26")
     ap.add_argument("--aggregate_to", choices=["tract", "puma"], default="puma")
+    ap.add_argument("--include_age_sex_cross", action="store_true")
     ap.add_argument("--tract_puma_csv", default="")
     ap.add_argument("--tract_zip", default="")
     ap.add_argument("--puma_zip", default="")
@@ -362,7 +417,7 @@ def main() -> None:
     total_pop = pd.to_numeric(dfs["B01001"]["B01001_001E"], errors="coerce").fillna(0.0)
 
     records: list[dict[str, Any]] = []
-    records.extend(_b01001_records(dfs["B01001"], group_col="tract_geoid"))
+    records.extend(_b01001_records(dfs["B01001"], group_col="tract_geoid", include_age_sex_cross=bool(args.include_age_sex_cross)))
     records.extend(_b15003_records(dfs["B15003"], group_col="tract_geoid", total_pop=total_pop))
     records.extend(_b23025_records(dfs["B23025"], group_col="tract_geoid", total_pop=total_pop))
 
@@ -384,7 +439,9 @@ def main() -> None:
 
     out_dir = data_root / "detroit" / "processed" / "external_conditions"
     _ensure_dir(out_dir)
-    default_name = f"extcond_v1_acs5_{acs_year}_{group_col}_state{statefp}_michigan.csv"
+    schema_name = "external_condition_v1_agesex" if bool(args.include_age_sex_cross) else "external_condition_v1"
+    name_tag = "v1_agesex" if bool(args.include_age_sex_cross) else "v1"
+    default_name = f"extcond_{name_tag}_acs5_{acs_year}_{group_col}_state{statefp}_michigan.csv"
     out_path = pathlib.Path(args.out_path).expanduser().resolve() if args.out_path else (out_dir / default_name)
     if out_path.exists() and not args.overwrite:
         print(f"[skip] exists: {out_path}")
@@ -410,30 +467,60 @@ def main() -> None:
                     "source": "acs5",
                     "acs_year": acs_year,
                     "geo_level": group_col,
-                    "schema": "external_condition_v1",
+                    "schema": schema_name,
                 }
             )
 
+    schema_bundle = _condition_schema_bundle(include_age_sex_cross=bool(args.include_age_sex_cross))
     meta = {
         "dataset": "Michigan ACS external condition v1",
-        "schema": "external_condition_v1",
+        "schema": schema_name,
         "acs_year": acs_year,
         "statefp": statefp,
         "group_col": group_col,
         "tables": list(table_paths.keys()),
         "table_paths": {k: str(v) for k, v in table_paths.items()},
         "tract_puma_source": tract_puma_source,
+        "include_age_sex_cross": bool(args.include_age_sex_cross),
+        "variable_order": schema_bundle["variable_order"],
         "variables": {
-            "SEX": {"source_table": "B01001", "categories": ["1", "2"], "universe": "all_persons"},
-            "AGEP_bin": {"source_table": "B01001", "categories": "10 coarse bins", "universe": "all_persons"},
-            "SCHL_allpop": {"source_table": "B15003", "categories": ["not_25p", "less_than_high_school", "high_school_or_ged", "some_college_or_assoc", "bachelor_plus"], "universe": "all_persons"},
-            "ESR_allpop": {"source_table": "B23025", "categories": ["not_16p", "employed", "unemployed", "armed_forces", "not_in_labor_force"], "universe": "all_persons"},
+            "SEX": {"source_table": "B01001", "categories": list(SEX_LABELS), "universe": "all_persons"},
+            "AGEP_bin": {"source_table": "B01001", "categories": list(AGE_LABELS), "universe": "all_persons"},
+            "SCHL_allpop": {"source_table": "B15003", "categories": list(SCHL_ALLPOP_LABELS), "universe": "all_persons"},
+            "ESR_allpop": {"source_table": "B23025", "categories": list(ESR_ALLPOP_LABELS), "universe": "all_persons"},
+            **(
+                {
+                    AGE_SEX_CROSS_VAR: {
+                        "source_table": "B01001",
+                        "categories": _age_sex_cross_categories(),
+                        "universe": "all_persons",
+                        "note": "Age-by-sex cross block kept directly from ACS B01001 instead of being split into separate marginals.",
+                    }
+                }
+                if bool(args.include_age_sex_cross)
+                else {}
+            ),
         },
         "created_utc": _utc_now_iso(),
         "out_path": str(out_path),
     }
-    (out_path.with_suffix(out_path.suffix + ".metadata.json")).write_text(
+    metadata_path = out_path.with_suffix(out_path.suffix + ".metadata.json")
+    schema_path = out_path.with_suffix(out_path.suffix + ".schema.json")
+    metadata_path.write_text(
         json.dumps(meta, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    schema_path.write_text(
+        json.dumps(
+            {
+                "schema": schema_name,
+                "variable_order": schema_bundle["variable_order"],
+                "categories": schema_bundle["categories"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     print(f"[ok] wrote: {out_path}")
