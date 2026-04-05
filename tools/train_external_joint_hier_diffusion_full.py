@@ -675,7 +675,17 @@ def main() -> None:
     ap.add_argument("--coarse_weight", type=float, default=0.5)
     ap.add_argument("--consistency_weight", type=float, default=1.0)
     ap.add_argument("--marginal_weight", type=float, default=0.0)
-    ap.add_argument("--selection_metric", choices=["val_tvd_joint", "val_tvd_joint_raw", "val_combo"], default="val_tvd_joint")
+    ap.add_argument(
+        "--selection_metric",
+        choices=[
+            "val_tvd_joint",
+            "val_tvd_joint_raw",
+            "val_tvd_coarse_head",
+            "val_tvd_coarse_from_fine",
+            "val_combo",
+        ],
+        default="val_tvd_joint",
+    )
     ap.add_argument("--selection_raw_weight", type=float, default=0.25)
     ap.add_argument("--logp_clip_quantile_low", type=float, default=-1.0)
     ap.add_argument("--logp_clip_quantile_high", type=float, default=-1.0)
@@ -699,6 +709,12 @@ def main() -> None:
     ap.add_argument("--ema_decay", type=float, default=0.999)
     ap.add_argument("--save_best_checkpoint", action="store_true")
     ap.add_argument("--save_final_model", action="store_true")
+    ap.add_argument(
+        "--save_eval_checkpoint_every",
+        type=int,
+        default=0,
+        help="If > 0, save EMA/raw snapshot checkpoints every N epochs on validation-eval steps.",
+    )
     ap.add_argument("--run_label", default="external_joint_hier_diffusion_full")
     ap.add_argument("--out_dir", default=None)
     args = ap.parse_args()
@@ -873,6 +889,7 @@ def main() -> None:
             "diff_loss_reweight_alpha": float(args.diff_loss_reweight_alpha),
             "diff_loss_reweight_floor": float(args.diff_loss_reweight_floor),
             "diff_loss_reweight_cap": float(args.diff_loss_reweight_cap),
+            "save_eval_checkpoint_every": int(args.save_eval_checkpoint_every),
         }
         best_val_metric = float("inf")
         best_epoch: int | None = None
@@ -944,11 +961,37 @@ def main() -> None:
                         selection_metric = rec["val_tvd_joint"]
                     elif str(args.selection_metric) == "val_tvd_joint_raw":
                         selection_metric = rec["val_tvd_joint_raw"]
+                    elif str(args.selection_metric) == "val_tvd_coarse_head":
+                        selection_metric = rec["val_tvd_coarse_head"]
+                    elif str(args.selection_metric) == "val_tvd_coarse_from_fine":
+                        selection_metric = rec["val_tvd_coarse_from_fine"]
                     elif str(args.selection_metric) == "val_combo":
                         selection_metric = rec["val_tvd_joint"] + float(args.selection_raw_weight) * rec["val_tvd_joint_raw"]
                     else:
                         raise ValueError(f"unsupported selection_metric: {args.selection_metric}")
                     rec["selection_metric"] = float(selection_metric)
+                    save_eval_checkpoint_every = int(args.save_eval_checkpoint_every)
+                    if save_eval_checkpoint_every > 0 and epoch > 1 and epoch % save_eval_checkpoint_every == 0:
+                        snapshot_state = (
+                            ema.cpu_state_dict()
+                            if ema.enabled
+                            else {k: v.detach().cpu().clone() for k, v in model._modules.state_dict().items()}
+                        )
+                        ckpt = out_dir / "checkpoints" / fold_name / f"epoch_{epoch:04d}.pt"
+                        model.save(
+                            ckpt,
+                            payload={
+                                **checkpoint_payload,
+                                "snapshot_epoch": int(epoch),
+                                "snapshot_source": "ema" if ema.enabled else "raw",
+                                "snapshot_val_tvd_joint": float(rec["val_tvd_joint"]),
+                                "snapshot_val_tvd_joint_raw": float(rec["val_tvd_joint_raw"]),
+                                "snapshot_val_tvd_coarse_head": float(rec["val_tvd_coarse_head"]),
+                                "snapshot_val_tvd_coarse_from_fine": float(rec["val_tvd_coarse_from_fine"]),
+                            },
+                            state_dict=snapshot_state,
+                        )
+                        saved_checkpoints.setdefault(fold_name, []).append(str(ckpt))
                     if selection_metric < best_val_metric:
                         best_val_metric = float(selection_metric)
                         best_epoch = int(epoch)
@@ -1021,6 +1064,8 @@ def main() -> None:
             "best_val_metric": float(best_val_metric) if best_epoch is not None else None,
             "best_val_tvd_joint": float(best_val_summary["tvd_joint"]["mean"]) if best_val_summary is not None else None,
             "best_val_tvd_joint_raw": float(best_val_summary["tvd_joint_raw"]["mean"]) if best_val_summary is not None else None,
+            "best_val_tvd_coarse_head": float(best_val_summary["tvd_coarse_head"]["mean"]) if best_val_summary is not None else None,
+            "best_val_tvd_coarse_from_fine": float(best_val_summary["tvd_coarse_from_fine"]["mean"]) if best_val_summary is not None else None,
             "selection_metric": best_selection_metric_name,
             "selected_state": best_source,
             "ema_decay": float(args.ema_decay),
@@ -1094,6 +1139,7 @@ def main() -> None:
         "diff_loss_reweight_alpha": float(args.diff_loss_reweight_alpha),
         "diff_loss_reweight_floor": float(args.diff_loss_reweight_floor),
         "diff_loss_reweight_cap": float(args.diff_loss_reweight_cap),
+        "save_eval_checkpoint_every": int(args.save_eval_checkpoint_every),
         "support_mask_mode": support_mask_mode,
         "support_mask_eps": support_mask_eps,
         "n_eval_joint_samples": int(args.n_eval_joint_samples),

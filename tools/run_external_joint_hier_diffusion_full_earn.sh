@@ -51,6 +51,7 @@ IPF_ITERS="${IPF_ITERS:-200}"
 EMA_DECAY="${EMA_DECAY:-0.999}"
 SAVE_BEST_CHECKPOINT="${SAVE_BEST_CHECKPOINT:-1}"
 SAVE_FINAL_MODEL="${SAVE_FINAL_MODEL:-0}"
+SAVE_EVAL_CHECKPOINT_EVERY="${SAVE_EVAL_CHECKPOINT_EVERY:-0}"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="${RUN_DIR:-$OUT_ROOT/_us_puma_external_joint_hier_diffusion_full_earn_v2_${TS}}"
@@ -98,6 +99,7 @@ CMD=(
   --n_eval_joint_samples "$N_EVAL_JOINT_SAMPLES"
   --ipf_iters "$IPF_ITERS"
   --ema_decay "$EMA_DECAY"
+  --save_eval_checkpoint_every "$SAVE_EVAL_CHECKPOINT_EVERY"
   --run_label "external_joint_hier_diffusion_full_earn_v2"
   --out_dir "$RUN_DIR"
 )
@@ -131,6 +133,7 @@ fi
   echo "[info] N_VAL_JOINT_SAMPLES=$N_VAL_JOINT_SAMPLES"
   echo "[info] N_EVAL_JOINT_SAMPLES=$N_EVAL_JOINT_SAMPLES"
   echo "[info] EMA_DECAY=$EMA_DECAY"
+  echo "[info] SAVE_EVAL_CHECKPOINT_EVERY=$SAVE_EVAL_CHECKPOINT_EVERY"
   echo "[info] MARGINAL_WEIGHT=$MARGINAL_WEIGHT"
   echo "[info] SELECTION_METRIC=$SELECTION_METRIC"
   echo "[info] SELECTION_RAW_WEIGHT=$SELECTION_RAW_WEIGHT"

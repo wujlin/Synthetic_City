@@ -61,6 +61,7 @@ PREFIX_BY_VAR: dict[str, str] = {
     "SCHL_allpop": "p_schl_",
     "ESR_allpop": "p_esr_",
     "EARN_16p_bin": "p_earn_",
+    "PINCP_allpop_bin": "p_income_",
 }
 
 

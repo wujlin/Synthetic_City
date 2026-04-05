@@ -90,6 +90,28 @@ def _merge_condition_schemas(
     }
 
 
+def _usable_geo_cols(df: pd.DataFrame) -> list[str]:
+    candidates = ["puma_uid", "tract_geoid", "cbg_geoid", "county_geoid", "puma", "tract"]
+    out: list[str] = []
+    for col in candidates:
+        if col not in df.columns:
+            continue
+        s = df[col].astype(str).str.strip()
+        s = s.where(~s.isin({"nan", "None", "null"}), "")
+        if bool((s != "").any()):
+            out.append(str(col))
+    return out
+
+
+def _select_merge_geo_cols(base: pd.DataFrame, earn: pd.DataFrame) -> list[str]:
+    base_geo = _usable_geo_cols(base)
+    earn_geo = _usable_geo_cols(earn)
+    shared = [c for c in base_geo if c in set(earn_geo)]
+    if not shared:
+        raise SystemExit("cannot infer shared non-empty geography columns for merge")
+    return shared
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="merge_external_condition_v1_with_earn")
     ap.add_argument("--base_condition_csv", required=True)
@@ -119,13 +141,14 @@ def main() -> None:
 
     base = pd.read_csv(base_path, low_memory=False)
     earn = pd.read_csv(earn_path, low_memory=False)
-    need = {"statefp", "puma", "puma_uid", "variable", "category", "target"}
+    need = {"variable", "category", "target"}
     for name, df in [("base", base), ("earn", earn)]:
         miss = [c for c in need if c not in df.columns]
         if miss:
             raise SystemExit(f"{name} condition missing columns: {miss}")
 
-    key_cols = ["puma_uid", "variable", "category"]
+    geo_cols = _select_merge_geo_cols(base, earn)
+    key_cols = geo_cols + ["variable", "category"]
     dup_base = base.duplicated(subset=key_cols).sum()
     dup_earn = earn.duplicated(subset=key_cols).sum()
     if int(dup_base) > 0 or int(dup_earn) > 0:
@@ -138,7 +161,8 @@ def main() -> None:
         raise SystemExit(f"base/earn condition overlap detected, example={list(overlap)[:3]}")
 
     merged = pd.concat([base, earn], axis=0, ignore_index=True)
-    merged = merged.sort_values(["statefp", "puma", "variable", "category"], kind="stable").reset_index(drop=True)
+    sort_cols = [c for c in ["statefp", "puma", "puma_uid", "tract_geoid", "cbg_geoid", "county_geoid", "variable", "category"] if c in merged.columns]
+    merged = merged.sort_values(sort_cols, kind="stable").reset_index(drop=True)
     merged.to_csv(out_path, index=False)
 
     merged_schema = _merge_condition_schemas(
@@ -156,7 +180,8 @@ def main() -> None:
         "reference_schema_json": str(reference_schema_path) if reference_schema_path is not None else None,
         "out_path": str(out_path),
         "n_rows": int(merged.shape[0]),
-        "n_pumas": int(merged["puma_uid"].astype(str).nunique()),
+        "merge_geo_cols": geo_cols,
+        "n_geo_units": int(merged[geo_cols].astype(str).drop_duplicates().shape[0]),
         "variables": sorted(merged["variable"].astype(str).unique().tolist()),
     }
     meta_path = out_path.with_suffix(out_path.suffix + ".metadata.json")

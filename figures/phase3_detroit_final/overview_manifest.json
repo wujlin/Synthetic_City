@@ -1,0 +1,20 @@
+{
+  "tract_zip": "/Users/jinlin/Desktop/Project/Synthetic_City/dataset/cache/geo/tl_2023_26_tract.zip",
+  "road_zip": "/Users/jinlin/Desktop/Project/Synthetic_City/dataset/cache/geo/MI_road_cleaned.shp.zip",
+  "metrics_dir": "/Users/jinlin/Desktop/Project/Synthetic_City/outputs/_sync_phase3_detroit_hcenter_20260330/metrics_detailed",
+  "sample_dir": "/Users/jinlin/Desktop/Project/Synthetic_City/outputs/_sync_phase3_detroit_hcenter_20260330/overview_samples",
+  "micro_manifest": "figures/phase3_detroit_final/micro_examples_manifest.json",
+  "home_focus_bounds": [
+    -83.01121427378013,
+    42.426381404205586,
+    -82.97887492355183,
+    42.45024798190457
+  ],
+  "artifacts": {
+    "home_overview_png": "figures/phase3_detroit_final/home_overview.png",
+    "home_rank_validation_png": "figures/phase3_detroit_final/home_rank_validation.png",
+    "work_overview_png": "figures/phase3_detroit_final/work_overview.png",
+    "spatial_product_overview_png": "figures/phase3_detroit_final/spatial_product_overview.png",
+    "spatial_validation_overview_png": "figures/phase3_detroit_final/spatial_validation_overview.png"
+  }
+}

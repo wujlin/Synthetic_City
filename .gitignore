@@ -4,6 +4,9 @@
 /data/
 /_sync/
 /dataset/
+/outputs/
+/tmp/
+/tmp_phase3_sync/
 
 # --------
 # Experiment artifacts (keep small metrics in git; avoid large weights/samples)
@@ -91,3 +94,10 @@ Thumbs.db
 
 # Fold artifacts (local-only)
 outputs/**/fold_*/
+
+# Embedded / external repos kept locally
+subprojects/geo-synthetic-pop-usa/
+
+# Generated comparison figures not used in the main narrative
+figures/phase3_detroit_teacher_home/
+figures/phase3_detroit_teacher_home_validation/

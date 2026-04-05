@@ -1930,3 +1930,1951 @@ single-seed pilot：
 - `dead-cell gradient budget` 的确是主矛盾
 - `cell-weighted epsilon loss` 是有效方向
 - 但还需要继续优化，才能真正把 `5-way full diffusion` 推到超过 IPF 的区间
+
+### 13.20 `5-way coarse-to-fine` 的真正 seed-matched 3-run 已跑完，稳定优于单阶段主线
+
+在 `5-way full diffusion` 单阶段主线稳定卡在：
+
+- `tvd_joint = 0.15244 ± 0.00033`
+
+之后，沿着显式 `coarse-to-fine` 路线继续推进：
+
+- Stage 1：
+  - `288-cell` coarse predictor
+- Stage 2：
+  - teacher-forced fine refinement model
+- evaluator：
+  - 先用 Stage 1 预测 coarse
+  - 再由 Stage 2 细化回完整 `3000-cell` joint
+
+前面已经做过一个“半正式”版本：
+
+- 3 个 Stage 1 seeds
+- 但 Stage 2 固定为 `seed0`
+
+这次补齐了真正的 seed-matched 版本：
+
+- `Stage1 seed0 + Stage2 seed0`
+- `Stage1 seed1 + Stage2 seed1`
+- `Stage1 seed2 + Stage2 seed2`
+
+对应汇总文件：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_seedmatched_true3_20260326T164000Z_summary.json`
+
+结果如下：
+
+- Stage 1 coarse raw:
+  - `tvd = 0.10490 ± 0.00447`
+- Stage 1 coarse IPF:
+  - `tvd = 0.07268 ± 0.00130`
+
+- pipeline, 直接用 Stage 1 coarse:
+  - `tvd_joint_raw = 0.18174 ± 0.00355`
+  - `tvd_joint = 0.14707 ± 0.00307`
+
+- pipeline, 对 Stage 1 coarse 先做 coarse-level IPF 再细化:
+  - `tvd_joint_raw = 0.16200 ± 0.00176`
+  - `tvd_joint = 0.14663 ± 0.00294`
+
+- oracle Stage 2（真 coarse）:
+  - `tvd_joint = 0.12068 ± 0.00241`
+
+- uniform refine baseline:
+  - `tvd_joint = 0.26528 ± 0.00046`
+
+对照当前单阶段 best：
+
+- one-shot `5-way full diffusion`:
+  - `tvd_joint = 0.15244`
+
+相对提升：
+
+- `coarse-to-fine + coarse IPF` 相对单阶段提升：
+  - `3.81%`
+
+与 `5-way IPF` 的比较：
+
+- `5-way IPF = 0.12699`
+- `coarse-to-fine + coarse IPF = 0.14663`
+
+这轮结果把几件事说明白了：
+
+- `coarse-to-fine` 已经不是单 seed 偶然现象，而是在真正 seed-matched 设置下稳定优于当前单阶段主线
+- Stage 2 不是当前瓶颈
+  - 因为 `oracle Stage 2 = 0.12068`，已经优于 `5-way IPF = 0.12699`
+- 当前主要瓶颈仍然是 Stage 1 coarse prediction
+  - coarse 更准，整条 `coarse-to-fine` 就有机会真正过 IPF
+
+因此现在最合理的主线判断是：
+
+- `5-way` 上继续堆单阶段 trick 的边际收益已经开始变小
+- 显式 `coarse-to-fine` 是当前更有前景的结构性方向
+- 后续如果继续投资源，优先级应该放在：
+  - 如何把 Stage 1 coarse 做得更准
+
+### 13.21 Stage 2 加 `cell-weighted epsilon loss` 后，true3 稳定变好；但 dedicated Stage1 的主问题仍在
+
+PI 提的这个方向值得做，而且现在已经有了真正的 `3 seeds` 证据。
+
+动机很直接：
+
+- 当前 Stage 2 的 `54` 维 local target 里，平均只有约 `10` 个 active child slot
+- 其余大部分维度都是 padding 零
+- 原始 `epsilon MSE` 对所有维度等权，梯度预算被大量浪费在 inactive slot 上
+
+这次改动不是从数据里估计 dead cell，而是直接利用 Stage 2 里本来就存在的 `child_mask`：
+
+- active slot：
+  - 用 `mask` 精确标出
+- inactive slot：
+  - 直接按 floor 降权
+- 配置：
+  - `alpha = 0.5`
+  - `floor = 0.05`
+  - `cap = 5.0`
+
+对应 run：
+
+- Stage 2 true3 汇总：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_maskw_a05_seedmatched_true3_20260326T133745Z_summary.json`
+- seed1 Stage 2 训练：
+  - `outputs/_us_puma_external_c2f_full_earn_teacher_maskw_a05_seed1_20260326T131322Z/run_summary.json`
+- seed1 end-to-end eval：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_maskw_a05_seed1_stage2seed1_fixcond_20260326T131810Z/metrics/coarse_to_fine_summary.json`
+
+true3 汇总结果：
+
+- Stage 2 teacher-forced projected:
+  - `0.28671 ± 0.00051`
+- Stage 2 inactive mass:
+  - `0.01638 ± 0.00148`
+- pipeline, Stage 1 coarse 先做 coarse IPF 再细化:
+  - `tvd_joint = 0.14069 ± 0.00162`
+- pipeline, 直接用 Stage 1 coarse:
+  - `tvd_joint = 0.14043 ± 0.00151`
+- oracle Stage 2:
+  - `tvd_joint = 0.11430 ± 0.00185`
+- uniform refine baseline:
+  - `tvd_joint = 0.26528 ± 0.00046`
+
+对照旧的 seed-matched true3：
+
+- `pipeline_stage1_coarse_ipf_tvd_joint`：
+  - `0.14663 -> 0.14069`
+- `pipeline_stage1_raw_tvd_joint`：
+  - `0.14707 -> 0.14043`
+- `oracle_stage2_tvd_joint`：
+  - `0.12068 -> 0.11430`
+- `uniform_refine_tvd_joint`：
+  - `0.26528 -> 0.26528`
+
+这组对照说明：
+
+- 改善确实来自 Stage 2 refinement，本身不是评估噪声
+- 而且不是 single-seed 偶然，而是在 true3 上稳定复现
+
+但更关键的是，专门补做的 dedicated Stage1 对照也说明：
+
+- 即使把 Stage 2 换成新的 weighted 版本
+- dedicated Stage1 的主要问题仍然没有被解决
+
+对应 run：
+
+- dedicated Stage1 + old Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarse_seed1_20260326T091000Z/coarse_to_fine_summary.json`
+- dedicated Stage1 + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarse_maskw_a05_seed1_stage2seed1_20260326T214800Z/metrics/coarse_to_fine_summary.json`
+
+seed1 dedicated 对照结果：
+
+- Stage 1 coarse IPF:
+  - `0.17254 -> 0.17254`
+- pipeline coarse-IPF:
+  - `0.21952 -> 0.21714`
+- pipeline raw:
+  - `0.23615 -> 0.22165`
+- oracle Stage 2:
+  - `0.12396 -> 0.11643`
+
+这意味着：
+
+- Stage 2 weighted loss 是有效的，而且值得并入当前 `coarse-to-fine` 主线
+- 但 dedicated Stage1 的负结果并不是 Stage 2 太弱导致的假象
+- dedicated Stage1 目前真正的问题仍然是 Stage 1 coarse seed 本身太差
+
+因此此刻最准确的判断变成：
+
+- `weighted Stage2` 已经可以视为当前 `c2f` 主线的更强默认配置
+- 但如果目标是进一步逼近甚至超过 `5-way IPF`
+- 后续主矛盾依然在 dedicated Stage1 的建模形式，而不是 Stage 2 padding loss
+
+### 13.22 dedicated Stage1 加回 `clean coarse head` 后，负结果大幅缓解；但仍未追上当前主线
+
+在确认 `Stage 2 weighted loss` 已经不是主瓶颈之后，下一步直接回到 Stage 1 本身：
+
+- 旧 dedicated Stage1 的主要问题，不再抽象地说成“独立 Stage1 不行”
+- 而是更具体地怀疑：
+  - `coarse-only diffusion sampler` 这条实现本身在伤害 coarse seed
+
+因此这轮改动不是继续动 Stage 2，而是在 dedicated Stage1 里补回一条显式 `clean coarse head`：
+
+- 训练时：
+  - 保留原 coarse diffusion loss
+  - 额外加入 noising-free coarse CE supervision
+- 推理时：
+  - `predict_coarse()` 直接走 `head`
+  - 不再走 diffusion sampling average
+
+对应代码已经加到：
+
+- `tools/train_external_c2f_full_earn_stage1_coarse.py`
+- `tools/run_external_c2f_full_earn_stage1_coarse.sh`
+
+这轮先做了 `seed1` 的最小 sweep，核心是 3 个 dedicated 变体：
+
+1. old dedicated diffusion-only
+2. head + diffusion，`coarse_head_weight = 0.5`
+3. pure head-only，`diffusion_weight = 0.0`
+4. head + diffusion，`coarse_head_weight = 1.0`
+
+对应 run：
+
+- old diffusion-only：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_seed1_20260326T090000Z.run_summary.remote.json`
+- head + diffusion, `w=0.5`：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_head_seed1_20260326T140100Z/run_summary.json`
+- pure head-only：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headonly_seed1_20260326T140500Z/run_summary.json`
+- head + diffusion, `w=1.0`：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_seed1_20260326T140800Z/run_summary.json`
+
+Stage 1 自身 coarse 指标如下：
+
+- old diffusion-only：
+  - `tvd_joint = 0.17092`
+  - `tvd_joint_raw = 0.33069`
+- head + diffusion, `w=0.5`：
+  - `tvd_joint = 0.10524`
+  - `tvd_joint_raw = 0.28554`
+- pure head-only：
+  - `tvd_joint = 0.11126`
+  - `tvd_joint_raw = 0.25737`
+- head + diffusion, `w=1.0`：
+  - `tvd_joint = 0.10191`
+  - `tvd_joint_raw = 0.26653`
+
+这组数字先说明第一件事：
+
+- dedicated Stage1 的大问题，确实主要来自旧的 `coarse diffusion sampler`
+- 一旦换回 `clean coarse head`
+  - coarse seed 质量会显著提升
+
+但它也说明第二件事：
+
+- pure head-only 不是最优
+- 说明 diffusion 分支作为辅助正则并不是纯负作用
+- 当前最好的是：
+  - `head + diffusion`
+  - 且 `coarse_head_weight = 1.0`
+
+接着把这两个新的 dedicated Stage1 接到当前最强的 weighted Stage2 上，得到：
+
+- old dedicated + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarse_maskw_a05_seed1_stage2seed1_20260326T214800Z/metrics/coarse_to_fine_summary.json`
+- head + diffusion, `w=0.5` + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarsehead_maskw_a05_seed1_stage2seed1_20260326T140600Z/metrics/coarse_to_fine_summary.json`
+- head + diffusion, `w=1.0` + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarseheadw1_maskw_a05_seed1_stage2seed1_20260326T141000Z/metrics/coarse_to_fine_summary.json`
+
+seed1 end-to-end 结果：
+
+- old dedicated + weighted Stage2：
+  - `stage1_coarse_tvd_ipf = 0.17254`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.21714`
+  - `pipeline_stage1_raw_tvd_joint = 0.22165`
+- head + diffusion, `w=0.5`：
+  - `stage1_coarse_tvd_ipf = 0.10524`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.16712`
+  - `pipeline_stage1_raw_tvd_joint = 0.16908`
+- head + diffusion, `w=1.0`：
+  - `stage1_coarse_tvd_ipf = 0.10191`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.16478`
+  - `pipeline_stage1_raw_tvd_joint = 0.16713`
+
+同时，oracle Stage 2 在这些 dedicated run 里保持不变：
+
+- `oracle_stage2_tvd_joint = 0.11642`
+
+因此这轮实验把问题进一步钉实了：
+
+- dedicated negative result 的大头，的确来自 Stage1 架构实现
+- 把 `coarse-only diffusion sampler` 改成 `clean coarse head`
+  - dedicated Stage1 会明显变好
+- 但即使 dedicated Stage1 已经显著改善
+  - 当前最好配置 `0.16478`
+  - 仍然明显落后于当前主线：
+    - `mainline c2f + weighted Stage2 = 0.14298`
+  - 也还没有超过：
+    - `one-shot 5-way diffusion = 0.15244`
+    - `5-way IPF = 0.12699`
+
+所以现在的判断比之前更精确：
+
+- “dedicated Stage1 方向不行” 这个说法不成立
+- “dedicated Stage1 用 coarse-only diffusion sampler 不行” 这个说法成立
+- 但即使 dedicated Stage1 换成 clean head
+  - 仍然没有追上 full-model coarse head
+
+这说明当前剩下的 gap 更可能来自：
+
+- full-task / fine-task 对 coarse latent 的反向帮助
+- 或者 coarse/fine consistency 在 full model 里的联动监督
+
+而不是单纯因为 dedicated Stage1 缺少一个 clean predictor
+
+### 13.23 dedicated Stage1 再补上 `head <-> diffusion consistency` 后还能继续提升，而且主增益主要来自 consistency
+
+上一轮把 dedicated Stage1 从：
+
+- `coarse-only diffusion sampler`
+
+改成了：
+
+- `clean coarse head + diffusion`
+
+已经证明 dedicated negative result 的一大块问题来自旧实现本身。  
+但当时还有一个明显缺口没有补：
+
+- old full model 里一直存在 `coarse/fine consistency`
+- dedicated Stage1 里仍然没有任何 `head <-> diffusion` 联动约束
+
+因此这轮没有再去掉 diffusion，而是沿着主线逻辑继续补 dedicated 里缺失的联动项：
+
+- `consistency_weight = 1.0`
+- 同时测试：
+  - `marginal_weight = 0.0`
+  - `marginal_weight = 1.0`
+
+对应 run：
+
+- best 旧版 head + diffusion（无 consistency）：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_seed1_20260326T140800Z/run_summary.json`
+- consistency-only：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_cons1_seed1_20260326T143400Z/run_summary.json`
+- consistency + marginal：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_cons1_marg1_seed1_20260326T142900Z/run_summary.json`
+
+Stage 1 自身 coarse 指标：
+
+- head + diffusion（旧 best）：
+  - `tvd_joint = 0.10191`
+  - `tvd_joint_raw = 0.26653`
+- consistency-only：
+  - `tvd_joint = 0.09079`
+  - `tvd_joint_raw = 0.20228`
+- consistency + marginal：
+  - `tvd_joint = 0.09200`
+  - `tvd_joint_raw = 0.20708`
+
+这组结果已经很说明问题：
+
+- dedicated Stage1 继续变好，不是靠砍掉 diffusion
+- 而是靠把 `head` 和 `diffusion` 真正耦合起来
+- 而且在 `seed1` 上，主增益看起来主要来自：
+  - `consistency`
+- `marginal` 至少在这一步没有带来额外收益
+
+接着把这两组接到当前最强 weighted Stage2 上：
+
+- consistency-only + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarseheadw1_cons1_maskw_a05_seed1_stage2seed1_20260326T143600Z/metrics/coarse_to_fine_summary.json`
+- consistency + marginal + weighted Stage2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarseheadw1_cons1_marg1_maskw_a05_seed1_stage2seed1_20260326T143100Z/metrics/coarse_to_fine_summary.json`
+
+seed1 end-to-end 对比：
+
+- head + diffusion（旧 best）：
+  - `stage1_coarse_tvd_ipf = 0.10191`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.16478`
+  - `pipeline_stage1_raw_tvd_joint = 0.16713`
+- consistency-only：
+  - `stage1_coarse_tvd_ipf = 0.09079`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.15589`
+  - `pipeline_stage1_raw_tvd_joint = 0.15671`
+- consistency + marginal：
+  - `stage1_coarse_tvd_ipf = 0.09200`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.15671`
+  - `pipeline_stage1_raw_tvd_joint = 0.15715`
+
+这轮结果把 dedicated Stage1 的问题又缩小了一步：
+
+- 从最早的：
+  - `0.21714`
+- 到 clean head：
+  - `0.16478`
+- 再到 consistency-only：
+  - `0.15589`
+
+说明：
+
+- dedicated Stage1 的剩余 gap，确实和缺失的联动监督有关
+- 而且 `consistency` 比单纯加 `marginal` 更像是主导因素
+
+但同样要诚实地说：
+
+- 即使 dedicated Stage1 已经补到 `clean head + diffusion + consistency`
+- 当前 seed1 仍然没有追上：
+  - current mainline `0.14298`
+- 也仍然还没有超过：
+  - one-shot `0.15244`
+  - `5-way IPF = 0.12699`
+
+所以此刻最准确的判断进一步更新为：
+
+- dedicated Stage1 的问题并没有“解决”
+- 但已经从“架构明显错位”收敛成了“还差一段 full-model 联动带来的 coarse latent 质量”
+- 当前 dedicated 线里最值得保留的形态不是：
+  - pure head-only
+  - coarse-only diffusion
+- 而是：
+  - `clean head + diffusion + consistency`
+
+### 13.24 对 frozen full-model coarse head 做 output distillation，当前没有带来 dedicated Stage1 的净收益
+
+在 dedicated Stage1 已经收敛到 `clean head + diffusion + consistency` 之后，下一步最直接的问题是：
+
+- dedicated 和 current mainline 剩下的 gap
+- 到底是不是因为 dedicated 没有显式看到 full-model 已经学到的 coarse 输出行为
+
+因此这轮没有去做 latent-level 对齐，而是先做最保守的 output-level distillation：
+
+- teacher：
+  - current best full-model 的 frozen coarse head
+- student：
+  - dedicated Stage1，仍然保留
+    - diffusion loss
+    - clean head loss
+    - consistency loss
+- 额外加：
+  - `KL(student coarse || teacher coarse)`
+
+先做了两个 `seed1` 变体：
+
+- `distill_weight = 0.5`：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_cons1_kd05_seed1_20260326T145900Z/run_summary.json`
+- `distill_weight = 0.1`：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_cons1_kd01_seed1_20260326T150154Z/run_summary.json`
+
+与当前 best dedicated `consistency-only` 对比：
+
+- consistency-only：
+  - `tvd_joint = 0.09079`
+  - `tvd_joint_raw = 0.20228`
+- + distill, `w = 0.5`：
+  - `tvd_joint = 0.09632`
+  - `tvd_joint_raw = 0.21238`
+- + distill, `w = 0.1`：
+  - `tvd_joint = 0.09327`
+  - `tvd_joint_raw = 0.20706`
+
+这组结果说明得比较直接：
+
+- teacher soft target 不是完全没信息
+- 但当前这种 frozen output distillation 形式
+  - 并没有给 dedicated Stage1 带来净收益
+- 而且 teacher 权重一旦偏大
+  - 还会明确伤害结果
+
+因此当前更准确的判断是：
+
+- dedicated 和 full-model 之间的剩余差距
+- 不能简单理解成“缺一个 coarse soft label”
+- 更像是：
+  - full-model 联合训练过程中的表征耦合
+  - 比事后蒸馏一个 frozen coarse 输出更重要
+
+这也意味着：
+
+- 如果后面还继续给 dedicated 一次机会
+- 更值得测的方向应该是：
+  - 训练动态相关的耦合
+  - 或更谨慎的低强度蒸馏
+- 而不是继续把 `distill_weight` 往大处推
+
+### 13.25 只在低噪声阶段施加 consistency，可以继续改善 dedicated Stage1；但 end-to-end 仍未超过 one-shot
+
+上一步 `consistency-only` 虽然有效，但它还有一个可疑点：
+
+- 当前 `consistency`
+  - 在所有 diffusion timestep 上等权施加
+- 这可能会把高噪声阶段的不稳定 `p_pred`
+  - 也强行拉向 clean coarse head
+
+因此这轮测试的是：
+
+- 保持 `clean head + diffusion + consistency`
+- 只把 consistency 限制在低噪声阶段
+- 具体设置：
+  - `aux_t_gate = 50`
+  - `timesteps = 200`
+
+对应 run：
+
+- Stage1：
+  - `outputs/_us_puma_external_c2f_full_earn_stage1_coarse_headw1_cons1_gate50_seed1_20260326T150251Z/run_summary.json`
+- end-to-end eval：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_stage1coarseheadw1_cons1_gate50_maskw_a05_seed1_stage2seed1_20260326T150341Z/metrics/coarse_to_fine_summary.json`
+
+Stage1 coarse 对比：
+
+- consistency-only：
+  - `tvd_joint = 0.09079`
+  - `tvd_joint_raw = 0.20228`
+- consistency-only + `aux_t_gate = 50`：
+  - `tvd_joint = 0.08714`
+  - `tvd_joint_raw = 0.21436`
+
+这说明：
+
+- 对 dedicated Stage1 真正有帮助的 consistency
+- 更像是低噪声区域的约束
+- 把高噪声时刻也纳入 consistency
+  - 反而可能在伤害 coarse seed
+
+接到当前最强 weighted Stage2 后，seed1 end-to-end 结果是：
+
+- consistency-only：
+  - `stage1_coarse_tvd_ipf = 0.09079`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.15589`
+  - `pipeline_stage1_raw_tvd_joint = 0.15671`
+- consistency-only + `aux_t_gate = 50`：
+  - `stage1_coarse_tvd_ipf = 0.08714`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.15323`
+  - `pipeline_stage1_raw_tvd_joint = 0.15443`
+
+同时：
+
+- `oracle_stage2_tvd_joint` 维持不变：
+  - `0.11642`
+
+这表示这次改善确实来自：
+
+- Stage1 coarse seed 本身
+
+但也要诚实地说，这一轮改善仍然不够：
+
+- dedicated + `gate50`：
+  - `0.15323`
+- one-shot：
+  - `0.15244`
+- current mainline：
+  - `0.14298`
+- `5-way IPF`：
+  - `0.12699`
+
+所以当前 dedicated 线的最新判断更新为：
+
+- `teacher output distillation`
+  - 暂时不是有效突破口
+- `low-t consistency gating`
+  - 是真实有效的小改进
+- 但它还不足以让 dedicated 线超过：
+  - one-shot
+  - current mainline
+  - `5-way IPF`
+
+也就是说：
+
+- dedicated Stage1 的问题还没有被解决
+- 但“哪些因素在伤害它，哪些因素在帮助它”
+- 已经比前一轮清楚很多
+
+### 13.26 把 `low-t consistency gating` 放回 full-model 主线后，one-shot 变差，但 `c2f` 主线稳定改善
+
+在 dedicated 线里，`aux_t_gate = 50` 已经给出过一个稳定信号：
+
+- `consistency` 真正有效的区域更像是低噪声 timestep
+
+下一步更关键的问题不是 dedicated 本身，而是：
+
+- 这个信号放回真正的 full-model 主线之后
+- 到底会改善什么
+
+因此这轮没有再改 dedicated，而是直接回到当前 strongest full-model：
+
+- baseline：
+  - `weighted epsilon, alpha = 0.5`
+  - `detach_coarse_encoder = true`
+  - `selection_metric = val_tvd_joint_raw`
+  - `marginal_weight = 1.0`
+- 唯一改动：
+  - `aux_t_gate = 50`
+
+对应 3 个 full-model run：
+
+- seed0：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_seed0_20260326T152258Z/run_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_seed1_20260326T151956Z/run_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_seed2_20260326T152520Z/run_summary.json`
+
+然后用同一个 weighted Stage2 做 seed-matched eval：
+
+- seed0：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_maskw_a05_seed0_stage2seed0_20260326T152346Z/metrics/coarse_to_fine_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_maskw_a05_seed1_stage2seed1_20260326T152055Z/metrics/coarse_to_fine_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_maskw_a05_seed2_stage2seed2_20260326T152612Z/metrics/coarse_to_fine_summary.json`
+
+新的 true3 汇总：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_maskw_a05_seedmatched_true3_20260326T153000Z_summary.json`
+
+#### 13.26.1 first-order 结果：full-model 自己更差了，但 coarse head 明显更好了
+
+3 seeds 的 full-model one-shot：
+
+- old strongest one-shot：
+  - `tvd_joint = 0.15244 ± 0.00033`
+  - `tvd_coarse_head = 0.10490 ± 0.00447`
+- `gate50` full-model：
+  - `tvd_joint = 0.15691 ± 0.00092`
+  - `tvd_coarse_head = 0.09351 ± 0.00243`
+
+这说明：
+
+- `aux_t_gate = 50` 对 full-model 不是“全面提升”
+- 它会伤害 one-shot full-joint sampling
+- 但会明显改善 coarse head 质量
+
+这组结果本身已经很重要，因为它第一次把两个目标分开了：
+
+- 对 one-shot 有利的训练目标
+- 不一定对 `c2f Stage1` 最有利
+
+#### 13.26.2 真正关键的结果：`c2f` 主线稳定变好，而且三颗 seeds 一致
+
+对比当前 weighted Stage2 主线：
+
+- old mainline：
+  - `stage1_coarse_tvd_raw = 0.10490 ± 0.00447`
+  - `stage1_coarse_tvd_ipf = 0.07268 ± 0.00130`
+  - `pipeline_stage1_raw_tvd_joint = 0.14043 ± 0.00151`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.14069 ± 0.00162`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+- new mainline + `gate50`：
+  - `stage1_coarse_tvd_raw = 0.09351 ± 0.00243`
+  - `stage1_coarse_tvd_ipf = 0.06786 ± 0.00024`
+  - `pipeline_stage1_raw_tvd_joint = 0.13718 ± 0.00161`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13735 ± 0.00156`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+绝对改善量：
+
+- `stage1_coarse_tvd_raw`：
+  - `0.10490 -> 0.09351`
+  - 改善 `0.01139`
+- `stage1_coarse_tvd_ipf`：
+  - `0.07268 -> 0.06786`
+  - 改善 `0.00482`
+- `pipeline_stage1_raw_tvd_joint`：
+  - `0.14043 -> 0.13718`
+  - 改善 `0.00326`
+- `pipeline_stage1_coarse_ipf_tvd_joint`：
+  - `0.14069 -> 0.13735`
+  - 改善 `0.00334`
+
+同时：
+
+- `oracle_stage2_tvd_joint`
+  - 完全不变
+
+这说明这轮增益非常干净：
+
+- 不是 Stage2 偶然波动
+- 就是 Stage1 coarse seed 质量更好了
+
+#### 13.26.3 这轮最重要的 insight 不是“调参有效”，而是“one-shot optimum 和 c2f optimum 已经分叉”
+
+当前结果揭示了一个更深层的结构性事实：
+
+- 同一个 full-model
+- 如果把训练信号往 low-t consistency 方向推
+- coarse head 会更好
+- 但 full-joint one-shot sample 会变差
+
+而 `c2f` 主线真正用到的 Stage1，恰恰是：
+
+- full-model 里的 coarse head
+
+因此：
+
+- 对 one-shot 最优的 full-model
+- 不一定是对 `c2f Stage1` 最优的 full-model
+
+这意味着主线的下一步不该再被表述成：
+
+- “继续改 full-model 的 one-shot 指标”
+
+而应该更准确地表述成：
+
+- “把 full-model 训练/选择更明确地朝 coarse-head quality 对齐”
+
+#### 13.26.4 当前系统位置
+
+new mainline + `gate50` 现在达到：
+
+- `pipeline_stage1_coarse_ipf_tvd_joint = 0.13735 ± 0.00156`
+
+对照：
+
+- old weighted Stage2 mainline：
+  - `0.14069 ± 0.00162`
+- best one-shot baseline：
+  - `0.15244`
+- `5-way IPF`：
+  - `0.12699`
+
+所以：
+
+- 相对 old mainline
+  - 新结果把与 `IPF` 的 gap 从 `0.01371` 压到 `0.01036`
+  - gap 缩小了约 `24.4%`
+- 相对 best one-shot baseline
+  - 现在 `c2f` 的优势已经扩大到约 `9.90%`
+
+但同样要诚实地说：
+
+- 它仍然没有超过 `5-way IPF`
+
+因此最准确的结论是：
+
+- `low-t consistency gating` 已经被证明是主线里真实有效的方向
+- 而且它带来的不是 one-shot improvement
+- 而是更直接地作用在 `c2f` 所依赖的 Stage1 coarse head 上
+- 这把主线往前推进了一步
+- 但离真正稳定超过 `5-way IPF` 还差最后一段
+
+### 13.27 把 full-model 的 checkpoint 选择直接对齐到 `val_tvd_coarse_head` 后，主线进一步逼近 `5-way IPF`
+
+13.26 之后，真正需要回答的问题已经很明确：
+
+- 既然 one-shot optimum 和 `c2f` optimum 已经分叉
+- 那么 current mainline 继续按 `val_tvd_joint_raw` 选 checkpoint
+- 其实还是在用 one-shot 目标挑 Stage1
+
+这会带来一个结构性错位：
+
+- `c2f` 实际消费的是 full-model 的 `coarse head`
+- 但 checkpoint 选择还在优先看 full-joint raw sample
+
+因此这轮不是再改 loss 权重，而是做了一个更直接的目标对齐：
+
+- 在 `tools/train_external_joint_hier_diffusion_full.py` 中
+  - 把 `selection_metric` 扩展为支持：
+    - `val_tvd_coarse_head`
+    - `val_tvd_coarse_from_fine`
+- 然后固定：
+  - `weighted epsilon, alpha = 0.5`
+  - `detach_coarse_encoder = true`
+  - `aux_t_gate = 50`
+- 只把 checkpoint selection 改成：
+  - `selection_metric = val_tvd_coarse_head`
+- 同时把训练延长到：
+  - `epochs = 1200`
+
+对应 3 个 full-model run：
+
+- seed0：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_seed0_20260326T155301Z/run_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_seed1_20260326T155002Z/run_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_seed2_20260326T155551Z/run_summary.json`
+
+对应 seed-matched `c2f` eval：
+
+- seed0：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_maskw_a05_seed0_stage2seed0_20260326T155418Z/metrics/coarse_to_fine_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_maskw_a05_seed1_stage2seed1_20260326T155122Z/metrics/coarse_to_fine_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_maskw_a05_seed2_stage2seed2_20260326T155658Z/metrics/coarse_to_fine_summary.json`
+
+新的 true3 汇总：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_maskw_a05_seedmatched_true3_20260326T155900Z_summary.json`
+
+#### 13.27.1 first-order 结果：这次不是只让 coarse 更好，连 full-model one-shot 自己也被拉回来了
+
+相对 `gate50` 但仍按 `val_tvd_joint_raw` 选 checkpoint 的版本：
+
+- old `gate50` full-model：
+  - `one-shot = 0.15691 ± 0.00092`
+  - `tvd_coarse_head = 0.09351 ± 0.00243`
+- new `gate50 + selcoarse` full-model：
+  - `one-shot = 0.14912 ± 0.00039`
+  - `tvd_coarse_head = 0.06152 ± 0.00041`
+
+这点很关键，因为它说明：
+
+- 问题不只是 training objective
+- checkpoint selection 本身就在主导最终结论
+
+也就是说：
+
+- 同样一套训练轨迹
+- 如果你用更接近 `Stage1` 目标的指标来挑 checkpoint
+- 不仅 coarse head 会明显变好
+- 连 one-shot full-joint 自己都能被一起拉回去
+
+#### 13.27.2 真正关键的结果：`c2f` 主线已经被继续压到 `0.13176`
+
+对比三条主线：
+
+- old weighted Stage2 mainline：
+  - `stage1_coarse_tvd_ipf = 0.07268 ± 0.00130`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.14069 ± 0.00162`
+
+- `gate50` mainline：
+  - `stage1_coarse_tvd_ipf = 0.06786 ± 0.00024`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13735 ± 0.00156`
+
+- `gate50 + selcoarse` mainline：
+  - `stage1_coarse_tvd_raw = 0.06152 ± 0.00041`
+  - `stage1_coarse_tvd_ipf = 0.05911 ± 0.00023`
+  - `pipeline_stage1_raw_tvd_joint = 0.13178 ± 0.00164`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13176 ± 0.00154`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+这组数字把一件事说得很清楚：
+
+- `Stage2` 仍然没变
+- 新增收益几乎全部来自 Stage1
+- 而且这次不是小幅波动
+- 是从 `0.14069 -> 0.13176`
+  - 直接再降了 `0.00893`
+
+#### 13.27.3 当前系统位置：离 `IPF` 只差最后 `0.00477`
+
+对照：
+
+- `gate50 + selcoarse` mainline：
+  - `0.13176 ± 0.00154`
+- `5-way IPF`：
+  - `0.12699`
+- best one-shot baseline：
+  - `0.15244`
+
+因此：
+
+- 相对 best one-shot baseline
+  - `c2f` 优势已经扩大到：
+    - `13.56%`
+- 相对 old weighted Stage2 mainline
+  - `0.14069 -> 0.13176`
+  - 改善约：
+    - `6.35%`
+- 相对 `IPF`
+  - gap 已经从：
+    - `0.01371`
+  - 压到：
+    - `0.00477`
+
+也就是说：
+
+- 相比 13.26，这一轮又把 remaining gap 砍掉了一大截
+- 当前主线已经不是“离 IPF 很远”
+- 而是“最后一小步还没迈过去”
+
+#### 13.27.4 这轮真正的 insight
+
+这轮最重要的洞见不是：
+
+- “再多训几轮更好”
+
+而是：
+
+- 对 `c2f` 来说，full-model 的 checkpoint 选择必须和 `Stage1 coarse quality` 对齐
+
+更具体地说：
+
+- 用 `val_tvd_joint_raw` 选 checkpoint
+  - 会把模型拉向 one-shot 目标
+- 用 `val_tvd_coarse_head` 选 checkpoint
+  - 才更接近 `c2f` 真正要消费的对象
+
+因此 current mainline 的最准确表述已经更新为：
+
+- 当前最有效的方向，不是继续把 one-shot 当代理目标
+- 而是显式把 Stage1 selection 和 `c2f` 目标对齐
+
+这件事现在已经不再是猜测，而是被真正的 `seed-matched true3` 结果坐实了。
+
+### 13.28 `gate50 + selcoarse` 主线继续延长到 `1800 epochs` 后，non-oracle `c2f` 继续下降，且 3 seeds 的 best checkpoint 仍全部贴着训练上界
+
+13.27 之后，最直接需要回答的问题不是“再换一个 loss 会不会更好”，而是：
+
+- 既然 `gate50 + selcoarse` 的 3 个 run 都在 `1200` epoch 时被选中
+- 而 validation `tvd_coarse_head` 仍在单调下降
+- 那 current mainline 会不会只是被训练时长截断了
+
+因此这轮没有改结构，也没有改权重，只做了一件事：
+
+- 保持 current strongest mainline 完全不变：
+  - `weighted epsilon, alpha = 0.5`
+  - `detach_coarse_encoder = true`
+  - `aux_t_gate = 50`
+  - `selection_metric = val_tvd_coarse_head`
+  - `logp_clip_quantile_low/high = 0.001 / 0.999`
+- 只把训练时长从：
+  - `epochs = 1200`
+  - 延长到：
+  - `epochs = 1800`
+
+对应 3 个 full-model run：
+
+- seed0：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep1800_seed0_20260326T161027Z/run_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep1800_seed1_20260326T160638Z/run_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep1800_seed2_20260326T161251Z/run_summary.json`
+
+对应 seed-matched `c2f` eval：
+
+- seed0：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep1800_maskw_a05_seed0_stage2seed0_20260326T161027Z/metrics/coarse_to_fine_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep1800_maskw_a05_seed1_stage2seed1_20260326T160638Z/metrics/coarse_to_fine_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep1800_maskw_a05_seed2_stage2seed2_20260326T161251Z/metrics/coarse_to_fine_summary.json`
+
+新的 true3 汇总：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep1800_maskw_a05_seedmatched_true3_20260327T000000Z_summary.json`
+
+#### 13.28.1 first-order 结果：延长训练不是边角收益，而是干净地继续改进 `Stage1`
+
+相对 `1200 epoch` 的 `gate50 + selcoarse` mainline：
+
+- old `1200 epoch`：
+  - `stage1_coarse_tvd_raw = 0.06152 ± 0.00058`
+  - `stage1_coarse_tvd_ipf = 0.05911 ± 0.00023`
+  - `pipeline_stage1_raw_tvd_joint = 0.13178 ± 0.00164`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13176 ± 0.00154`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+- new `1800 epoch`：
+  - `stage1_coarse_tvd_raw = 0.05825 ± 0.00058`
+  - `stage1_coarse_tvd_ipf = 0.05768 ± 0.00034`
+  - `pipeline_stage1_raw_tvd_joint = 0.13079 ± 0.00158`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13080 ± 0.00147`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+这组数字说明：
+
+- `Stage2` 完全没变
+- 新增收益仍然全部来自 `Stage1`
+- 而且不是 seed 偶然
+  - 因为它在 `true3` 下也继续成立
+
+#### 13.28.2 更关键的信号：3 个 full-model 的 best checkpoint 全都还在 `1800`
+
+对这轮 3 个 full-model run：
+
+- seed0：
+  - `best_epoch = 1800`
+- seed1：
+  - `best_epoch = 1800`
+- seed2：
+  - `best_epoch = 1800`
+
+同时其 one-shot / coarse-head 均值也继续下降：
+
+- `one-shot = 0.14756 ± 0.00059`
+- `tvd_coarse_head = 0.05825 ± 0.00058`
+
+这点比纯数值改善更重要，因为它表明：
+
+- current mainline 还没有真正收敛
+- `1200` 只是一个过早截断点
+- 当前最有效的下一步，不是回到 dedicated，也不是做小超参 sweep
+- 而是继续沿着这条已经被证实有效的主线，把训练 horizon 再往前推
+
+#### 13.28.3 当前系统位置：离 `IPF` 只剩最后 `0.00381`
+
+对照：
+
+- `gate50 + selcoarse + ep1800` mainline：
+  - `0.13080 ± 0.00147`
+- `5-way IPF`：
+  - `0.12699`
+
+因此：
+
+- relative gap vs `IPF`
+  - 从 13.27 的：
+    - `3.76%`
+  - 进一步降到：
+    - `3.00%`
+- absolute gap
+  - 从：
+    - `0.00477`
+  - 再降到：
+    - `0.00381`
+
+也就是说：
+
+- 当前主线还没有超过 `IPF`
+- 但 remaining gap 已经继续被压缩
+- 而且现在最重要的证据已经不是“它离 IPF 还差多少”
+- 而是“这条主线仍在边界上持续变好”
+
+### 13.29 把 current strongest mainline 继续推到 `3000 epochs` 后，non-oracle `c2f` 仍然变好，但边际收益开始收窄
+
+13.28 之后，最直接的问题就变成了：
+
+- 如果 `ep1800` 仍然有效
+- 那把同一条 strongest mainline 继续推到更长的 training horizon
+- 会不会继续逼近 `IPF`
+
+这轮仍然没有改结构，也没有改任何 loss 或 selection 逻辑，只是继续延长训练：
+
+- 固定：
+  - `weighted epsilon, alpha = 0.5`
+  - `detach_coarse_encoder = true`
+  - `aux_t_gate = 50`
+  - `selection_metric = val_tvd_coarse_head`
+  - `logp_clip_quantile_low/high = 0.001 / 0.999`
+- 把训练时长从：
+  - `epochs = 1800`
+  - 继续拉到：
+  - `epochs = 3000`
+
+对应 3 个 full-model run：
+
+- seed0：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3000_seed0_20260326T162906Z/run_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3000_seed1_20260326T163214Z/run_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3000_seed2_20260326T163526Z/run_summary.json`
+
+对应 seed-matched `c2f` eval：
+
+- seed0：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_maskw_a05_seed0_stage2seed0_20260326T162906Z/metrics/coarse_to_fine_summary.json`
+- seed1：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_maskw_a05_seed1_stage2seed1_20260326T163214Z/metrics/coarse_to_fine_summary.json`
+- seed2：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_maskw_a05_seed2_stage2seed2_20260326T163526Z/metrics/coarse_to_fine_summary.json`
+
+新的 true3 汇总：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_maskw_a05_seedmatched_true3_20260327T001000Z_summary.json`
+
+#### 13.29.1 first-order 结果：`ep3000` 继续带来 clean 的 Stage1 改善
+
+相对 `ep1800`：
+
+- old `ep1800`：
+  - `stage1_coarse_tvd_raw = 0.05825 ± 0.00058`
+  - `stage1_coarse_tvd_ipf = 0.05768 ± 0.00034`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13080 ± 0.00147`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+- new `ep3000`：
+  - `stage1_coarse_tvd_raw = 0.05613 ± 0.00035`
+  - `stage1_coarse_tvd_ipf = 0.05660 ± 0.00036`
+  - `pipeline_stage1_raw_tvd_joint = 0.13015 ± 0.00163`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.13011 ± 0.00156`
+  - `oracle_stage2_tvd_joint = 0.11430 ± 0.00185`
+
+因此：
+
+- `Stage1` 仍然在继续变好
+- non-oracle `c2f` 也继续下降
+- `Stage2` 仍然完全没变
+
+这说明：
+
+- 新增收益依旧全部来自 `Stage1`
+- current mainline 继续沿着正确方向在走
+
+#### 13.29.2 但这次更重要的 insight 是：收益还在，但开始进入 late regime
+
+这轮 full-model 的 best checkpoint epoch 分别是：
+
+- seed0：
+  - `best_epoch = 2600`
+- seed1：
+  - `best_epoch = 2800`
+- seed2：
+  - `best_epoch = 3000`
+
+同时 full-model 自己的均值也继续变好：
+
+- `one-shot = 0.14702 ± 0.00038`
+- `tvd_coarse_head = 0.05613 ± 0.00035`
+
+和 13.28 相比，这轮传达的信息不再是：
+
+- “三条 run 都还卡在上界，还没训完”
+
+而是：
+
+- 两个 seed 的 best checkpoint 已经落在内部
+- 只有一个 seed 仍在边界上
+
+这说明：
+
+- current mainline 还没有完全收敛
+- 但已经不再是 13.28 那种“明显被 horizon 截断”的状态
+- 它开始进入边际收益收窄的 late regime
+
+#### 13.29.3 当前系统位置：离 `IPF` 还差 `0.00312`
+
+对照：
+
+- `gate50 + selcoarse + ep3000` mainline：
+  - `0.13011 ± 0.00156`
+- `5-way IPF`：
+  - `0.12699`
+
+因此：
+
+- relative gap vs `IPF`
+  - 从 13.28 的：
+    - `3.00%`
+  - 再降到：
+    - `2.46%`
+- absolute gap
+  - 从：
+    - `0.00381`
+  - 再降到：
+    - `0.00312`
+- 相对 best one-shot baseline：
+  - gain 扩大到：
+    - `14.65%`
+
+所以 current mainline 的最新状态可以准确表述为：
+
+- 它还没有超过 `IPF`
+- 但它继续稳定逼近 `IPF`
+- 当前最大的信息增量，不再是“多训一定还能明显降很多”
+- 而是“继续加 epoch 仍然有效，但收益已经开始进入收窄区间”
+
+### 13.30 `seed2 ep3600` pilot：full-model 仍在继续变好，但 non-oracle `c2f` 已经接近平台区
+
+13.29 之后，最值得回答的问题已经很窄了：
+
+- 既然 `ep3000` 里只有 seed2 的 best checkpoint 还卡在上界
+- 那么纯粹继续加 epoch
+- 是否还能在 non-oracle `c2f` 上带来值得继续扩展到 true3 的收益
+
+因此这轮没有再跑完整 `true3`，而是只做一个信息增益最高的 pilot：
+
+- 固定 current strongest mainline 的全部设置不变
+- 只把 seed2 从：
+  - `epochs = 3000`
+  - 延长到：
+  - `epochs = 3600`
+
+对应 run：
+
+- full-model：
+  - `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3600_seed2_20260327T001452Z/run_summary.json`
+- c2f eval：
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600_maskw_a05_seed2_stage2seed2_20260327T001452Z/metrics/coarse_to_fine_summary.json`
+
+#### 13.30.1 first-order 结果：teacher/full-model 还在继续变好
+
+相对 seed2 `ep3000`：
+
+- `one-shot = 0.14721 -> 0.14690`
+- `tvd_coarse_head = 0.05609 -> 0.05601`
+- `best_epoch = 3000 -> 3600`
+- `best_val_tvd_coarse_head = 0.05879 -> 0.05816`
+
+并且 validation coarse trace 仍然在继续下降：
+
+- `3000: 0.058786`
+- `3200: 0.058646`
+- `3400: 0.058365`
+- `3600: 0.058164`
+
+所以就 full-model / Stage1 teacher 本身而言：
+
+- 继续加 epoch 仍然有效
+- 至少在 seed2 上，teacher 还没有完全收敛
+
+#### 13.30.2 但真正重要的结果是：non-oracle `c2f` 的新增收益已经极小
+
+相对 seed2 `ep3000`：
+
+- `stage1_coarse_tvd_ipf = 0.0565986 -> 0.0566097`
+  - 基本不变，甚至略差
+- `pipeline_stage1_raw_tvd_joint = 0.1280733 -> 0.1280244`
+  - 仅改善约：
+    - `4.9e-05`
+- `pipeline_stage1_coarse_ipf_tvd_joint = 0.1281040 -> 0.1280738`
+  - 仅改善约：
+    - `3.0e-05`
+- `oracle_stage2_tvd_joint`
+  - 完全不变
+
+这意味着：
+
+- teacher/full-model 的 coarse 指标还在慢慢变好
+- 但这些微小改进已经几乎无法继续传导成 downstream `c2f` 的可观收益
+
+#### 13.30.3 当前最重要的结论
+
+这轮 pilot 的价值不在于数字本身，而在于它回答了一个关键策略问题：
+
+- 纯粹继续把 epoch 往上加
+  - 仍然能让 teacher 指标慢慢变好
+- 但对当前 non-oracle `c2f`
+  - 收益已经接近平台区
+
+因此 current mainline 的最合理判断变成：
+
+- `ep3000` 是有效推进
+- 但再往上单纯加 epoch，不再是当前最高 ROI 的方向
+- 如果下一步还想继续压那最后 `~0.003` 的 gap
+  - 更值得做的已经不是更长 horizon
+  - 而是新的结构性改动或更贴近 pipeline 目标的 selection / proxy
+
+### 13.31 启动 `snapshot-enabled seed2 ep3600`：直接测 downstream best checkpoint，而不再只信 coarse-head proxy
+
+13.30 之后，最关键的不确定性已经非常具体：
+
+- 虽然 `val_tvd_coarse_head` 已经比 `val_tvd_joint_raw` 更对齐 `c2f`
+- 但 late regime 里，teacher 指标的继续改善几乎不再传导到 downstream
+- 这意味着：
+  - 当前 best checkpoint 仍可能存在 proxy mismatch
+  - 真正最优的 `c2f` checkpoint，不一定就是 coarse-head validation 最优点
+
+所以这轮没有继续做更长 horizon，也没有切回别的分支，而是补了一个更贴近最终目标的实验基础设施：
+
+- 在 full-model trainer 中加入：
+  - `--save_eval_checkpoint_every`
+- 使得每次 validation eval 都可以按固定 epoch 间隔保存 snapshot checkpoint
+- 然后在同一条 current strongest mainline 上，重新启动：
+  - `seed2 ep3600`
+  - 但额外保存：
+  - `epoch_0200, 0400, ..., 3600`
+
+对应远端 run：
+
+- `/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3600snap200_seed2_20260327T003137Z`
+
+当前 launcher 已正常进入训练，前两个可见 epoch 为：
+
+- `epoch=1`
+  - `loss=4.263136`
+- `epoch=200`
+  - `loss=2.325306`
+
+这轮实验要回答的问题不是“多训一点会不会再降一点”，而是：
+
+- 在 current strongest mainline 的 late regime 里
+- downstream non-oracle `c2f` 真正最优的 teacher checkpoint
+- 是否仍然和 `val_tvd_coarse_head` 选出来的点一致
+
+如果答案是否定的，那么下一步最有价值的改动就不是继续加 epoch，而是：
+
+- 把 mainline checkpoint 选择进一步对齐到更真实的 pipeline proxy
+- 甚至直接按 downstream sweep 结果来定义新的 selection target
+
+### 13.32 `seed2 late-regime checkpoint sweep`：downstream best 确实不在 coarse-head best，但收益极小
+
+13.31 的 snapshot run 完成后，最值得直接回答的问题是：
+
+- 在 current strongest mainline 的 late regime
+- `val_tvd_coarse_head` 选出来的 best checkpoint
+- 是否真的等于 downstream non-oracle `c2f` 最优点
+
+因此这轮没有再看 teacher summary，而是直接对：
+
+- `epoch = 2400 / 2600 / 2800 / 3000 / 3200 / 3400 / 3600`
+
+逐个跑真实 `c2f eval`。
+
+对应 teacher run：
+
+- `outputs/_us_puma_external_joint_hier_diffusion_full_earn_v2_weighted_a05_detach_gate50_selcoarse_ep3600snap200_seed2_20260327T003137Z/run_summary.json`
+
+对应 eval runs：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch2400_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch2600_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch2800_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch3000_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch3200_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch3400_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3600snap200_maskw_a05_seed2_stage2seed2_epoch3600_20260327T003522Z/metrics/coarse_to_fine_summary.json`
+
+最重要的结果不是整张 sweep，而是这三点：
+
+- `epoch3000`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.1281040`
+- `epoch3200`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.1280600`
+- `epoch3600`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.1280738`
+
+同时 teacher 选择端显示：
+
+- `best_epoch = 3600`
+- `selection_metric = val_tvd_coarse_head`
+
+所以这轮回答非常清楚：
+
+- downstream best 确实不在 coarse-head best
+- 也就是说，late regime 里 residual selection mismatch 是真实存在的
+
+但同样关键的是：
+
+- 这个 mismatch 的量级只有：
+  - 相对 `epoch3000`
+    - `-4.39e-05`
+  - 相对 `epoch3600`
+    - `-1.38e-05`
+
+因此这轮 sweep 的最终结论是：
+
+- `pipeline-aware checkpoint selection`
+  - 在 late regime 里仍然有残余收益
+- 但这个收益太小
+- 它已经不能解释 current mainline 离 `IPF` 的剩余 gap
+
+### 13.33 `stage1ipfcond Stage2` pilot：把训练条件换成真实推理条件后，结果小幅变好
+
+13.32 之后，最值得怀疑的残余问题变得更具体了：
+
+- Stage2 训练时吃的是：
+  - `true coarse`
+- 但真正推理时吃的是：
+  - `Stage1 prediction + coarse IPF`
+
+这意味着：
+
+- 当前 strongest Stage2
+  - 仍然存在 train-test mismatch
+
+因此这轮没有改 Stage2 网络，也没有改 loss，而是只改训练条件来源：
+
+1. 用 current best downstream seed2 teacher：
+   - `epoch3200`
+2. 对全量 PUMA 生成：
+   - `Stage1 predicted coarse + coarse IPF`
+3. 用这个 conditioned coarse 重建 Stage2 teacher dataset
+4. 用同一套 weighted Stage2 trainer 重新训练 seed2
+
+对应 conditioned dataset：
+
+- `/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/extc2f_full_earn_stage1ipfcond_pums_2023_puma_us_wide.csv`
+
+对应 Stage2 run：
+
+- `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcond_maskw_a05_seed2_20260327T005255Z/run_summary.json`
+
+对应 end-to-end eval：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3200_stage1ipfcond_maskw_a05_seed2_stage2seed2_20260327T005716Z/metrics/coarse_to_fine_summary.json`
+
+#### 13.33.1 teacher-forced Stage2：确实有小幅改善
+
+相对旧的 weighted Stage2 seed2：
+
+- `teacher_forced_stage2.tvd_joint_projected`
+  - `0.2872320 -> 0.2869531`
+- `inactive_mass_raw`
+  - `0.0144124 -> 0.0141153`
+
+这说明：
+
+- 把 Stage2 的训练条件分布拉回到真实推理条件
+- 确实能让 Stage2 本身更稳一点
+
+#### 13.33.2 non-oracle end-to-end：改善真实传导到了 pipeline
+
+固定同一个 `Stage1 epoch3200`：
+
+- `stage1_coarse_tvd_ipf`
+  - 完全不变：
+  - `0.0565750 -> 0.0565750`
+- `pipeline_stage1_raw_tvd_joint`
+  - `0.1280187 -> 0.1278400`
+- `pipeline_stage1_coarse_ipf_tvd_joint`
+  - `0.1280600 -> 0.1278903`
+- `oracle_stage2_tvd_joint`
+  - `0.1118985 -> 0.1117982`
+
+也就是说：
+
+- 这次改善不是 Stage1 波动
+- 而是 Stage2 的条件鲁棒性改进
+- 并且它已经真实传导到了 non-oracle pipeline
+
+#### 13.33.3 当前最重要的判断
+
+这轮 pilot 的结论比 13.32 更有分量：
+
+- `Stage2 train-test mismatch`
+  - 是真实问题
+- 把训练条件从 `true coarse` 拉回到 `Stage1 + coarse IPF`
+  - 能带来可测的 end-to-end 改善
+
+同时也要保持量级判断：
+
+- 这次 gain 约：
+  - `-1.70e-04`
+- 它明显大于 13.32 的 checkpoint sweep gain
+- 但仍然不是一枪过线的量级
+
+因此 current mainline 的最新状态可以准确表述为：
+
+- late-regime selection mismatch 真实存在，但已经不是主矛盾
+- `Stage2 robustness to imperfect coarse` 也是有效方向
+- 而且它比继续磨 late-regime checkpoint 更值得推进
+- 但要稳定压过 `IPF`
+  - 仍然需要把这条方向扩到多种子并继续放大增益
+
+### 13.34 `stage1ipfcondmix Stage2`：把 `true coarse` 和 `predicted coarse` 混合训练后，单 seed 首次超过 `IPF`
+
+13.33 之后，还剩一个更直接的问题：
+
+- 如果 Stage2 只看一种 `predicted coarse` 误差模式
+  - 它学到的鲁棒性可能还是太窄
+
+因此这轮没有再改网络和 loss，而是把 Stage2 的条件分布进一步扩成混合支持：
+
+- 对每个 `(PUMA, parent cell)`：
+  - 保留一份 `true coarse`
+  - 再追加一份 `Stage1 predicted coarse + coarse IPF`
+- target 仍然是同一个 local fine split
+- weighted epsilon loss 保持不变
+
+对应 mixed dataset：
+
+- `/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/extc2f_full_earn_stage1ipfcondmix_pums_2023_puma_us_wide.csv`
+
+对应 Stage2 run：
+
+- `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcondmix_maskw_a05_seed2_20260327T011422Z/run_summary.json`
+
+对应 end-to-end eval：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3200_stage1ipfcondmix_maskw_a05_seed2_stage2seed2_20260327T012200Z/metrics/coarse_to_fine_summary.json`
+
+#### 13.34.1 teacher-forced Stage2：gain 明显放大
+
+相对旧的 weighted Stage2 seed2：
+
+- `teacher_forced_stage2.tvd_joint_projected`
+  - `0.2872320 -> 0.2838438`
+- `inactive_mass_raw`
+  - `0.0144124 -> 0.0143309`
+
+相对 13.33 的单一 `stage1ipfcond`：
+
+- `teacher_forced_stage2.tvd_joint_projected`
+  - `0.2869531 -> 0.2838438`
+
+也就是说：
+
+- 真正有效的不是“完全用 predicted coarse 替代 true coarse”
+- 而是让 Stage2 同时暴露在：
+  - clean condition
+  - imperfect condition
+
+#### 13.34.2 non-oracle end-to-end：seed2 首次压到 `IPF` 以下
+
+固定同一个 `Stage1 epoch3200`：
+
+- `stage1_coarse_tvd_ipf`
+  - 完全不变：
+  - `0.0565750 -> 0.0565750`
+- `pipeline_stage1_raw_tvd_joint`
+  - `0.1280187 -> 0.1255749`
+- `pipeline_stage1_coarse_ipf_tvd_joint`
+  - `0.1280600 -> 0.1257494`
+- `oracle_stage2_tvd_joint`
+  - `0.1118985 -> 0.1097530`
+
+同时：
+
+- `IPF`
+  - `0.1269883`
+
+这意味着：
+
+- 在保持同一个 Stage1 不变的前提下
+- mixed-condition Stage2 单独就把 seed2 的 non-oracle pipeline
+  - 从 `IPF + 9.02e-04`
+  - 推到了 `IPF - 1.24e-03`
+
+#### 13.34.3 这轮结果揭示了什么
+
+这轮给出的新结论是结构性的：
+
+- residual gap 不只是 `Stage2` 看没看过 predicted coarse
+- 更关键的是：
+  - Stage2 需要在训练时同时保留 clean 与 noisy coarse 条件
+  - 才能学到足够宽的 refinement support
+
+所以当前最值得推进的主线，已经从：
+
+- `stage1ipfcond`
+
+进一步收敛到了：
+
+- `stage1ipfcondmix`
+
+而且这次不是边角收益：
+
+- 相对 seed2 baseline
+  - `pipeline_stage1_coarse_ipf_tvd_joint`
+    - `-2.31e-03`
+
+这个量级已经足以让单 seed 真正过线。
+
+#### 13.34.4 下一步
+
+为了判断这是不是主线级突破，而不是 seed2 特例，我已经在 `wsa` 上启动了 `seed0/seed1` 的同口径批任务：
+
+- batch log：
+  - `/home/jinlin/projects/Synthetic_City/outputs/_stage2_mix_seed01_batch_20260327T0138Z.log`
+- seed0 mixed dataset dir：
+  - `/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/mainline_gate50_selcoarse_ep3000_seed0_stage1ipfcondmix`
+- seed1 mixed dataset dir：
+  - `/home/jinlin/data/geoexplicit_data/synthetic_city/data/us/processed/external_c2f/mainline_gate50_selcoarse_ep3000_seed1_stage1ipfcondmix`
+
+当前 batch 已确认在正常推进：
+
+- 进程：
+  - `/tmp/run_c2f_stage2_mix_seed01.sh`
+- 当前阶段：
+  - 正在构建 `seed0` 的 mixed-condition teacher dataset
+
+### 13.35 `stage1ipfcondmix` 扩到多 seed：均值已略低于 `IPF`，但还没有拉开余量
+
+13.34 之后，我把同一条 `mixed-condition Stage2` 主线继续扩到了 `seed0/seed1`。
+
+对应新增 runs：
+
+- `seed0 teacher`
+  - `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcondmix_mainline_gate50_selcoarse_ep3000_seed0_maskw_a05_20260327T013800Z/run_summary.json`
+- `seed0 eval`
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_stage1ipfcondmix_maskw_a05_seed0_stage2seed0_20260327T013800Z/metrics/coarse_to_fine_summary.json`
+- `seed1 teacher`
+  - `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcondmix_mainline_gate50_selcoarse_ep3000_seed1_maskw_a05_20260327T013801Z/run_summary.json`
+- `seed1 eval`
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_stage1ipfcondmix_maskw_a05_seed1_stage2seed1_20260327T013801Z/metrics/coarse_to_fine_summary.json`
+
+#### 13.35.1 seed-level non-oracle 结果
+
+- `seed0`
+  - baseline:
+    - `0.1303026`
+  - mixed:
+    - `0.1285491`
+  - delta:
+    - `-0.0017535`
+- `seed1`
+  - baseline:
+    - `0.1319123`
+  - mixed:
+    - `0.1264879`
+  - delta:
+    - `-0.0054245`
+- `seed2`
+  - baseline:
+    - `0.1281040`
+  - mixed:
+    - `0.1257494`
+  - delta:
+    - `-0.0023545`
+
+因此当前 best-available 3-run aggregate 已经变成：
+
+- `pipeline_stage1_coarse_ipf_tvd_joint`
+  - `0.1269288 ± 0.0011847`
+
+相对 `IPF = 0.1269883`：
+
+- 均值低了：
+  - `5.95e-05`
+
+这轮最准确的判断是：
+
+- `mixed-condition Stage2`
+  - 已经把主线从“明显落后 IPF”
+  - 推到了“均值略低于 IPF”
+- 但它还不能支持：
+  - “显著稳定优于 IPF”
+
+因为：
+
+- 只有 `2/3` seed 真正过线
+- `seed0` 仍高于 `IPF`
+  - `+0.0015608`
+
+#### 13.35.2 为什么当前 residual gap 更像 Stage2 seed variance
+
+mixed 之后三组的
+
+- `pipeline_stage1_coarse_ipf_tvd_joint - oracle_stage2_tvd_joint`
+
+几乎是常数：
+
+- `seed0`
+  - `0.1285491 - 0.1125498 = 0.0159993`
+- `seed1`
+  - `0.1264879 - 0.1103983 = 0.0160896`
+- `seed2`
+  - `0.1257494 - 0.1097530 = 0.0159965`
+
+这说明：
+
+- train-test mismatch 基本已经被 mixed-condition 吸收了
+- 当前 residual gap 更像：
+  - `Stage2 oracle quality` 的 seed 方差
+- 也就是说：
+  - `seed0` 没过线
+  - 更像是它自己的 Stage2 还不够强
+  - 而不是 Stage1 特别差
+
+### 13.36 `seed0 ns256`：更稳的 Stage2 推理有帮助，但不足以单独把 `seed0` 推过线
+
+为了先判断 residual gap 里有多少来自推理方差，我先没有重训模型，而是只把 `seed0 mixed Stage2` 的 eval sampling 从：
+
+- `n_eval_joint_samples = 64`
+
+提到：
+
+- `256`
+
+对应 run：
+
+- `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_stage1ipfcondmix_maskw_a05_seed0_stage2seed0_ns256_20260327T020000Z/metrics/coarse_to_fine_summary.json`
+
+结果：
+
+- `seed0 pipeline_stage1_coarse_ipf_tvd_joint`
+  - `0.1285491 -> 0.1278349`
+- delta:
+  - `-7.1422e-04`
+
+这说明：
+
+- 更稳的 Monte Carlo averaging
+  - 确实有帮助
+- 但帮助还不够大
+
+因为：
+
+- `seed0` 仍高于 `IPF`
+  - `0.1278349 - 0.1269883 = 8.47e-04`
+
+因此 13.36 的结论是：
+
+- 推理更稳是正确方向
+- 但它不是终解
+- 要把 `seed0` 也稳稳压过去
+  - 仍需要继续降低 `Stage2` 本体的 oracle error
+
+### 13.37 `seed0 bestsel50`：开始测试“Stage2 best checkpoint selection”是否能继续压低 oracle
+
+既然当前 residual 更像：
+
+- `Stage2 oracle quality` 的 seed 方差
+
+那么比继续改 Stage1 更直接的一步是：
+
+- 不只保留 `final.pt`
+- 而是在 Stage2 训练中周期评估
+- 按 `teacher_forced_stage2.tvd_joint_projected` 保存 `best.pt`
+
+我已经给 Stage2 trainer 加了：
+
+- `--save_best_model`
+- `--eval_every_epochs`
+
+当前正在跑：
+
+- `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcondmix_mainline_gate50_selcoarse_ep3000_seed0_maskw_a05_bestsel50_20260327T020700Z`
+
+配套日志：
+
+- `/home/jinlin/projects/Synthetic_City/outputs/_seed0_mix_bestsel50_20260327T020700Z.log`
+
+当前已经看到的中间评估：
+
+- `epoch=50`
+  - `tvd_joint_projected = 0.289910`
+- `epoch=100`
+  - `tvd_joint_projected = 0.285574`
+
+这说明：
+
+- bestsel 逻辑已经正常工作
+- 但到 `epoch100` 为止
+  - 还没有明显超过当前 mixed final seed0 的 `0.2855256`
+
+因此这条线仍在继续观察中。
+
+### 13.38 `Stage2 clean-head + diffusion`：`seed0` 已经明显低于 `IPF`
+
+既然：
+
+- `bestsel50` 这条线增益有限
+- `diffusion` 又不能推翻
+
+那么更合理的结构改动不是替换 diffusion，而是：
+
+- 保留 diffusion 作为主生成分支
+- 额外给 `Stage2` 加一个 `clean local head`
+- 让它作为 noising-free anchor
+- 再用 `head <-> diffusion consistency` 稳定条件表征
+
+本次采用的配置是：
+
+- `clean_head_weight = 1.0`
+- `consistency_weight = 0.5`
+- `aux_t_gate = 50`
+- `predict_mode = blend`
+- `blend_alpha = 0.25`
+- 其余仍保持
+  - `mixed-condition Stage2`
+  - `cell-weighted epsilon loss`
+
+对应训练结果：
+
+- teacher run:
+  - `outputs/_us_puma_external_c2f_full_earn_teacher_stage1ipfcondmix_mainline_gate50_selcoarse_ep3000_seed0_maskw_a05_cleanheadw1_cons05_gate50_blend25_bestsel50_20260327T023511Z/run_summary.json`
+- eval run:
+  - `outputs/_us_puma_external_c2f_full_earn_eval_mainline_gate50_selcoarse_ep3000_stage1ipfcondmix_cleanheadw1_cons05_gate50_blend25_maskw_a05_seed0_stage2seed0_20260327T023511Z/metrics/coarse_to_fine_summary.json`
+
+关键数字：
+
+- `seed0 old mixed`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.1285491`
+- `seed0 new clean-head+diffusion`
+  - `pipeline_stage1_coarse_ipf_tvd_joint = 0.1211049`
+- `IPF`
+  - `0.1269883`
+
+delta：
+
+- 相对旧 `seed0 mixed`
+  - `-0.0074442`
+- 相对 `IPF`
+  - `-0.0058834`
+
+这说明：
+
+- 这次不是擦线
+- 而是 `seed0` 已经被明显压到 `IPF` 以下
+
+同时它的 `oracle_stage2_tvd_joint` 也到了：
+
+- `0.1038834`
+
+而对应 teacher-forced best checkpoint 是：
+
+- `best_projected_tvd_joint = 0.2690819`
+- `best_epoch = 250`
+
+因此 13.38 的结论是：
+
+- `Stage2 clean-head + diffusion` 是当前最有效的新方向
+- 它没有推翻 diffusion
+- 而是在保留 diffusion 主线的前提下
+  - 明显降低了 `Stage2` error
+  - 并把最难的 `seed0` 直接推到 `IPF` 以下
+
+### 13.39 `seed1/seed2 clean-head + diffusion`：已启动新的顺序批任务
+
+为了判断这个结构改动是否能把 `true3` 均值也明显拉开，我已经按相同配置继续扩到：
+
+- `seed1`
+  - 仍使用 `ep3000` 的最强 `Stage1`
+- `seed2`
+  - 仍使用当前最强的 `epoch3200` `Stage1` snapshot
+
+当前批任务：
+
+- batch log:
+  - `/home/jinlin/projects/Synthetic_City/outputs/_stage2_cleanhead_seed12_batch_20260327T040359Z.log`
+
+当前状态：
+
+- `seed1` 训练已经正常进入
+- 后续会自动顺序执行：
+  - `seed1 teacher`
+  - `seed1 eval`
+  - `seed2 teacher`
+  - `seed2 eval`
+
+因此下一步最关键的判断已经很清楚：
+
+- 不是再看中间指标
+- 而是等 `seed1/seed2` 跑完后
+  - 直接计算新的 `true3 mean±std`
+  - 看它是否能稳定、明确地低于 `IPF = 0.1269883`
+
+### 14.1 `full_income v2 seed0 c2f`：`best.pt` 与更稳推理都是真收益
+
+在 `full_income v2 seed0 c2f` 第一次完整跑通后，原始 end-to-end 结果是：
+
+- `pipeline_stage1_coarse_ipf.tvd_joint = 0.1773901`
+- 对应 `IPF = 0.1757722`
+
+这说明：
+
+- `c2f` 已经把 `seed0` 从 one-shot 的极差工作区间拉回到 `IPF` 附近
+- 但第一次结果还没有真正过线
+
+我随后只做了两步低成本重评估，不改训练本体：
+
+1. 把 `Stage2 checkpoint` 从 `final.pt` 改成 `best.pt`
+2. 在此基础上把 `Stage2` 的 eval sampling 从 `64` 提到 `256`
+
+对应结果是：
+
+- 原始 `final.pt + ns64`
+  - `0.1773901`
+- `best.pt + ns64`
+  - `0.1762777`
+- `best.pt + ns256`
+  - `0.1755801`
+
+对照：
+
+- `IPF = 0.1757722`
+- `one-shot = 0.7826781`
+
+delta：
+
+- 相对原始 `final.pt + ns64`
+  - `-0.0018100`
+- 相对 `IPF`
+  - `-0.0001921`
+
+这一步的结论是：
+
+- `teacher best checkpoint` 不是边角细节，而是当前 `full_income c2f` 的必要选择
+- 更稳的 `Stage2` sampling 也不是纯噪声处理，而是足以把 `seed0` 从略高于 `IPF` 推到略低于 `IPF`
+- `full_income` 当前 strongest `seed0` 配方应当更新为：
+  - `Stage1: full_income v2 ep1200 strongest full-model`
+  - `Stage2: clean-head + diffusion`
+  - `Stage2 checkpoint: best.pt`
+  - `Stage2 eval samples: 256`
+
+同时，`oracle_stage2_true_coarse.tvd_joint` 也同步从：
+
+- `0.1565911`
+
+降到：
+
+- `0.1551003`
+
+这说明这次收益并不只是 pipeline 偶然抖动，而是 `Stage2` 本体在当前配置下确实更强。
+
+### 14.2 `full_income v2 seed1 Stage1`：已按 strongest recipe 启动
+
+当前 `full_income v2` 还没有 `seed1/seed2` 的对应资产，因此下一步最有信息量的动作不是继续抠 `seed0`，而是直接扩到第二个 seed。
+
+我已在 `WSA` 上启动：
+
+- `tmux session`
+  - `full_income_v2_seed1_ep1200`
+
+对应 run：
+
+- `/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_income_v2_weighted_a05_detach_gate50_selcoarse_masked_ep1200_seed1_20260328T092900Z`
+
+配置与当前 `seed0` strongest one-shot 完全对齐：
+
+- `weighted_a05`
+- `detach`
+- `gate50`
+- `selection_metric = val_tvd_coarse_head`
+- `support_mask_mode = dataset_nonzero`
+- `epochs = 1200`
+
+当前已确认正常进入训练，首轮日志为：
+
+- `epoch=1 loss=4.730572`
+
+因此现在 `full_income` 主线的判断已经清楚：
+
+- `seed0` 上，`c2f` 已经被推到略低于 `IPF`
+- 下一步不再是继续改 `seed0`
+- 而是尽快拿到 `seed1`，判断这条 strongest recipe 是否具备跨 seed 稳定性
+
+### 14.3 `full_income PUMA` 主线继续推进：`seed1 c2f` 已转入 teacher，`seed2` 已补齐并接上 `c2f`
+
+这轮推进的目标不是再改配方，而是把 `PUMA` 主线从单个 `seed0` 扩成真正的多 seed 验证链。
+
+首先，`seed1 c2f` 已经不再停留在排队状态，而是实质进入了 `Stage2 teacher` 训练。当前链路状态为：
+
+- `builder` 已完成，产物已写出：
+  - `/home/jinlin/projects/Synthetic_City/data/us/processed/external_c2f/full_income_v2_seed1/extc2f_full_income_v2_stage1ipfcondmix_pums_2023_puma_us_wide.csv`
+- `teacher` 已开始训练，当前首个有效评估点为：
+  - `epoch=50`
+  - `new_best_tvd_joint_projected=0.282351`
+- `eval` 会话已就位，等待 `teacher best.pt` 后自动接续
+
+这一步的意义不是数值本身，而是：
+
+- `seed1 c2f` 全链已经真正跑通到 `Stage2` 学习阶段
+- 当前不再存在“只证明 `seed0` 单点可行”的问题
+
+其次，`seed2 Stage1` 也已经补齐完成，结果进入和 `seed0/seed1` 同一工作区间：
+
+- run:
+  - `/home/jinlin/projects/Synthetic_City/outputs/_us_puma_external_joint_hier_diffusion_full_income_v2_weighted_a05_detach_gate50_selcoarse_masked_ep1200_seed2_20260328T105100Z`
+- `tvd_joint = 0.7871428`
+- `tvd_coarse_head = 0.0820989`
+- `IPF = 0.1757580`
+- `best_epoch = 1200`
+
+对照前两个 seed：
+
+- `seed0 tvd_coarse_head = 0.0790298`
+- `seed1 tvd_coarse_head = 0.0797947`
+- `seed2 tvd_coarse_head = 0.0820989`
+
+这说明：
+
+- `seed2` 不是坏种子
+- 它的 `Stage1 coarse` 质量已经足够接入 `c2f`
+- 因此继续向 `seed2 c2f` 推进是有信息量的，不是盲目铺实验
+
+基于这个判断，我已经把 `seed2 c2f` 三段会话也排上：
+
+- `full_income_v2_c2f_build_seed2`
+- `full_income_v2_c2f_teacher_seed2`
+- `full_income_v2_c2f_eval_seed2`
+
+其中 `build_seed2` 已确认真实启动，占用第二个轻量 Python 进程；也就是说当前 GPU/远端资源利用已经从“单任务串行”推进到了：
+
+- `seed1 teacher`
+- `seed2 c2f build`
+
+同时并行推进。
+
+所以这轮的结论很清楚：
+
+- 是有效推进，而且不是表面推进
+- `seed1 c2f` 已经进入真正会决定成败的 `Stage2` 阶段
+- `seed2` 也已经不再停在 `Stage1`，而是正式接入 `c2f` 主线

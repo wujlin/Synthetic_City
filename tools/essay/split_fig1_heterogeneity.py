@@ -76,6 +76,7 @@ def main() -> None:
     conus = gdf[(gdf[sfp_col] != "02") & (gdf[sfp_col] != "15")]
     alaska = gdf[gdf[sfp_col] == "02"]
     hawaii = gdf[gdf[sfp_col] == "15"]
+    michigan = gdf[gdf[sfp_col].astype(str) == "26"].copy()
     cmap = plt.cm.YlOrRd
     norm = Normalize(vmin=0.05, vmax=0.40)
     plot_kw = dict(
@@ -91,6 +92,18 @@ def main() -> None:
         fig = plt.figure(figsize=(7.0, 3.9))
         ax = fig.add_axes([0.03, 0.08, 0.82, 0.84])
         conus.plot(ax=ax, **plot_kw)
+        if not michigan.empty:
+            michigan.dissolve().boundary.plot(ax=ax, color="#2B6CB0", linewidth=1.4, zorder=5)
+            ax.annotate(
+                "Michigan",
+                xy=(-85.6, 44.8),
+                xytext=(-79.8, 48.7),
+                color="#2B6CB0",
+                fontsize=9.5,
+                ha="left",
+                va="center",
+                arrowprops=dict(arrowstyle="->", color="#2B6CB0", lw=0.8, shrinkA=2, shrinkB=2),
+            )
         ax.set_xlim(-128, -65)
         ax.set_ylim(23, 52)
         ax.axis("off")
@@ -113,8 +126,8 @@ def main() -> None:
         sm.set_array([])
         cax = fig.add_axes([0.33, 0.08, 0.47, 0.03])
         cb = fig.colorbar(sm, cax=cax, orientation="horizontal")
-        cb.set_label("TVD to national-average copula", fontsize=8, labelpad=3)
-        cb.ax.tick_params(labelsize=7)
+        cb.set_label("TVD to national-average copula", fontsize=9.5, labelpad=3)
+        cb.ax.tick_params(labelsize=8.5)
 
         out_map_pdf = pathlib.Path(args.out_map_pdf).expanduser().resolve()
         save_figure(fig, out_map_pdf)
@@ -135,7 +148,7 @@ def main() -> None:
         ax.axvline(float(np.mean(us_tvds)), color=C2, linestyle="--", linewidth=1.5, label=f"Mean={np.mean(us_tvds):.3f}")
         ax.set_xlabel("TVD to global")
         ax.set_ylabel("Count")
-        ax.legend(frameon=False, fontsize=7)
+        ax.legend(frameon=False, fontsize=8.2)
         despine(ax)
         add_panel_label(ax, "a", dx=-18)
 
@@ -152,7 +165,7 @@ def main() -> None:
         ax.axvline(float(np.mean(mi_tvds)), color=C2, linestyle="--", linewidth=1.5, label=f"MI mean={np.mean(mi_tvds):.3f}")
         ax.set_xlabel("TVD to global")
         ax.set_ylabel("Count")
-        ax.legend(frameon=False, fontsize=7)
+        ax.legend(frameon=False, fontsize=8.2)
         despine(ax)
         add_panel_label(ax, "c", dx=-18)
 
