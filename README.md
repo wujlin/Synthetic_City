@@ -34,12 +34,13 @@ This repo is not a polished software package. It is a **research-first working r
 src/         reusable library-style modules
 tools/       experiment entrypoints, data prep, validation, figure scripts
 docs/        methods notes, architecture notes, experiment findings, data guides
-Essay/       manuscript drafts and paper figures
 tests/       lightweight tests and smoke checks
 data/        optional local link to external data root (not committed)
 outputs/     run artifacts and synced experiment products (gitignored)
 figures/     current figure products for manuscript/presentation use
 ```
+
+Local writing/proposal workspaces such as `Essay/` or `NSFC/` may exist on a developer machine, but they are not part of the public repository contract.
 
 ## Architecture At A Glance
 

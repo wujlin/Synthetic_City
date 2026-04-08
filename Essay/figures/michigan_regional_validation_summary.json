@@ -1,9 +1,0 @@
-{
-  "n_pumas": 68,
-  "pipeline_mean": 0.121212676276511,
-  "one_shot_mean": 0.14707248881745594,
-  "ipf_mean": 0.126982156949832,
-  "pipeline_beats_ipf_n": 53,
-  "one_shot_beats_ipf_n": 0,
-  "spearman_gain_vs_heterogeneity": 0.06565637286712218
-}

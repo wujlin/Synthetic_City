@@ -101,3 +101,15 @@ subprojects/geo-synthetic-pop-usa/
 # Generated comparison figures not used in the main narrative
 figures/phase3_detroit_teacher_home/
 figures/phase3_detroit_teacher_home_validation/
+
+# Local writing / proposal / skills workspaces kept outside the public repo
+/NSFC/
+/Essay/
+/skills/
+/visual_style_guide.md
+/Writing_guide.md
+/plot_style.py
+/Mobility_intro.tex
+
+# Temporary office files
+~$*.pptx
