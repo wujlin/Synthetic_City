@@ -1,332 +1,170 @@
 # Synthetic City
 
-This repository supports a research project on **building-level, spatiotemporal synthetic population generation** using **diffusion models** and **explicit, reviewable constraint modules**.
+Research codebase for **synthetic population generation and spatialization** with a current focus on the **Detroit metropolitan area**. The repository combines two tightly related threads:
 
-The code is intentionally KISS: each module has a single responsibility, and the PoC scripts are designed to produce small, auditable outputs (JSON metrics + metadata) that can be synced via GitHub.
+- **distribution-level demographic generation** from PUMS / ACS constraints
+- **explicit home/work spatialization** from small-area population mass to reviewable road-supported locations
 
-## Key documents
+The project is organized around a simple idea: do not jump directly from marginals to point locations. Instead, separate three inferential tasks that should not be mixed together:
 
-- NSFC writing drafts: `NSFC/`
-- Detroit code/data blueprint: `docs/detroit_code_data_structure.md`
-- Method-to-module mapping: `docs/synthpop_architecture.md`
-- Data search notes: `docs/DATA_SEARCH.md`
-- Workstation guide: `docs/WORKSTATION_GUIDE.md`
+1. recover **who lives in a PUMA**
+2. disaggregate that joint mass to **tract / CBG**
+3. assign explicit **home / work locations** within each small area
 
-## Repository layout
+## Project Status
+
+The current Detroit pipeline is mature enough to support manuscript writing and figure production.
+
+- **Phase 1**: recover PUMA-level demographic joint structure
+- **Phase 2**: disaggregate PUMA mass to tract / CBG with ACS as the main anchor
+- **Phase 2.5**: synthesize households so that home assignment is household-semantic
+- **Phase 3**: assign explicit home/work locations under road-constrained supports
+
+Current empirical takeaways:
+
+- **home** is the strongest result and already has stable external validation
+- **work destination tract + commute shape** are reasonable and publishable as qualified results
+- **OD pairing** remains the main unresolved problem
+
+## What Is In This Repository
+
+This repo is not a polished software package. It is a **research-first working repository** that keeps reusable modules, experiment entrypoints, documentation, and manuscript assets in one place.
 
 ```text
-NSFC/        # proposal drafts
-docs/        # literature notes, blueprints, procurement notes
-src/         # reusable synthpop modules (library-style)
-tools/       # runnable scripts (PoC + data utilities)
-outputs/     # small run artifacts committed for review (see .gitignore)
-data/        # optional symlink to an external data root (NOT committed)
+src/         reusable library-style modules
+tools/       experiment entrypoints, data prep, validation, figure scripts
+docs/        methods notes, architecture notes, experiment findings, data guides
+Essay/       manuscript drafts and paper figures
+tests/       lightweight tests and smoke checks
+data/        optional local link to external data root (not committed)
+outputs/     run artifacts and synced experiment products (gitignored)
+figures/     current figure products for manuscript/presentation use
 ```
 
-## Model architecture (current)
+## Architecture At A Glance
 
-### Scheme B (PoC, runnable)
+### Phase 1: Demographic Joint Recovery
 
-**Goal:** learn realistic *attribute joint structure* from PUMS, then anchor to buildings via an explicit allocator.
+Phase 1 reconstructs the **joint attribute structure** of a population within a macro geography such as a PUMA. In the repo this appears as diffusion-based tabular generation, conditional encoders, and alignment utilities.
 
-1) **Attribute generator (diffusion)** learns:
+Representative modules:
 
-- `P(attrs | macro_geo)` where `macro_geo = PUMA` for the PoC
-- `attrs = {AGEP, PINCP, SEX}` (ESR is removed in PoC to avoid semantic conflicts for minors)
-- PUMS data note: for `AGEP < 16`, `PINCP` can be missing (not in universe); the PoC imputes missing child `PINCP = 0.0` to avoid dropping all children during cleaning.
+- `src/synthpop/model/`
+- `src/synthpop/alignment/`
+- `src/synthpop/features/condition_vectors.py`
 
-2) **Spatial anchoring (explicit post-processing)** assigns each generated person to a building within the same macro group:
+Representative experiment scripts:
 
-- `bldg_id = f(attrs, buildings_in_group; method)`
-- methods: `random`, `capacity_only`, `income_price_match` (ablation-ready)
+- `tools/train_us_puma_5var_diffusion.py`
+- `tools/train_us_puma_3var_diffusion.py`
+- `tools/poc_tabddpm_pums.py`
 
-3) **Validation**
+### Phase 2: PUMA -> Tract / CBG Disaggregation
 
-- internal: generated vs PUMS holdout (grouped marginal TVD + key associations)
-- external (optional): generated vs ACS-derived `targets_long` (currently age/sex only; income is household-level in ACS tables)
+Phase 2 is a **constrained decomposition** problem, not a person-level location prediction problem. ACS provides the main small-area anchor; mobility signals are useful mainly as residual spatial heterogeneity evidence or validation, not as the primary demographic truth.
 
-Code entrypoints:
+Representative modules:
 
-- Orchestration: `tools/poc_tabddpm_pums_buildingcond.py`
-- Diffusion model: `src/synthpop/model/diffusion_tabular.py`
-- Building allocation: `src/synthpop/spatial/building_allocation.py`
-- Metrics: `src/synthpop/validation/stats.py`
+- `src/synthpop/spatial/puma_to_small_area.py`
+- `src/synthpop/constraints/`
+- `src/synthpop/data/acs_crosstab.py`
 
-### ACS-supervised diffusion (PoC, runnable)
+Representative experiment scripts:
 
-**Goal:** test whether **tract-level context (geo + built)** carries learnable signal for **age×sex** distributions, using **ACS B01001** as training supervision and **PUMS** as an external validation source (never used in training).
+- `tools/exp_phase2_puma_to_small_area.py`
+- `tools/exp5_tract_postalign.py`
 
-Core idea:
+### Phase 2.5: Household Synthesis
 
-- Train on **pseudo-individuals sampled from ACS tract distributions**.
-- Conditions are **tract_context** (ablations: `none`, `geo-only`, `built-only`, `geo+built`).
-- Evaluation:
-  - internal: tract-level TVD vs ACS on held-out tracts
-  - external: aggregate tract predictions to PUMA and compare vs PUMS (plus an ACS→PUMA baseline gap)
+This stage turns person-level synthetic population into **household-consistent** population so that home assignment is semantically correct.
 
-Code entrypoint:
+Representative modules:
 
-- `tools/poc_tabddpm_acs_supervised_b01001.py`
+- `src/synthpop/spatial/tract_householding.py`
 
-### Scheme C-v2 (WIP)
+Representative experiment scripts:
 
-Shared latent encoders + alignment losses + joint diffusion guidance (skeleton + smoke tests exist, but not the default Detroit PoC yet). See `PI_Opinion.md` and `src/synthpop/model/joint_diffusion.py`.
+- `tools/exp_phase25_synthesize_households.py`
 
-## Setup
+### Phase 3: Explicit Home / Work Spatialization
 
-Recommended: use **conda** (geo stack + torch CUDA wheels are often painful with pure pip).
+Phase 3 assigns explicit locations within each tract / CBG.
+
+- **home**: road-constrained residential support, household-aware assignment
+- **work**: worker -> destination tract -> explicit work point
+
+Representative modules:
+
+- `src/synthpop/spatial/road_location_allocation.py`
+- `src/synthpop/spatial/work_destination_allocation.py`
+- `src/synthpop/validation/mobility_anchor.py`
+
+Representative experiment and figure scripts:
+
+- `tools/exp_phase3b_assign_work_destinations.py`
+- `tools/exp_phase3_validate_mobility_anchor.py`
+- `tools/viz_phase3_detroit_overviews.py`
+- `tools/viz_phase3_validation_detroit.py`
+
+## Data Roles
+
+The project uses each data source for a specific inferential role rather than treating all of them as interchangeable evidence.
+
+| Data source | Role in pipeline |
+|---|---|
+| **PUMS** | microdata seed for demographic joint structure |
+| **ACS / Census** | tract / CBG population anchors and household constraints |
+| **LODES** | work destination mass and OD skeleton |
+| **TIGER roads / MTFCC** | explicit home/work candidate supports |
+| **Mobility anchors** | external validation, local pattern checks, commute diagnostics |
+| **POI / visit products** | optional refinement or secondary diagnostics, not current mainline |
+
+## Where To Start
+
+If you are new to the repository, read these in order:
+
+1. [`docs/synthpop_architecture.md`](docs/synthpop_architecture.md)  
+   Project architecture, phase logic, and module-to-question mapping.
+2. [`docs/detroit_code_data_structure.md`](docs/detroit_code_data_structure.md)  
+   Detroit-specific data layout and run structure.
+3. [`docs/phase3_small_area_to_road_constrained_locations_method.md`](docs/phase3_small_area_to_road_constrained_locations_method.md)  
+   Current explicit spatialization logic.
+4. [`docs/phase3_work_destination_detroit_2026-03-29.md`](docs/phase3_work_destination_detroit_2026-03-29.md)  
+   Work destination findings.
+5. [`docs/phase3_mobility_anchor_validation_detroit_2026-03-29.md`](docs/phase3_mobility_anchor_validation_detroit_2026-03-29.md)  
+   Home/work validation summary.
+
+For the earlier distribution-level diffusion thread, see:
+
+- [`docs/methods.md`](docs/methods.md)
+- [`docs/findings.md`](docs/findings.md)
+
+## Running Code
+
+This repository is script-driven. Most experiments are launched from `tools/`, while reusable logic lives in `src/`.
+
+Basic setup:
 
 ```bash
 python -m pip install -r requirements.txt
-```
-
-Run unit tests:
-
-```bash
 python -m unittest discover -s tests
 ```
 
-## Detroit data (workstation)
-
-We recommend keeping raw/processed city data out of git and symlinking `data/` to an external disk path:
-
-```bash
-export RAW_ROOT=/home/jinlin/data/geoexplicit_data
-mkdir -p "$RAW_ROOT/synthetic_city/data"
-ln -snf "$RAW_ROOT/synthetic_city/data" data
-```
-
-Download P0 public data (TIGER/ACS/PUMS/OSM) and register SafeGraph (local symlink only):
+Detroit public data bootstrap:
 
 ```bash
 python tools/detroit_fetch_public_data.py tiger --out_root "$RAW_ROOT/synthetic_city/data"
-python tools/detroit_fetch_public_data.py acs --out_root "$RAW_ROOT/synthetic_city/data" --acs_year 2023 --tables "B01001,B19001,B23025"
+python tools/detroit_fetch_public_data.py acs --out_root "$RAW_ROOT/synthetic_city/data" --acs_year 2023
 python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_city/data" --pums_year 2022
 python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_city/data" --region michigan
-python tools/detroit_fetch_public_data.py safegraph --out_root "$RAW_ROOT/synthetic_city/data" --safegraph_dir "$RAW_ROOT/safegraph/safegraph_unzip"
 ```
 
-### Network caveats + manual download fallback
+## Data and Storage Policy
 
-Some environments (campus networks, transparent proxies, or flaky upstream routes) intermittently fail to reach `www2.census.gov` with `403` or TLS EOF errors. If a downloader command fails, **manual download + rsync** is an acceptable fallback.
+Raw data, licensed data, synced experiment products, and large outputs are intentionally kept **out of git**.
 
-**PUMS (required for external validation):**
+- `data/` should point to an external data root or symlink
+- `outputs/` is for experiment products and is gitignored
+- `figures/` only keeps current manuscript-ready products, not every intermediate rendering
 
-- Target directory:
-  - `$DATA_ROOT/detroit/raw/pums/pums_2022_5-Year/`
-- Download one of the following filename pairs from:
-  - `https://www2.census.gov/programs-surveys/acs/data/pums/2022/5-Year/`
-  - Preferred: `psam_p26.zip` + `psam_h26.zip`
-  - Alternative: `csv_pmi.zip` + `csv_hmi.zip`
-
-After placing the zips, the PoC scripts will find them automatically.
-
-**TIGER (sometimes 403 in some environments):**
-
-- Target directory:
-  - `$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/`
-- If `detroit_fetch_public_data.py tiger` fails, download required zips manually from:
-  - `https://www2.census.gov/geo/tiger/TIGER2023/`
-  - Common files used by the Detroit PoCs:
-    - `TRACT/tl_2023_26_tract.zip`
-    - `PUMA20/tl_2023_26_puma20.zip`
-    - `BG/tl_2023_26_bg.zip` (optional unless you need BG-level joins)
-
-**SafeGraph and GBA LoD1 are not auto-downloadable by this repo:**
-
-- `safegraph` command only creates a symlink to an existing local dataset directory (license-restricted).
-- GlobalBuildingAtlas LoD1 tiles must be obtained separately and passed to `tools/prepare_detroit_buildings_gba.py`.
-
-## Build ACS targets_long (optional external validation)
-
-This produces an **ACS-derived long table**: `(group, variable, category, target)`.
-
-You can generate:
-- **tract-level** targets: `group_col=tract_geoid` (recommended for spatial consistency checks)
-- **PUMA-level** targets: `group_col=puma` (coarser, but more stable)
-
-```bash
-export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
-
-# (A) tract-level targets_long (group_col=tract_geoid)
-python tools/build_acs_marginals_long.py \
-  --out_root "$DATA_ROOT" \
-  --acs_year 2023 \
-  --tables "B01001,B19001,B23025" \
-  --geo_level tract \
-  --aggregate_to none
-
-# (B) PUMA-level targets_long (tract -> puma aggregation)
-python tools/build_acs_marginals_long.py \
-  --out_root "$DATA_ROOT" \
-  --acs_year 2023 \
-  --tables "B01001,B19001,B23025" \
-  --geo_level tract \
-  --aggregate_to puma
-```
-
-Expected output (example for Wayne County, MI):
-
-- `data/detroit/processed/marginals/acs5_2023_marginals_long_puma_state26_county163.csv`
-- `data/detroit/processed/marginals/acs5_2023_marginals_long_tract_geoid_state26_county163.csv`
-
-## Prepare building features (required for Scheme B allocation)
-
-1) Build a Detroit building feature table (geometry-derived):
-
-```bash
-python tools/prepare_detroit_buildings_gba.py \
-  --gba_tile "/path/to/LoD1.geojson" \
-  --tiger_place_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_place.zip" \
-  --tiger_puma_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip" \
-  --tiger_tract_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip" \
-  --tiger_bg_zip "$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_bg.zip" \
-  --out_csv "$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features.csv"
-```
-
-2) Join parcels/assessment to get `price_tier` (used only by allocation, NOT by diffusion training):
-
-```bash
-python tools/join_detroit_buildings_parcel_assessment.py \
-  --buildings_csv "$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features.csv" \
-  --parcels_path "$DATA_ROOT/detroit/raw/parcels/detroit_parcels_current" \
-  --group_for_tier tract --n_tiers 5 \
-  --out_csv "$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
-```
-
-## Run Scheme B PoC (train + sample + allocate + metrics)
-
-```bash
-export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
-export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
-export ACS_LONG="$DATA_ROOT/detroit/processed/marginals/acs5_2023_marginals_long_puma_state26_county163.csv"
-export ACS_LONG_TRACT="$DATA_ROOT/detroit/processed/marginals/acs5_2023_marginals_long_tract_geoid_state26_county163.csv"
-export OUT_DIR="$DATA_ROOT/detroit/outputs/runs/_poc_tabddpm_income_price_match_$(date -u +%Y%m%dT%H%M%SZ)"
-
-PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_pums_buildingcond.py \
-  --mode train-sample \
-  --data_root "$DATA_ROOT" \
-  --buildings_csv "$BLDG_CSV" \
-  --allocation_method income_price_match \
-  --n_tiers 5 \
-  --acs_marginals_long "$ACS_LONG" \
-  --acs_marginals_long_tract "$ACS_LONG_TRACT" \
-  --n_rows 200000 \
-  --epochs 1000 \
-  --batch_size 4096 \
-  --timesteps 200 \
-  --n_samples 50000 \
-  --device cuda \
-  --out_dir "$OUT_DIR" \
-  |& tee "$OUT_DIR/run.log"
-```
-
-Outputs (in `OUT_DIR`):
-
-- `model.pt`, `encoder.json`, `train_summary.json`
-- `samples_building.csv` (large; gitignored by default)
-- `building_portrait.csv` (large; gitignored by default)
-- `sample_summary.json`
-- `metrics/stats_metrics.json` (PUMS holdout reference)
-- `metrics/stats_metrics_acs.json` (ACS targets_long reference, if provided)
-- `metrics/stats_metrics_acs_tract.json` (ACS tract-level targets_long reference, if provided)
-
-Optional diagnosis helper (workstation-only; uses large `samples_building.csv`):
-
-```bash
-python tools/diagnose_tract_validation.py \
-  --run_dir "$OUT_DIR" \
-  --buildings_csv "$BLDG_CSV" \
-  --acs_targets_long_tract "$ACS_LONG_TRACT"
-```
-
-Optional analysis: check whether building features are clustered by tract (necessary for any tract-aware conditioning idea):
-
-```bash
-python tools/analyze_building_feature_clustering.py \
-  --buildings_csv "$BLDG_CSV" \
-  --group_col tract_geoid
-```
-
-## Run ACS-supervised PoC (tract_context ablation + 4-fold PUMA-block CV)
-
-```bash
-export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
-export ACS_B01001="$DATA_ROOT/detroit/raw/census/acs/acs5_2023/acs5_2023_B01001_tract_state26_county163.csv.gz"
-export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
-export TIGER_TRACT="$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_tract.zip"
-export TIGER_PUMA="$DATA_ROOT/detroit/raw/geo/tiger/TIGER2023/tl_2023_26_puma20.zip"
-export OUT_DIR="$DATA_ROOT/detroit/outputs/runs/_poc_acs_supervised_b01001_$(date -u +%Y%m%dT%H%M%SZ)"
-
-PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b01001.py \
-  --acs_b01001_csv_gz "$ACS_B01001" \
-  --buildings_csv "$BLDG_CSV" \
-  --tiger_tract_zip "$TIGER_TRACT" \
-  --tiger_puma_zip "$TIGER_PUMA" \
-  --data_root "$DATA_ROOT" \
-  --conditions "none,geo-only,built-only,geo+built" \
-  --puma_blocks "3202,3203;3208,3209;3210,3211;3212,3213" \
-  --epochs 1000 \
-  --batch_size 4096 \
-  --timesteps 200 \
-  --n_eval_per_tract 2000 \
-  --device cuda \
-  --out_dir "$OUT_DIR" \
-  |& tee "$OUT_DIR/run.log"
-```
-
-Alias entrypoint (same CLI):
-
-```bash
-PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_tract.py --help
-```
-
-Key outputs (small, commit-friendly):
-
-- `run_summary.json`
-- `metrics/acs_pums_baseline_gap.json`
-- `metrics/ablation_summary.json` (mean±std across folds)
-- `fold_*/**/metrics/internal_acs_holdout.json`
-- `fold_*/**/metrics/external_pums_by_puma.json` (if `--data_root` provided)
-
-## Run ACS-supervised PoC (B19037: householder age × household income, joint-to-joint)
-
-Download B19037 (tract level). Note: this table is wide, and may require request chunking; `--max_get_vars` controls the per-request limit (default: 60).
-
-```bash
-export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
-
-python tools/detroit_fetch_public_data.py acs \
-  --out_root "$DATA_ROOT" \
-  --acs_year 2023 \
-  --tables "B19037" \
-  --geo_levels tract
-```
-
-Run 3/4-fold PUMA-block CV (commit-friendly outputs under repo `outputs/`). For external validation (optional), provide `--data_root` so the script can load PUMS.
-
-```bash
-export DATA_ROOT="$RAW_ROOT/synthetic_city/data"
-export BLDG_CSV="$DATA_ROOT/detroit/processed/buildings/buildings_detroit_features_price.csv"
-export ACS_B19037="$DATA_ROOT/detroit/raw/census/acs/acs5_2023/acs5_2023_B19037_tract_state26_county163.csv.gz"
-export OUT_DIR="outputs/_poc_acs_supervised_b19037_$(date -u +%Y%m%dT%H%M%SZ)"
-
-PYTHONUNBUFFERED=1 python -u tools/poc_tabddpm_acs_supervised_b19037.py \
-  --acs_b19037_csv_gz "$ACS_B19037" \
-  --buildings_csv "$BLDG_CSV" \
-  --data_root "$DATA_ROOT" \
-  --conditions "none,marginal" \
-  --puma_blocks "3202,3203;3208,3209;3210,3211;3212,3213" \
-  --epochs 1000 \
-  --batch_size 4096 \
-  --timesteps 200 \
-  --n_eval_joint_samples 64 \
-  --device cuda \
-  --out_dir "$OUT_DIR" \
-  |& tee "$OUT_DIR/run.log"
-```
-
-## Results syncing strategy
-
-- Large artifacts (model checkpoints, large CSV/parquet) are ignored via `.gitignore`.
-- Small, reviewable outputs (JSON metrics/metadata/logs) can be committed under `outputs/` for PI review.
+This repo tracks **code, documentation, and lightweight review artifacts**, not the full data lake.
