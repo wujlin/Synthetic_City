@@ -293,6 +293,8 @@ def assign_work_destination_tract(
     destination_age_segment_weight: float = 0.0,
     destination_access_col: str | None = None,
     destination_access_weight: float = 0.0,
+    od_pair_prior_col: str | None = None,
+    od_pair_prior_weight: float = 0.0,
     destination_center_col: str | None = None,
     destination_center_weight: float = 0.0,
     same_tract_weight: float = 0.0,
@@ -365,6 +367,11 @@ def assign_work_destination_tract(
         and str(destination_access_col) in od.columns
         and float(destination_access_weight) > 0.0
     )
+    use_od_pair_prior = (
+        bool(od_pair_prior_col)
+        and str(od_pair_prior_col) in od.columns
+        and float(od_pair_prior_weight) > 0.0
+    )
     use_destination_center_prior = (
         bool(destination_center_col)
         and str(destination_center_col) in od.columns
@@ -389,6 +396,8 @@ def assign_work_destination_tract(
             od[col] = pd.to_numeric(od[col], errors="coerce").fillna(0.0).clip(lower=0.0)
     if use_destination_access_prior:
         od[str(destination_access_col)] = pd.to_numeric(od[str(destination_access_col)], errors="coerce").fillna(0.0).clip(lower=0.0)
+    if use_od_pair_prior:
+        od[str(od_pair_prior_col)] = pd.to_numeric(od[str(od_pair_prior_col)], errors="coerce").fillna(0.0).clip(lower=0.0)
     if use_destination_center_prior:
         od[str(destination_center_col)] = pd.to_numeric(od[str(destination_center_col)], errors="coerce").fillna(0.0).clip(lower=0.0)
     if use_od_earn_prior:
@@ -451,6 +460,8 @@ def assign_work_destination_tract(
                 item[f"dest_share_{seg}"] = grp[col].to_numpy(dtype=float)
         if use_destination_access_prior:
             item["dest_access"] = grp[str(destination_access_col)].to_numpy(dtype=float)
+        if use_od_pair_prior:
+            item["od_pair_prior"] = grp[str(od_pair_prior_col)].to_numpy(dtype=float)
         if use_destination_center_prior:
             item["dest_center_access"] = grp[str(destination_center_col)].to_numpy(dtype=float)
         if use_job_family_prior:
@@ -519,6 +530,13 @@ def assign_work_destination_tract(
                 county_inv,
                 int(uniq_counties.shape[0]),
             )
+        if use_od_pair_prior:
+            county_item["od_pair_prior"] = _weighted_group_mean(
+                item["od_pair_prior"],
+                item["base_probs"],
+                county_inv,
+                int(uniq_counties.shape[0]),
+            )
         if use_destination_center_prior:
             county_item["dest_center_access"] = _weighted_group_mean(
                 item["dest_center_access"],
@@ -583,6 +601,13 @@ def assign_work_destination_tract(
                 if use_destination_access_prior:
                     center_item["dest_access"] = _weighted_group_mean(
                         item["dest_access"][tract_idx],
+                        local_weights,
+                        center_inv,
+                        int(uniq_centers.shape[0]),
+                    )
+                if use_od_pair_prior:
+                    center_item["od_pair_prior"] = _weighted_group_mean(
+                        item["od_pair_prior"][tract_idx],
                         local_weights,
                         center_inv,
                         int(uniq_centers.shape[0]),
@@ -673,6 +698,13 @@ def assign_work_destination_tract(
             if use_destination_access_prior:
                 regime_item["dest_access"] = _weighted_group_mean(
                     item["dest_access"],
+                    item["base_probs"],
+                    regime_inv,
+                    int(regime_levels.shape[0]),
+                )
+            if use_od_pair_prior:
+                regime_item["od_pair_prior"] = _weighted_group_mean(
+                    item["od_pair_prior"],
                     item["base_probs"],
                     regime_inv,
                     int(regime_levels.shape[0]),
@@ -821,6 +853,10 @@ def assign_work_destination_tract(
                             age_map=access_age_map,
                         )
                         weights = weights * np.power(access_rel, float(destination_access_weight) * access_mult)
+                if use_od_pair_prior:
+                    pair_prior = item.get("od_pair_prior")
+                    if pair_prior is not None:
+                        weights = weights * np.power(np.clip(pair_prior.astype(float), 1e-6, None), float(od_pair_prior_weight))
                 if use_destination_center_prior:
                     center_access = item.get("dest_center_access")
                     if center_access is not None:
@@ -910,6 +946,10 @@ def assign_work_destination_tract(
                             age_map=access_age_map,
                         )
                         weights = weights * np.power(access_rel, float(destination_access_weight) * access_mult)
+                if use_od_pair_prior:
+                    pair_prior = county_item_local.get("od_pair_prior")
+                    if pair_prior is not None:
+                        weights = weights * np.power(np.clip(pair_prior.astype(float), 1e-6, None), float(od_pair_prior_weight))
                 if use_destination_center_prior:
                     center_access = county_item_local.get("dest_center_access")
                     if center_access is not None:
@@ -981,6 +1021,10 @@ def assign_work_destination_tract(
                             age_map=access_age_map,
                         )
                         weights = weights * np.power(access_rel, float(destination_access_weight) * access_mult)
+                if use_od_pair_prior:
+                    pair_prior = center_item_local.get("od_pair_prior")
+                    if pair_prior is not None:
+                        weights = weights * np.power(np.clip(pair_prior.astype(float), 1e-6, None), float(od_pair_prior_weight))
                 if use_destination_center_prior:
                     center_access = center_item_local.get("dest_center_access")
                     if center_access is not None:
@@ -1045,6 +1089,10 @@ def assign_work_destination_tract(
                             age_map=access_age_map,
                         )
                         weights = weights * np.power(access_rel, float(destination_access_weight) * access_mult)
+                if use_od_pair_prior:
+                    pair_prior = regime_item_local.get("od_pair_prior")
+                    if pair_prior is not None:
+                        weights = weights * np.power(np.clip(pair_prior.astype(float), 1e-6, None), float(od_pair_prior_weight))
                 if use_destination_center_prior:
                     center_access = regime_item_local.get("dest_center_access")
                     if center_access is not None:
@@ -1201,6 +1249,8 @@ def assign_work_destination_tract(
         "destination_age_segment_weight": float(destination_age_segment_weight),
         "destination_access_col": (str(destination_access_col) if destination_access_col else None),
         "destination_access_weight": float(destination_access_weight),
+        "od_pair_prior_col": (str(od_pair_prior_col) if od_pair_prior_col else None),
+        "od_pair_prior_weight": float(od_pair_prior_weight),
         "destination_center_col": (str(destination_center_col) if destination_center_col else None),
         "destination_center_weight": float(destination_center_weight),
         "same_tract_weight": float(same_tract_weight),
@@ -1226,6 +1276,7 @@ def assign_work_destination_tract(
         "use_destination_earn_prior": bool(use_destination_earn_prior),
         "use_destination_age_prior": bool(use_destination_age_prior),
         "use_destination_access_prior": bool(use_destination_access_prior),
+        "use_od_pair_prior": bool(use_od_pair_prior),
         "use_destination_center_prior": bool(use_destination_center_prior),
         "use_same_tract_prior": bool(use_same_tract_prior),
         "use_same_home_center_prior": bool(use_same_home_center_prior),

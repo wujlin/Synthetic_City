@@ -15,6 +15,7 @@ independent of the diffusion trainers.
 import itertools
 import json
 import pathlib
+import re
 from typing import Any, Mapping
 
 
@@ -69,7 +70,67 @@ def build_type_catalog(
         for var, value in zip(variable_order, values):
             row[str(var)] = str(value)
         rows.append(row)
-    return pd.DataFrame(rows)
+    out = pd.DataFrame(rows)
+    return _augment_type_catalog_with_derived_variables(out)
+
+
+def _interval_left_edge(label: Any) -> float | None:
+    text = str(label).strip()
+    m = re.match(r"^[\[\(]\s*([-+]?[0-9]*\.?[0-9]+)\s*,", text)
+    if m is None:
+        return None
+    try:
+        return float(m.group(1))
+    except Exception:
+        return None
+
+
+def _augment_type_catalog_with_derived_variables(type_catalog: Any) -> Any:
+    _, pd = _require_numpy_pandas()
+    if not isinstance(type_catalog, pd.DataFrame):
+        raise TypeError("type_catalog must be a pandas DataFrame")
+
+    out = type_catalog.copy()
+    cols = set(out.columns.astype(str).tolist())
+
+    age_left = None
+    if "AGEP_bin" in cols:
+        age_left = out["AGEP_bin"].map(_interval_left_edge)
+
+    if {"AGEP_bin", "SEX"} <= cols and "AGEP_SEX_cross" not in cols:
+        out["AGEP_SEX_cross"] = out["AGEP_bin"].astype(str) + "__" + out["SEX"].astype(str)
+
+    if age_left is not None and "ESR_allpop" in cols and "ESR_16p" not in cols:
+        src = out["ESR_allpop"].astype(str)
+        mask16 = age_left.fillna(-1.0) >= 16.0
+        derived = pd.Series(["not_16p"] * int(out.shape[0]), index=out.index, dtype=object)
+        derived.loc[mask16] = src.loc[mask16].replace(
+            {
+                "not_16p": "not_16p",
+                "employed": "employed",
+                "unemployed": "unemployed",
+                "armed_forces": "armed_forces",
+                "not_in_labor_force": "not_in_labor_force",
+            }
+        )
+        out["ESR_16p"] = derived.astype(str)
+
+    if age_left is not None and "SCHL_allpop" in cols and "SCHL_25p" not in cols:
+        src = out["SCHL_allpop"].astype(str)
+        mask25 = age_left.fillna(-1.0) >= 25.0
+        derived = pd.Series(["not_25p"] * int(out.shape[0]), index=out.index, dtype=object)
+        derived.loc[mask25] = src.loc[mask25]
+        out["SCHL_25p"] = derived.astype(str)
+
+    if age_left is not None and "EARN_16p_bin" in cols and "PINCP_16p_bin" not in cols:
+        src = out["EARN_16p_bin"].astype(str)
+        mask16 = age_left.fillna(-1.0) >= 16.0
+        in_universe = mask16 & (~src.isin({"", "nan", "None", "not_in_earnings_universe"}))
+        derived = pd.Series(["not_in_pincome_universe"] * int(out.shape[0]), index=out.index, dtype=object)
+        derived.loc[in_universe] = src.loc[in_universe]
+        out["PINCP_16p_bin"] = derived.astype(str)
+
+    return out
 
 
 def _joint_prob_cols(df: Any, *, expected_k: int) -> list[str]:

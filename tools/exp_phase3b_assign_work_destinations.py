@@ -70,6 +70,8 @@ def main() -> None:
     ap.add_argument("--destination_age_segment_weight", type=float, default=0.0)
     ap.add_argument("--destination_access_col", default="")
     ap.add_argument("--destination_access_weight", type=float, default=0.0)
+    ap.add_argument("--od_pair_prior_col", default="")
+    ap.add_argument("--od_pair_prior_weight", type=float, default=0.0)
     ap.add_argument("--destination_center_col", default="")
     ap.add_argument("--destination_center_weight", type=float, default=0.0)
     ap.add_argument("--same_tract_weight", type=float, default=0.0)
@@ -140,6 +142,8 @@ def main() -> None:
         destination_age_segment_weight=float(args.destination_age_segment_weight),
         destination_access_col=(str(args.destination_access_col) if args.destination_access_col else None),
         destination_access_weight=float(args.destination_access_weight),
+        od_pair_prior_col=(str(args.od_pair_prior_col) if args.od_pair_prior_col else None),
+        od_pair_prior_weight=float(args.od_pair_prior_weight),
         destination_center_col=(str(args.destination_center_col) if args.destination_center_col else None),
         destination_center_weight=float(args.destination_center_weight),
         same_tract_weight=float(args.same_tract_weight),
@@ -182,6 +186,8 @@ def main() -> None:
         "destination_age_segment_weight": float(args.destination_age_segment_weight),
         "destination_access_col": (str(args.destination_access_col) if args.destination_access_col else None),
         "destination_access_weight": float(args.destination_access_weight),
+        "od_pair_prior_col": (str(args.od_pair_prior_col) if args.od_pair_prior_col else None),
+        "od_pair_prior_weight": float(args.od_pair_prior_weight),
         "destination_center_col": (str(args.destination_center_col) if args.destination_center_col else None),
         "destination_center_weight": float(args.destination_center_weight),
         "same_tract_weight": float(args.same_tract_weight),
