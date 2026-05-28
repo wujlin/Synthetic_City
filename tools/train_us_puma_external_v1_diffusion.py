@@ -134,7 +134,13 @@ def _load_external_condition_matrix(
     condition_csv: pathlib.Path,
     ids: list[str],
     var_specs: list[tuple[str, str, list[str]]],
+    condition_scale_mode: str = "none",
 ) -> tuple[np.ndarray, dict[str, slice], dict[str, Any]]:
+    scale_mode = str(condition_scale_mode).strip().lower()
+    allowed_scale_modes = {"none", "log10_total", "log10_total_unit"}
+    if scale_mode not in allowed_scale_modes:
+        raise SystemExit(f"Unsupported condition_scale_mode={condition_scale_mode!r}; allowed={sorted(allowed_scale_modes)}")
+
     dtype_map = {"puma_uid": str, "statefp": str, "puma": str, "variable": str, "category": str}
     cond = pd.read_csv(condition_csv, dtype={k: v for k, v in dtype_map.items() if k in pd.read_csv(condition_csv, nrows=0).columns})
     cond = _normalize_geo_from_condition(cond)
@@ -154,6 +160,11 @@ def _load_external_condition_matrix(
     for var, _, cats in var_specs:
         block_slices[var] = slice(start, start + len(cats))
         start += len(cats)
+    scale_start = start
+    scale_feature_names: list[str] = []
+    if scale_mode != "none":
+        scale_feature_names = [f"scale__{scale_mode}__{var}" for var, _, _ in var_specs]
+        start += len(scale_feature_names)
     cond_dim = start
 
     lookup: dict[tuple[str, str, str], float] = {}
@@ -164,12 +175,20 @@ def _load_external_condition_matrix(
     missing_uids: list[str] = []
     for row_idx, uid in enumerate(ids):
         uid_seen = False
+        scale_vals: list[float] = []
         for var, _, cats in var_specs:
             vals = np.asarray([lookup.get((uid, var, cat), 0.0) for cat in cats], dtype=np.float64)
-            if float(vals.sum()) > 0:
+            total = float(vals.sum())
+            if scale_mode == "log10_total":
+                scale_vals.append(float(np.log10(1.0 + max(total, 0.0))))
+            elif scale_mode == "log10_total_unit":
+                scale_vals.append(float(np.log10(1.0 + max(total, 0.0)) / 6.0))
+            if total > 0:
                 uid_seen = True
-                vals = vals / float(vals.sum())
+                vals = vals / total
             out[row_idx, block_slices[var]] = vals.astype(np.float32)
+        if scale_mode != "none":
+            out[row_idx, scale_start : scale_start + len(scale_vals)] = np.asarray(scale_vals, dtype=np.float32)
         if not uid_seen:
             missing_uids.append(uid)
     if missing_uids:
@@ -180,8 +199,119 @@ def _load_external_condition_matrix(
         "cond_dim": int(cond_dim),
         "block_dims": {var: int(len(cats)) for var, _, cats in var_specs},
         "variable_order": [var for var, _, _ in var_specs],
+        "condition_scale_mode": scale_mode,
+        "scale_feature_names": scale_feature_names,
     }
     return out, block_slices, meta
+
+
+def _load_condition_extra_matrix(
+    *,
+    extra_csv: pathlib.Path,
+    ids: list[str],
+    standardize: str = "none",
+    missing_policy: str = "require",
+) -> tuple[np.ndarray, dict[str, Any]]:
+    standardize = str(standardize).strip().lower()
+    if standardize not in {"none", "zscore"}:
+        raise SystemExit(f"Unsupported condition extra standardize={standardize!r}; allowed=['none', 'zscore']")
+    missing_policy = str(missing_policy).strip().lower()
+    if missing_policy not in {"require", "zero"}:
+        raise SystemExit(f"Unsupported condition extra missing_policy={missing_policy!r}; allowed=['require', 'zero']")
+
+    header = pd.read_csv(extra_csv, nrows=0)
+    dtype_map = {"puma_uid": str, "puma_uid_key": str, "statefp": str, "puma": str, "puma5": str}
+    extra = pd.read_csv(extra_csv, dtype={k: v for k, v in dtype_map.items() if k in header.columns})
+    cols = set(extra.columns.astype(str).tolist())
+    if "puma_uid" in cols:
+        extra["puma_uid"] = extra["puma_uid"].map(_canon_uid_loose)
+    elif "puma_uid_key" in cols:
+        extra["puma_uid"] = extra["puma_uid_key"].map(_canon_uid_loose)
+    elif "statefp" in cols and ("puma5" in cols or "puma" in cols):
+        extra["statefp"] = extra["statefp"].map(_canon_statefp)
+        puma_col = "puma5" if "puma5" in cols else "puma"
+        extra[puma_col] = extra[puma_col].map(_canon_puma5)
+        extra["puma_uid"] = extra.apply(lambda r: _canon_uid(r["statefp"], r[puma_col]), axis=1)
+    else:
+        raise SystemExit("condition_extra_csv missing geography columns: expected puma_uid, puma_uid_key, or (statefp, puma/puma5)")
+
+    key_cols = {"puma_uid", "puma_uid_key", "statefp", "puma", "puma5", "geoid", "geometry"}
+    feature_cols: list[str] = []
+    for col in extra.columns:
+        if str(col) in key_cols:
+            continue
+        vals = pd.to_numeric(extra[col], errors="coerce")
+        if vals.notna().any():
+            feature_cols.append(str(col))
+    if not feature_cols:
+        raise SystemExit(f"condition_extra_csv has no numeric feature columns: {extra_csv}")
+
+    for col in feature_cols:
+        extra[col] = pd.to_numeric(extra[col], errors="coerce").fillna(0.0).astype(float)
+    extra = extra[extra["puma_uid"] != ""].copy()
+    extra = extra.groupby("puma_uid", as_index=False, sort=False)[feature_cols].mean()
+    lookup = {
+        str(row["puma_uid"]): row[feature_cols].to_numpy(dtype=np.float64)
+        for _, row in extra.iterrows()
+    }
+
+    out = np.zeros((len(ids), len(feature_cols)), dtype=np.float64)
+    missing_uids: list[str] = []
+    for i, uid in enumerate(ids):
+        arr = lookup.get(str(uid))
+        if arr is None:
+            missing_uids.append(str(uid))
+            continue
+        out[i, :] = arr
+    if missing_uids and missing_policy == "require":
+        raise SystemExit(f"condition_extra_csv missing {len(missing_uids)} puma_uid rows. Example={missing_uids[:5]}")
+
+    means: list[float] | None = None
+    stds: list[float] | None = None
+    if standardize == "zscore":
+        means_np = out.mean(axis=0, dtype=np.float64)
+        stds_np = out.std(axis=0, dtype=np.float64)
+        stds_np = np.where(stds_np < 1e-12, 1.0, stds_np)
+        out = (out - means_np.reshape(1, -1)) / stds_np.reshape(1, -1)
+        means = [float(x) for x in means_np.tolist()]
+        stds = [float(x) for x in stds_np.tolist()]
+
+    meta = {
+        "condition_extra_csv": str(extra_csv),
+        "condition_extra_dim": int(len(feature_cols)),
+        "condition_extra_feature_names": feature_cols,
+        "condition_extra_standardize": standardize,
+        "condition_extra_missing_policy": missing_policy,
+        "condition_extra_missing_uids": int(len(missing_uids)),
+        "condition_extra_mean": means,
+        "condition_extra_std": stds,
+    }
+    return out.astype(np.float32), meta
+
+
+def _append_condition_extra_matrix(
+    *,
+    cond_raw: np.ndarray,
+    cond_meta: dict[str, Any],
+    extra_csv: pathlib.Path | None,
+    ids: list[str],
+    standardize: str = "none",
+    missing_policy: str = "require",
+) -> tuple[np.ndarray, dict[str, Any]]:
+    if extra_csv is None:
+        return cond_raw, dict(cond_meta)
+    extra_raw, extra_meta = _load_condition_extra_matrix(
+        extra_csv=extra_csv,
+        ids=ids,
+        standardize=standardize,
+        missing_policy=missing_policy,
+    )
+    out = np.concatenate([np.asarray(cond_raw, dtype=np.float32), extra_raw.astype(np.float32)], axis=1)
+    meta = dict(cond_meta)
+    meta["base_cond_dim"] = int(cond_raw.shape[1])
+    meta.update(extra_meta)
+    meta["cond_dim"] = int(out.shape[1])
+    return out.astype(np.float32), meta
 
 
 def _apply_posthoc_ipf(*, policy: str, cond_name: str) -> bool:

@@ -17,6 +17,7 @@ artifact built from the same PUMS source.
 import argparse
 import json
 import pathlib
+import re
 import sys
 from typing import Any
 
@@ -43,6 +44,13 @@ CATEGORIES = {
 }
 SHAPE = tuple(len(CATEGORIES[v]) for v in VARIABLE_ORDER)
 K = int(np.prod(SHAPE))
+
+
+def _infer_year_scope(path: pathlib.Path) -> tuple[int, str]:
+    match = re.search(r"exttarget_earn_cond_v1_pums_(\d{4})_puma_(.+)\.csv$", path.name)
+    if not match:
+        return 2023, "us"
+    return int(match.group(1)), str(match.group(2))
 
 
 def _load_conditional(cond_target_csv: pathlib.Path) -> pd.DataFrame:
@@ -131,6 +139,9 @@ def main() -> None:
         default=str(default_root / "us" / "processed" / "external_targets" / "exttarget_earn_cond_v1_pums_2023_puma_us.csv"),
     )
     ap.add_argument("--condition_csv", default=None)
+    ap.add_argument("--pums_year", type=int, default=None)
+    ap.add_argument("--scope_tag", default=None)
+    ap.add_argument("--output_stem", default=None)
     ap.add_argument(
         "--out_dir",
         default=str(default_root / "us" / "processed" / "external_targets"),
@@ -144,7 +155,10 @@ def main() -> None:
     if not cond_target_csv.exists():
         raise SystemExit(f"conditional_target_csv not found: {cond_target_csv}")
 
-    stem = "exttarget_v1_full_earn_pums_2023_puma_us"
+    inferred_year, inferred_scope = _infer_year_scope(cond_target_csv)
+    pums_year = int(args.pums_year) if args.pums_year is not None else int(inferred_year)
+    scope_tag = str(args.scope_tag) if args.scope_tag else str(inferred_scope)
+    stem = str(args.output_stem) if args.output_stem else f"exttarget_v1_full_earn_pums_{pums_year}_puma_{scope_tag}"
     wide_csv = out_dir / f"{stem}_joint_wide.csv"
     long_csv = out_dir / f"{stem}_joint_long.csv"
     schema_json = out_dir / f"{stem}.schema.json"
@@ -242,6 +256,8 @@ def main() -> None:
         "schema": "external_target_v1_full_earn",
         "variant": "full_earn",
         "created_at": _utc_now_iso(),
+        "pums_year": int(pums_year),
+        "scope": scope_tag,
         "source_conditional_target_csv": str(cond_target_csv),
         "outputs": {
             "joint_wide_csv": str(wide_csv),

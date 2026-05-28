@@ -44,6 +44,7 @@ from tools.external_c2f_full_earn_schema import (
     AGE_FINE_TO_COARSE,
     COARSE_CATEGORIES,
     COARSE_K,
+    COARSE_PRESET,
     COARSE_SHAPE,
     COARSE_VARIABLE_ORDER,
     EARN_FINE_TO_COARSE,
@@ -66,6 +67,7 @@ from tools.train_us_puma_5var_diffusion import (
     _write_json,
 )
 from tools.train_us_puma_external_v1_diffusion import (
+    _append_condition_extra_matrix,
     _load_condition_specs_from_schema,
     _load_external_condition_matrix,
     _load_var_specs_from_schema,
@@ -578,6 +580,13 @@ def load_model_from_checkpoint(*, checkpoint_path: pathlib.Path, timesteps: int,
     payload = torch.load(checkpoint_path, map_location="cpu")
     if not isinstance(payload, dict) or payload.get("format") != "synthpop.external_c2f_full_earn_stage1_coarse_diffusion.v0":
         raise SystemExit(f"Unsupported stage1 coarse checkpoint format: {checkpoint_path}")
+    payload_shape = tuple(int(x) for x in payload.get("coarse_shape", ()))
+    if payload_shape and payload_shape != tuple(COARSE_SHAPE):
+        raise SystemExit(
+            "Stage-1 checkpoint coarse schema mismatch: "
+            f"checkpoint coarse_shape={payload_shape}, active coarse_shape={tuple(COARSE_SHAPE)}. "
+            "Set SYNTHETIC_CITY_C2F_COARSE_PRESET to the preset used during training."
+        )
 
     coarse_predict_mode = str(payload.get("coarse_predict_mode", "diffusion"))
     coarse_hidden_dims = tuple(int(x) for x in payload.get("coarse_hidden_dims", []))
@@ -696,7 +705,17 @@ def main() -> None:
     ap.add_argument("--condition_csv", required=True)
     ap.add_argument("--schema_json", default=None)
     ap.add_argument("--condition_schema_json", default=None)
-    ap.add_argument("--eval_mode", choices=["leave_mi_out", "mi_kfold"], default="leave_mi_out")
+    ap.add_argument(
+        "--condition_scale_mode",
+        choices=["none", "log10_total", "log10_total_unit"],
+        default="none",
+        help="Append ACS block-size features to the normalized marginal condition. Default keeps legacy behavior.",
+    )
+    ap.add_argument("--condition_extra_csv", default=None)
+    ap.add_argument("--condition_extra_standardize", choices=["none", "zscore"], default="none")
+    ap.add_argument("--condition_extra_missing_policy", choices=["require", "zero"], default="require")
+    ap.add_argument("--eval_mode", choices=["leave_mi_out", "leave_state_out", "mi_kfold", "state_kfold"], default="leave_mi_out")
+    ap.add_argument("--heldout_statefp", default="26", help="State FIPS used by leave-state-out/state-kfold evaluation. Default 26 keeps the original Michigan split.")
     ap.add_argument("--n_folds", type=int, default=5)
     ap.add_argument("--timesteps", type=int, default=200)
     ap.add_argument("--epochs", type=int, default=600)
@@ -747,6 +766,7 @@ def main() -> None:
     condition_csv = pathlib.Path(args.condition_csv).expanduser().resolve()
     schema_json = pathlib.Path(args.schema_json).expanduser().resolve() if args.schema_json else None
     condition_schema_json = pathlib.Path(args.condition_schema_json).expanduser().resolve() if args.condition_schema_json else None
+    condition_extra_csv = pathlib.Path(args.condition_extra_csv).expanduser().resolve() if args.condition_extra_csv else None
     teacher_stage1_checkpoint = pathlib.Path(args.teacher_stage1_checkpoint).expanduser().resolve() if args.teacher_stage1_checkpoint else None
     for p in [joint_csv, condition_csv]:
         if not p.exists():
@@ -755,6 +775,8 @@ def main() -> None:
         raise SystemExit(f"path not found: {schema_json}")
     if condition_schema_json is not None and not condition_schema_json.exists():
         raise SystemExit(f"path not found: {condition_schema_json}")
+    if condition_extra_csv is not None and not condition_extra_csv.exists():
+        raise SystemExit(f"path not found: {condition_extra_csv}")
     if teacher_stage1_checkpoint is not None and not teacher_stage1_checkpoint.exists():
         raise SystemExit(f"path not found: {teacher_stage1_checkpoint}")
 
@@ -768,24 +790,29 @@ def main() -> None:
     p_coarse = p_coarse / np.maximum(p_coarse.sum(axis=1, keepdims=True), 1e-12)
     x_log_all = np.log(np.clip(p_coarse, 0.0, None) + 1e-6).astype(np.float32)
 
-    is_mi = (df["statefp"] == "26").to_numpy(dtype=bool)
-    if args.eval_mode == "leave_mi_out":
-        train_idx = np.where(~is_mi)[0]
-        test_idx = np.where(is_mi)[0]
-        folds = [("leave_mi_out", train_idx, test_idx)]
+    heldout_statefp = base._canon_statefp(args.heldout_statefp)
+    is_heldout = (df["statefp"] == heldout_statefp).to_numpy(dtype=bool)
+    if not bool(is_heldout.any()):
+        raise SystemExit(f"No held-out rows found for statefp=={heldout_statefp}.")
+    if args.eval_mode in {"leave_mi_out", "leave_state_out"}:
+        train_idx = np.where(~is_heldout)[0]
+        test_idx = np.where(is_heldout)[0]
+        fold_label = "leave_mi_out" if heldout_statefp == "26" else f"leave_state_{heldout_statefp}_out"
+        folds = [(fold_label, train_idx, test_idx)]
     else:
-        mi_ids = [ids[i] for i in range(len(ids)) if is_mi[i]]
-        fold_map = _stable_hash_fold(sorted(set(mi_ids)), n_folds=int(args.n_folds), seed=int(args.seed))
+        heldout_ids = [ids[i] for i in range(len(ids)) if is_heldout[i]]
+        fold_map = _stable_hash_fold(sorted(set(heldout_ids)), n_folds=int(args.n_folds), seed=int(args.seed))
         folds = []
         for f in range(int(args.n_folds)):
-            te_mask = np.array([(is_mi[i] and fold_map.get(ids[i], -1) == f) for i in range(len(ids))], dtype=bool)
+            te_mask = np.array([(is_heldout[i] and fold_map.get(ids[i], -1) == f) for i in range(len(ids))], dtype=bool)
             tr_mask = ~te_mask
             tr = np.where(tr_mask)[0]
             te = np.where(te_mask)[0]
             if tr.size > 0 and te.size > 0:
-                folds.append((f"mi_fold_{f}", tr, te))
+                prefix = "mi_fold" if heldout_statefp == "26" else f"state_{heldout_statefp}_fold"
+                folds.append((f"{prefix}_{f}", tr, te))
         if not folds:
-            raise SystemExit("No valid folds built in mi_kfold mode.")
+            raise SystemExit("No valid folds built in state-kfold mode.")
 
     fine_var_specs = _load_var_specs_from_schema(schema_json=schema_json)
     cond_var_specs = _load_condition_specs_from_schema(
@@ -796,6 +823,15 @@ def main() -> None:
         condition_csv=condition_csv,
         ids=ids,
         var_specs=cond_var_specs,
+        condition_scale_mode=str(args.condition_scale_mode),
+    )
+    cond_raw, cond_meta = _append_condition_extra_matrix(
+        cond_raw=cond_raw,
+        cond_meta=cond_meta,
+        extra_csv=condition_extra_csv,
+        ids=ids,
+        standardize=str(args.condition_extra_standardize),
+        missing_policy=str(args.condition_extra_missing_policy),
     )
     cond_raw = cond_raw.astype(np.float32)
     ext_marg = {var: cond_raw[:, sl].copy() for var, sl in block_slices.items()}
@@ -918,6 +954,11 @@ def main() -> None:
             "diffusion_hidden_dims": list(_parse_hidden_dims(args.diffusion_hidden_dims)),
             "condition_injection": str(args.condition_injection),
             "film_hidden_dim": int(args.film_hidden_dim),
+            "condition_scale_mode": str(args.condition_scale_mode),
+            "condition_extra_csv": str(condition_extra_csv) if condition_extra_csv is not None else None,
+            "condition_extra_standardize": str(args.condition_extra_standardize),
+            "condition_extra_missing_policy": str(args.condition_extra_missing_policy),
+            "condition_meta": cond_meta,
             "diffusion_weight": float(args.diffusion_weight),
             "enable_coarse_head": bool(coarse_head_enabled),
             "coarse_head_weight": float(args.coarse_head_weight),
@@ -930,6 +971,7 @@ def main() -> None:
             "coarse_predict_mode": str(args.predict_mode),
             "lr": float(args.lr),
             "weight_decay": float(args.weight_decay),
+            "coarse_preset": str(COARSE_PRESET),
             "coarse_shape": list(COARSE_SHAPE),
             "x_mean": x_mean.tolist(),
             "x_std": x_std.tolist(),
@@ -1084,8 +1126,14 @@ def main() -> None:
         "condition_csv": str(condition_csv),
         "schema_json": str(schema_json) if schema_json else None,
         "condition_schema_json": str(condition_schema_json) if condition_schema_json else None,
+        "condition_scale_mode": str(args.condition_scale_mode),
+        "condition_extra_csv": str(condition_extra_csv) if condition_extra_csv is not None else None,
+        "condition_extra_standardize": str(args.condition_extra_standardize),
+        "condition_extra_missing_policy": str(args.condition_extra_missing_policy),
+        "condition_meta": cond_meta,
         "run_label": str(args.run_label),
         "eval_mode": str(args.eval_mode),
+        "heldout_statefp": str(heldout_statefp),
         "timesteps": int(args.timesteps),
         "epochs": int(args.epochs),
         "batch_size": int(args.batch_size),
@@ -1111,6 +1159,7 @@ def main() -> None:
         "logp_clip_quantile_low": float(args.logp_clip_quantile_low),
         "logp_clip_quantile_high": float(args.logp_clip_quantile_high),
         "ema_decay": float(args.ema_decay),
+        "coarse_preset": str(COARSE_PRESET),
         "coarse_shape": list(COARSE_SHAPE),
         "coarse_k": int(COARSE_K),
         "cond_raw_dim": int(cond_raw.shape[1]),

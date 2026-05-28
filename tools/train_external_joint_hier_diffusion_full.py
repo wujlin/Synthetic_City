@@ -61,6 +61,7 @@ from tools.train_us_puma_5var_diffusion import (
     _write_json,
 )
 from tools.train_us_puma_external_v1_diffusion import (
+    _append_condition_extra_matrix,
     _load_condition_specs_from_schema,
     _load_external_condition_matrix,
     _load_var_specs_from_schema,
@@ -659,7 +660,27 @@ def main() -> None:
     ap.add_argument("--condition_csv", required=True)
     ap.add_argument("--schema_json", default=None)
     ap.add_argument("--condition_schema_json", default=None)
-    ap.add_argument("--eval_mode", choices=["leave_mi_out", "mi_kfold"], default="leave_mi_out")
+    ap.add_argument(
+        "--condition_scale_mode",
+        choices=["none", "log10_total", "log10_total_unit"],
+        default="none",
+        help="Append ACS block-size features to the normalized marginal condition. Default keeps legacy behavior.",
+    )
+    ap.add_argument("--condition_extra_csv", default=None, help="Optional PUMA-level numeric feature table appended to the stage-1 condition.")
+    ap.add_argument(
+        "--condition_extra_standardize",
+        choices=["none", "zscore"],
+        default="none",
+        help="Optional global standardization for condition_extra_csv numeric columns.",
+    )
+    ap.add_argument(
+        "--condition_extra_missing_policy",
+        choices=["require", "zero"],
+        default="require",
+        help="How to handle PUMAs missing from condition_extra_csv.",
+    )
+    ap.add_argument("--eval_mode", choices=["leave_mi_out", "leave_state_out", "mi_kfold", "state_kfold"], default="leave_mi_out")
+    ap.add_argument("--heldout_statefp", default="26", help="State FIPS used by leave-state-out/state-kfold evaluation. Default 26 keeps the original Michigan split.")
     ap.add_argument("--n_folds", type=int, default=5)
     ap.add_argument("--timesteps", type=int, default=1000)
     ap.add_argument("--epochs", type=int, default=2000)
@@ -725,11 +746,14 @@ def main() -> None:
 
     joint_csv = pathlib.Path(args.joint_wide_csv).expanduser().resolve()
     condition_csv = pathlib.Path(args.condition_csv).expanduser().resolve()
+    condition_extra_csv = pathlib.Path(args.condition_extra_csv).expanduser().resolve() if args.condition_extra_csv else None
     schema_json = pathlib.Path(args.schema_json).expanduser().resolve() if args.schema_json else None
     condition_schema_json = pathlib.Path(args.condition_schema_json).expanduser().resolve() if args.condition_schema_json else None
     for p in [joint_csv, condition_csv]:
         if not p.exists():
             raise SystemExit(f"path not found: {p}")
+    if condition_extra_csv is not None and not condition_extra_csv.exists():
+        raise SystemExit(f"path not found: {condition_extra_csv}")
     if schema_json is not None and not schema_json.exists():
         raise SystemExit(f"path not found: {schema_json}")
     if condition_schema_json is not None and not condition_schema_json.exists():
@@ -741,24 +765,29 @@ def main() -> None:
     (out_dir / "metrics").mkdir(parents=True, exist_ok=True)
 
     df, p_fine_full, ids = _load_joint_wide(joint_wide_csv=joint_csv, schema_json=schema_json)
-    is_mi = (df["statefp"] == "26").to_numpy(dtype=bool)
-    if args.eval_mode == "leave_mi_out":
-        train_idx = np.where(~is_mi)[0]
-        test_idx = np.where(is_mi)[0]
-        folds = [("leave_mi_out", train_idx, test_idx)]
+    heldout_statefp = _canon_statefp(args.heldout_statefp)
+    is_heldout = (df["statefp"] == heldout_statefp).to_numpy(dtype=bool)
+    if not bool(is_heldout.any()):
+        raise SystemExit(f"No held-out rows found for statefp=={heldout_statefp}.")
+    if args.eval_mode in {"leave_mi_out", "leave_state_out"}:
+        train_idx = np.where(~is_heldout)[0]
+        test_idx = np.where(is_heldout)[0]
+        fold_label = "leave_mi_out" if heldout_statefp == "26" else f"leave_state_{heldout_statefp}_out"
+        folds = [(fold_label, train_idx, test_idx)]
     else:
-        mi_ids = [ids[i] for i in range(len(ids)) if is_mi[i]]
-        fold_map = _stable_hash_fold(sorted(set(mi_ids)), n_folds=int(args.n_folds), seed=int(args.seed))
+        heldout_ids = [ids[i] for i in range(len(ids)) if is_heldout[i]]
+        fold_map = _stable_hash_fold(sorted(set(heldout_ids)), n_folds=int(args.n_folds), seed=int(args.seed))
         folds = []
         for f in range(int(args.n_folds)):
-            te_mask = np.array([(is_mi[i] and fold_map.get(ids[i], -1) == f) for i in range(len(ids))], dtype=bool)
+            te_mask = np.array([(is_heldout[i] and fold_map.get(ids[i], -1) == f) for i in range(len(ids))], dtype=bool)
             tr_mask = ~te_mask
             tr = np.where(tr_mask)[0]
             te = np.where(te_mask)[0]
             if tr.size > 0 and te.size > 0:
-                folds.append((f"mi_fold_{f}", tr, te))
+                prefix = "mi_fold" if heldout_statefp == "26" else f"state_{heldout_statefp}_fold"
+                folds.append((f"{prefix}_{f}", tr, te))
         if not folds:
-            raise SystemExit("No valid folds built in mi_kfold mode.")
+            raise SystemExit("No valid folds built in state-kfold mode.")
 
     var_specs = _load_var_specs_from_schema(schema_json=schema_json)
     cond_var_specs = _load_condition_specs_from_schema(
@@ -769,6 +798,15 @@ def main() -> None:
         condition_csv=condition_csv,
         ids=ids,
         var_specs=cond_var_specs,
+        condition_scale_mode=str(args.condition_scale_mode),
+    )
+    cond_raw, cond_meta = _append_condition_extra_matrix(
+        cond_raw=cond_raw,
+        cond_meta=cond_meta,
+        extra_csv=condition_extra_csv,
+        ids=ids,
+        standardize=str(args.condition_extra_standardize),
+        missing_policy=str(args.condition_extra_missing_policy),
     )
     cond_raw = cond_raw.astype(np.float32)
     ext_marg = {var: cond_raw[:, sl].copy() for var, sl in block_slices.items()}
@@ -870,6 +908,8 @@ def main() -> None:
             "coarse_hidden_dims": list(_parse_hidden_dims(args.coarse_hidden_dims)),
             "diffusion_hidden_dims": list(_parse_hidden_dims(args.diffusion_hidden_dims)),
             "condition_injection": str(args.condition_injection),
+            "condition_scale_mode": str(args.condition_scale_mode),
+            "condition_meta": cond_meta,
             "fine_shape": list(FINE_SHAPE),
             "active_fine_dim": int(active_cols.size),
             "masked_zero_dim": int(FINE_K - active_cols.size),
@@ -1112,8 +1152,11 @@ def main() -> None:
         "condition_csv": str(condition_csv),
         "schema_json": str(schema_json) if schema_json is not None else None,
         "condition_schema_json": str(condition_schema_json) if condition_schema_json is not None else None,
+        "condition_scale_mode": str(args.condition_scale_mode),
+        "condition_meta": cond_meta,
         "n_rows_total": int(df.shape[0]),
-        "n_test_mi": int(sum(int(internal_by_fold[f]["n_test"]) for f in fold_names)),
+        "heldout_statefp": str(heldout_statefp),
+        "n_test_heldout": int(sum(int(internal_by_fold[f]["n_test"]) for f in fold_names)),
         "cond_raw_dim": int(cond_raw.shape[1]),
         "latent_dim": int(args.latent_dim),
         "fine_shape": list(FINE_SHAPE),
