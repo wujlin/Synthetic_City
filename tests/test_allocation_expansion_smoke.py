@@ -53,6 +53,43 @@ class TestAllocationExpansionSmoke(unittest.TestCase):
         self.assertEqual(len(persons), 6)
         self.assertTrue(persons["person_id"].str.startswith("toy_").all())
         self.assertEqual(int(persons["is_worker"].sum()), 4)
+        self.assertEqual(person_meta["person_id_geo_col"], "tract_geoid")
+
+    def test_expand_uses_tract_geoid_person_ids(self) -> None:
+        try:
+            import pandas as pd
+        except Exception:
+            self.skipTest("pandas not installed")
+
+        from src.synthpop.spatial.allocation_expansion import expand_integer_allocation_to_persons
+
+        alloc_int = pd.DataFrame(
+            {
+                "puma_uid": ["2602903", "2602903"],
+                "tract_geoid": ["26099200200", "26099200300"],
+                "type_idx": [0, 1],
+                "ESR_allpop": ["employed", "not_16p"],
+                "count_int": [2, 1],
+            }
+        )
+
+        persons, meta = expand_integer_allocation_to_persons(
+            integer_allocation_long=alloc_int,
+            count_col="count_int",
+            person_id_col="person_id",
+            person_id_prefix="synp",
+            esr_col="ESR_allpop",
+        )
+
+        self.assertEqual(
+            persons["person_id"].tolist(),
+            [
+                "synp_26099200200_000001",
+                "synp_26099200200_000002",
+                "synp_26099200300_000001",
+            ],
+        )
+        self.assertEqual(meta["person_id_scheme"], "synp_{tract_geoid}_{seq_within_tract:06d}")
 
 
 if __name__ == "__main__":

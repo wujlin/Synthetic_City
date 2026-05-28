@@ -12,7 +12,8 @@ Why:
   instead of the detroit_fetch_public_data.py naming convention.
 
 Scope (KISS, v0):
-- B01001 -> SEX + AGEP_bin (coarse bins aligned with src/synthpop/validation/stats.py)
+- B01001 -> SEX + AGEP_bin, optionally AGEP_SEX_cross
+  (coarse bins aligned with src/synthpop/validation/stats.py)
 - B23025 -> ESR_16p (coarse 16+ categories aligned with stats.py derived ESR_16p)
 - B15003 -> SCHL_25p (4 coarse bins for age 25+)
 - B20001 -> PINCP_16p_bin (5 coarse bins for workers with earnings, age 16+)
@@ -99,7 +100,7 @@ def _make_tract_geoid(df: Any) -> Any:
     raise SystemExit(f"Cannot derive tract_geoid; columns={list(df.columns)[:40]}")
 
 
-def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
+def _b01001_records(df: Any, *, group_col: str, include_age_sex_cross: bool = False) -> list[dict[str, Any]]:
     pd = _require("pandas")
 
     def num(col: str) -> Any:
@@ -120,26 +121,29 @@ def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
             out = v if out is None else (out + v)
         return out if out is not None else 0.0
 
-    age_bin_cols = {
-        age_labels[0]: ["B01001_003E", "B01001_027E"],  # <5
-        age_labels[1]: ["B01001_004E", "B01001_005E", "B01001_006E", "B01001_028E", "B01001_029E", "B01001_030E"],  # 5-17
-        age_labels[2]: [
-            "B01001_007E",
-            "B01001_008E",
-            "B01001_009E",
-            "B01001_010E",
-            "B01001_031E",
-            "B01001_032E",
-            "B01001_033E",
-            "B01001_034E",
-        ],  # 18-24
-        age_labels[3]: ["B01001_011E", "B01001_012E", "B01001_035E", "B01001_036E"],  # 25-34
-        age_labels[4]: ["B01001_013E", "B01001_014E", "B01001_037E", "B01001_038E"],  # 35-44
-        age_labels[5]: ["B01001_015E", "B01001_016E", "B01001_039E", "B01001_040E"],  # 45-54
-        age_labels[6]: ["B01001_017E", "B01001_018E", "B01001_019E", "B01001_041E", "B01001_042E", "B01001_043E"],  # 55-64
-        age_labels[7]: ["B01001_020E", "B01001_021E", "B01001_022E", "B01001_044E", "B01001_045E", "B01001_046E"],  # 65-74
-        age_labels[8]: ["B01001_023E", "B01001_024E", "B01001_047E", "B01001_048E"],  # 75-84
-        age_labels[9]: ["B01001_025E", "B01001_049E"],  # 85+
+    age_bin_cols_by_sex = {
+        age_labels[0]: {"1": ["B01001_003E"], "2": ["B01001_027E"]},  # <5
+        age_labels[1]: {
+            "1": ["B01001_004E", "B01001_005E", "B01001_006E"],
+            "2": ["B01001_028E", "B01001_029E", "B01001_030E"],
+        },  # 5-17
+        age_labels[2]: {
+            "1": ["B01001_007E", "B01001_008E", "B01001_009E", "B01001_010E"],
+            "2": ["B01001_031E", "B01001_032E", "B01001_033E", "B01001_034E"],
+        },  # 18-24
+        age_labels[3]: {"1": ["B01001_011E", "B01001_012E"], "2": ["B01001_035E", "B01001_036E"]},  # 25-34
+        age_labels[4]: {"1": ["B01001_013E", "B01001_014E"], "2": ["B01001_037E", "B01001_038E"]},  # 35-44
+        age_labels[5]: {"1": ["B01001_015E", "B01001_016E"], "2": ["B01001_039E", "B01001_040E"]},  # 45-54
+        age_labels[6]: {
+            "1": ["B01001_017E", "B01001_018E", "B01001_019E"],
+            "2": ["B01001_041E", "B01001_042E", "B01001_043E"],
+        },  # 55-64
+        age_labels[7]: {
+            "1": ["B01001_020E", "B01001_021E", "B01001_022E"],
+            "2": ["B01001_044E", "B01001_045E", "B01001_046E"],
+        },  # 65-74
+        age_labels[8]: {"1": ["B01001_023E", "B01001_024E"], "2": ["B01001_047E", "B01001_048E"]},  # 75-84
+        age_labels[9]: {"1": ["B01001_025E"], "2": ["B01001_049E"]},  # 85+
     }
 
     out: list[dict[str, Any]] = []
@@ -149,8 +153,21 @@ def _b01001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
             continue
         out.append({group_col: g, "variable": "SEX", "category": "1", "target": float(sex_male.loc[idx])})
         out.append({group_col: g, "variable": "SEX", "category": "2", "target": float(sex_female.loc[idx])})
-        for label, cols in age_bin_cols.items():
-            out.append({group_col: g, "variable": "AGEP_bin", "category": str(label), "target": float(s(cols).loc[idx])})
+        for label, sex_map in age_bin_cols_by_sex.items():
+            age_total = 0.0
+            for sex_label in ("1", "2"):
+                value = float(s(sex_map[sex_label]).loc[idx])
+                age_total += value
+                if include_age_sex_cross:
+                    out.append(
+                        {
+                            group_col: g,
+                            "variable": "AGEP_SEX_cross",
+                            "category": f"{label}__{sex_label}",
+                            "target": value,
+                        }
+                    )
+            out.append({group_col: g, "variable": "AGEP_bin", "category": str(label), "target": age_total})
     return out
 
 
@@ -344,6 +361,7 @@ def main() -> None:
     ap.add_argument("--statefp", default="26")
     ap.add_argument("--geo_level", choices=["tract"], default="tract")
     ap.add_argument("--tables", default="B01001,B15003,B20001,B23025")
+    ap.add_argument("--include_age_sex_cross", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--out_path", default=None)
     args = ap.parse_args()
@@ -378,7 +396,13 @@ def main() -> None:
     records: list[dict[str, Any]] = []
     group_col = "tract_geoid"
     if "B01001" in dfs:
-        records.extend(_b01001_records(dfs["B01001"], group_col=group_col))
+        records.extend(
+            _b01001_records(
+                dfs["B01001"],
+                group_col=group_col,
+                include_age_sex_cross=bool(args.include_age_sex_cross),
+            )
+        )
     if "B23025" in dfs:
         records.extend(_b23025_records(dfs["B23025"], group_col=group_col))
     if "B15003" in dfs:
@@ -396,7 +420,11 @@ def main() -> None:
     out_path = (
         pathlib.Path(args.out_path).expanduser().resolve()
         if args.out_path
-        else (out_dir / f"acs5_{acs_year}_marginals_long_tract_state{statefp}_michigan.csv")
+        else (
+            out_dir
+            / f"acs5_{acs_year}_marginals_long_tract_state{statefp}_michigan"
+            f"{'_agesex' if bool(args.include_age_sex_cross) else ''}.csv"
+        )
     )
     if out_path.exists() and not args.overwrite:
         print(f"[skip] exists: {out_path}")
@@ -408,7 +436,7 @@ def main() -> None:
         w.writeheader()
         for r in records:
             var = r.get("variable")
-            if var in {"SEX", "AGEP_bin"}:
+            if var in {"SEX", "AGEP_bin", "AGEP_SEX_cross"}:
                 table_id = "B01001"
             elif var == "ESR_16p":
                 table_id = "B23025"
@@ -439,6 +467,7 @@ def main() -> None:
         "statefp": statefp,
         "geo_level": "tract",
         "tables": tables,
+        "include_age_sex_cross": bool(args.include_age_sex_cross),
         "created_utc": _utc_now_iso(),
         "out_path": str(out_path),
         "acs_dir": str(acs_dir),

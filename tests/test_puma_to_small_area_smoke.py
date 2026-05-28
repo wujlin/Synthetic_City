@@ -2,6 +2,113 @@ import unittest
 
 
 class TestPumaToSmallAreaSmoke(unittest.TestCase):
+    def test_b01001_records_can_emit_age_sex_cross(self) -> None:
+        try:
+            import pandas as pd
+        except Exception:
+            self.skipTest("pandas not installed")
+
+        from tools.build_acs_targets_long_michigan import _b01001_records
+
+        row = {"tract_geoid": "26163500100"}
+        for i in range(1, 50):
+            row[f"B01001_{i:03d}E"] = 0
+        row.update(
+            {
+                "B01001_002E": 30,
+                "B01001_026E": 40,
+                "B01001_003E": 4,
+                "B01001_027E": 6,
+                "B01001_004E": 8,
+                "B01001_005E": 9,
+                "B01001_006E": 9,
+                "B01001_028E": 10,
+                "B01001_029E": 12,
+                "B01001_030E": 12,
+            }
+        )
+        records = _b01001_records(
+            pd.DataFrame([row]),
+            group_col="tract_geoid",
+            include_age_sex_cross=True,
+        )
+        cross = [r for r in records if r["variable"] == "AGEP_SEX_cross"]
+        self.assertEqual(len(cross), 20)
+        by_cat = {r["category"]: r["target"] for r in cross}
+        self.assertAlmostEqual(by_cat["[0.0, 5.0)__1"], 4.0)
+        self.assertAlmostEqual(by_cat["[0.0, 5.0)__2"], 6.0)
+        self.assertAlmostEqual(by_cat["[5.0, 18.0)__1"], 26.0)
+        self.assertAlmostEqual(by_cat["[5.0, 18.0)__2"], 34.0)
+
+    def test_allocate_region_type_counts_matches_age_sex_cross(self) -> None:
+        try:
+            import pandas as pd
+        except Exception:
+            self.skipTest("pandas not installed")
+
+        from src.synthpop.spatial.puma_to_small_area import (
+            allocate_region_type_counts,
+            build_type_catalog,
+            joint_wide_to_type_counts,
+            summarize_type_allocation_against_targets,
+        )
+
+        schema = {
+            "variable_order": ["AGEP_bin", "SEX"],
+            "categories": {
+                "AGEP_bin": ["young", "old"],
+                "SEX": ["1", "2"],
+            },
+        }
+        joint_wide = pd.DataFrame(
+            {
+                "puma_uid": ["2600100"],
+                "total_person_weight": [100.0],
+                "p_joint_000": [0.25],
+                "p_joint_001": [0.25],
+                "p_joint_002": [0.25],
+                "p_joint_003": [0.25],
+            }
+        )
+        type_counts = joint_wide_to_type_counts(joint_wide=joint_wide, schema=schema).drop(columns=["puma_uid"])
+        type_catalog = build_type_catalog(schema=schema)
+        self.assertIn("AGEP_SEX_cross", type_catalog.columns)
+
+        targets = pd.DataFrame(
+            {
+                "tract_geoid": ["t1", "t1", "t1", "t1", "t2", "t2", "t2", "t2"],
+                "variable": ["AGEP_SEX_cross"] * 8,
+                "category": [
+                    "young__1",
+                    "young__2",
+                    "old__1",
+                    "old__2",
+                    "young__1",
+                    "young__2",
+                    "old__1",
+                    "old__2",
+                ],
+                "target": [10.0, 5.0, 20.0, 15.0, 15.0, 20.0, 5.0, 10.0],
+            }
+        )
+        alloc, meta = allocate_region_type_counts(
+            type_counts=type_counts,
+            hard_targets_long=targets,
+            type_catalog=type_catalog,
+            group_col="tract_geoid",
+            hard_variables=["AGEP_SEX_cross"],
+            tol=1e-8,
+            max_iters=200,
+        )
+        self.assertTrue(meta["converged"])
+        summary = summarize_type_allocation_against_targets(
+            allocation_long=alloc,
+            targets_long=targets,
+            type_catalog=type_catalog,
+            group_col="tract_geoid",
+        )
+        self.assertLessEqual(summary["variables"]["AGEP_SEX_cross"]["max_abs_err"], 1e-5)
+
     def test_allocate_region_type_counts_matches_hard_marginals(self) -> None:
         try:
             import pandas as pd

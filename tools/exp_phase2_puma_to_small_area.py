@@ -37,9 +37,47 @@ def _parse_csv_list(value: str) -> list[str]:
     return [x.strip() for x in str(value).split(",") if x.strip()]
 
 
+def _target_variables(targets: pd.DataFrame) -> set[str]:
+    return set(targets["variable"].astype(str).unique().tolist())
+
+
+def _require_target_variables(
+    *,
+    targets: pd.DataFrame,
+    variables: list[str],
+    purpose: str,
+    strict: bool,
+) -> list[str]:
+    requested = [str(v) for v in variables if str(v)]
+    available = _target_variables(targets)
+    missing = [v for v in requested if v not in available]
+    if missing and bool(strict):
+        hint = ""
+        if "AGEP_SEX_cross" in missing:
+            hint = " Rebuild tract targets with --include_age_sex_cross."
+        raise SystemExit(
+            f"targets_long missing requested {purpose} variable(s): {missing}. "
+            f"Available variables: {sorted(available)}.{hint}"
+        )
+    if missing:
+        print(
+            f"[warn] targets_long missing requested {purpose} variable(s): {missing}; "
+            f"available={sorted(available)}",
+            file=sys.stderr,
+        )
+    return missing
+
+
 def _canon_puma_uid(statefp: str, puma: Any) -> str:
     puma5 = _canon_puma5(puma)
     return f"{str(statefp).zfill(2)}{puma5}" if puma5 else ""
+
+
+def _canon_region_series(series: pd.Series, *, region_col: str) -> pd.Series:
+    out = series.astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    if str(region_col) == "puma_uid":
+        out = out.str.zfill(7)
+    return out
 
 
 def _load_targets(path: pathlib.Path) -> pd.DataFrame:
@@ -220,6 +258,7 @@ def main() -> None:
     ap.add_argument("--hard_variables", default="AGEP_bin,SEX")
     ap.add_argument("--prior_variables", default="AGEP_bin,SEX,SCHL_allpop,ESR_allpop,EARN_16p_bin")
     ap.add_argument("--prior_variable_weights", default="")
+    ap.add_argument("--strict_prior_variables", action="store_true")
     ap.add_argument("--mobility_poi_csv", default="")
     ap.add_argument("--mobility_region_filter", default="MI")
     ap.add_argument("--mobility_group_level", default="tract")
@@ -275,7 +314,7 @@ def main() -> None:
     synthetic_dir = ensure_dir(run_dir / "synthetic")
 
     joint = pd.read_csv(joint_wide_csv, low_memory=False)
-    joint[str(args.region_col)] = joint[str(args.region_col)].astype(str)
+    joint[str(args.region_col)] = _canon_region_series(joint[str(args.region_col)], region_col=str(args.region_col))
     targets = _load_targets(targets_long_csv)
     prior_targets = _load_targets(prior_targets_csv) if prior_targets_csv is not None else targets.copy()
     targets = _drop_empty_region_col(targets, region_col=str(args.region_col))
@@ -291,7 +330,9 @@ def main() -> None:
         puma_zip=str(args.puma_zip),
     )
     group_to_region[str(args.group_col)] = group_to_region[str(args.group_col)].astype(str)
-    group_to_region[str(args.region_col)] = group_to_region[str(args.region_col)].astype(str)
+    group_to_region[str(args.region_col)] = _canon_region_series(
+        group_to_region[str(args.region_col)], region_col=str(args.region_col)
+    )
 
     targets = targets.merge(group_to_region, on=str(args.group_col), how="inner")
     prior_targets = prior_targets.merge(group_to_region, on=str(args.group_col), how="inner")
@@ -320,6 +361,18 @@ def main() -> None:
     type_prior_variables_cfg = _parse_csv_list(str(args.mobility_type_prior_variables))
     residual_variables_cfg = _parse_csv_list(str(args.mobility_residual_variables))
     feature_prefixes_cfg = tuple(_parse_csv_list(str(args.mobility_feature_prefixes)))
+    _require_target_variables(
+        targets=targets,
+        variables=hard_variables_cfg,
+        purpose="hard",
+        strict=True,
+    )
+    _require_target_variables(
+        targets=prior_targets,
+        variables=prior_variables_cfg,
+        purpose="prior",
+        strict=bool(args.strict_prior_variables),
+    )
     residual_projection_modes = sum(
         [
             bool(args.mobility_residual_use_low_rank),
@@ -636,6 +689,7 @@ def main() -> None:
         "regions": selected,
         "hard_variables": hard_variables_cfg,
         "prior_variables": prior_variables_cfg,
+        "strict_prior_variables": bool(args.strict_prior_variables),
         "prior_variable_weights": prior_variable_weights,
         "mobility_poi_csv": (str(args.mobility_poi_csv) if args.mobility_poi_csv else None),
         "mobility_profile_csv": (str(mobility_profile_path) if mobility_profile_path is not None else None),

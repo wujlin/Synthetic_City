@@ -29,6 +29,15 @@ def _write_json(path: pathlib.Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _canon_id_series(s: pd.Series, *, col: str) -> pd.Series:
+    out = s.astype(str).str.replace(r"\.0$", "", regex=True).str.strip()
+    if str(col) == "puma_uid":
+        out = out.str.zfill(7)
+    elif str(col) in {"tract_geoid", "work_tract_geoid"}:
+        out = out.str.zfill(11)
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="exp_phase2_expand_to_persons")
     ap.add_argument("--allocation_long_csv", required=True)
@@ -41,6 +50,7 @@ def main() -> None:
     ap.add_argument("--person_id_prefix", default="synp")
     ap.add_argument("--esr_col", default="ESR_allpop")
     ap.add_argument("--employed_values", default="employed")
+    ap.add_argument("--skip_persons_csv", action="store_true")
     ap.add_argument("--run_dir", default="")
     ap.add_argument("--label", default="phase2_expand_to_persons")
     args = ap.parse_args()
@@ -56,6 +66,9 @@ def main() -> None:
     metrics_dir = ensure_dir(run_dir / "metrics")
 
     alloc = pd.read_csv(allocation_path, low_memory=False)
+    for col in [str(args.region_col), str(args.group_col)]:
+        if col in alloc.columns:
+            alloc[col] = _canon_id_series(alloc[col], col=col)
     alloc_int, int_meta = integerize_type_allocation_long(
         allocation_long=alloc,
         region_col=str(args.region_col),
@@ -78,7 +91,8 @@ def main() -> None:
     persons_csv = synthetic_dir / "persons.csv"
     alloc_int.to_csv(alloc_int_csv, index=False)
     persons.to_parquet(persons_parquet, index=False)
-    persons.to_csv(persons_csv, index=False)
+    if not bool(args.skip_persons_csv):
+        persons.to_csv(persons_csv, index=False)
 
     summary = {
         "allocation_long_csv": str(allocation_path),
@@ -96,7 +110,7 @@ def main() -> None:
         "artifacts": {
             "integer_allocation_csv": str(alloc_int_csv),
             "persons_parquet": str(persons_parquet),
-            "persons_csv": str(persons_csv),
+            "persons_csv": (None if bool(args.skip_persons_csv) else str(persons_csv)),
         },
     }
     run_summary = {

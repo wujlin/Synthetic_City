@@ -43,6 +43,16 @@ def _largest_remainder(vec: Any, *, total: int) -> Any:
     return base
 
 
+def _canon_geoid_for_id(value: Any) -> str:
+    text = str(value).strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if digits and len(digits) <= 11 and text.replace(".", "", 1).isdigit():
+        return digits.zfill(11)
+    return text
+
+
 class _MaxFlow:
     def __init__(self, n: int) -> None:
         self.n = int(n)
@@ -291,8 +301,17 @@ def expand_integer_allocation_to_persons(
         return out, {"n_persons": 0, "worker_rate": 0.0}
 
     repeated = df.loc[df.index.repeat(df[str(count_col)])].copy().reset_index(drop=True)
-    repeated["_person_seq"] = range(int(repeated.shape[0]))
-    repeated[str(person_id_col)] = repeated["_person_seq"].map(lambda i: f"{str(person_id_prefix)}_{int(i):010d}")
+    geo_col = "tract_geoid" if "tract_geoid" in repeated.columns else None
+    if geo_col is not None:
+        repeated[geo_col] = repeated[geo_col].map(_canon_geoid_for_id)
+        repeated["_person_seq"] = repeated.groupby(geo_col, sort=False).cumcount() + 1
+        seq = repeated["_person_seq"].astype(int).astype(str).str.zfill(6)
+        repeated[str(person_id_col)] = str(person_id_prefix) + "_" + repeated[geo_col].astype(str) + "_" + seq
+        person_id_scheme = f"{person_id_prefix}_{{tract_geoid}}_{{seq_within_tract:06d}}"
+    else:
+        repeated["_person_seq"] = range(int(repeated.shape[0]))
+        repeated[str(person_id_col)] = repeated["_person_seq"].map(lambda i: f"{str(person_id_prefix)}_{int(i):010d}")
+        person_id_scheme = f"{person_id_prefix}_{{global_seq:010d}}"
     repeated = repeated.drop(columns=["_person_seq", str(count_col)])
 
     if str(esr_col) in repeated.columns:
@@ -304,6 +323,8 @@ def expand_integer_allocation_to_persons(
     meta = {
         "n_persons": int(repeated.shape[0]),
         "n_unique_person_ids": int(repeated[str(person_id_col)].nunique()),
+        "person_id_scheme": str(person_id_scheme),
+        "person_id_geo_col": geo_col,
         "worker_rate": (
             float(repeated["is_worker"].mean()) if "is_worker" in repeated.columns and len(repeated) > 0 else 0.0
         ),

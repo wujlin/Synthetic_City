@@ -15,6 +15,15 @@ JOB_FAMILY_CNS_GROUPS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _canon_geoid_series(s: pd.Series, *, width: int) -> pd.Series:
+    out = s.astype("string").str.replace(r"\.0$", "", regex=True).str.strip()
+    missing = out.isna() | out.str.lower().isin({"", "nan", "none", "<na>"})
+    numeric = out.str.fullmatch(r"\d+").fillna(False)
+    out.loc[numeric] = out.loc[numeric].str.zfill(int(width))
+    out.loc[missing] = pd.NA
+    return out
+
+
 def lodes_od_url(*, state_postal: str, year: int, part: str) -> str:
     st = str(state_postal).strip().lower()
     if part not in {"main", "aux"}:
@@ -58,8 +67,8 @@ def load_lodes_od(
     main_df = _read(pathlib.Path(main_path).expanduser().resolve())
     aux_df = _read(pathlib.Path(aux_path).expanduser().resolve())
     out = pd.concat([main_df, aux_df], ignore_index=True)
-    out["w_geocode"] = out["w_geocode"].astype(str)
-    out["h_geocode"] = out["h_geocode"].astype(str)
+    out["w_geocode"] = _canon_geoid_series(out["w_geocode"], width=15)
+    out["h_geocode"] = _canon_geoid_series(out["h_geocode"], width=15)
     for col in [c for c in out.columns if c not in {"w_geocode", "h_geocode"}]:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
     return out
@@ -90,7 +99,7 @@ def load_lodes_rac_or_wac(
         dtype={str(geocode_col): str},
         low_memory=False,
     )
-    out[str(geocode_col)] = out[str(geocode_col)].astype(str)
+    out[str(geocode_col)] = _canon_geoid_series(out[str(geocode_col)], width=15)
     for col in [c for c in cols if c != str(geocode_col)]:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
     return out
@@ -98,8 +107,8 @@ def load_lodes_rac_or_wac(
 
 def aggregate_lodes_to_tract_od(od: pd.DataFrame) -> pd.DataFrame:
     out = od.copy()
-    out["home_tract_geoid"] = out["h_geocode"].astype(str).str.slice(0, 11)
-    out["work_tract_geoid"] = out["w_geocode"].astype(str).str.slice(0, 11)
+    out["home_tract_geoid"] = _canon_geoid_series(out["h_geocode"], width=15).str.slice(0, 11)
+    out["work_tract_geoid"] = _canon_geoid_series(out["w_geocode"], width=15).str.slice(0, 11)
     value_cols = [c for c in out.columns if c not in {"w_geocode", "h_geocode", "home_tract_geoid", "work_tract_geoid"}]
     for col in value_cols:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
@@ -118,7 +127,7 @@ def aggregate_lodes_wac_to_tract(wac: pd.DataFrame) -> pd.DataFrame:
     if miss:
         raise ValueError(f"wac missing columns: {miss}")
     out = wac.copy()
-    out["tract_geoid"] = out["w_geocode"].astype(str).str.slice(0, 11)
+    out["tract_geoid"] = _canon_geoid_series(out["w_geocode"], width=15).str.slice(0, 11)
     value_cols = [c for c in out.columns if c not in {"w_geocode", "tract_geoid"}]
     for col in value_cols:
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
@@ -129,6 +138,11 @@ def aggregate_lodes_wac_to_tract(wac: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     out["tract_geoid"] = out["tract_geoid"].astype(str)
+    return _add_lodes_wac_share_columns(out)
+
+
+def _add_lodes_wac_share_columns(wac: pd.DataFrame) -> pd.DataFrame:
+    out = wac.copy()
     total = out["C000"].replace(0.0, np.nan)
     for seg in ["CA01", "CA02", "CA03", "CE01", "CE02", "CE03"]:
         if seg in out.columns:
@@ -142,6 +156,191 @@ def aggregate_lodes_wac_to_tract(wac: pd.DataFrame) -> pd.DataFrame:
         out[f"share_{family}"] = pd.to_numeric(out[family], errors="coerce").fillna(0.0) / total
         out[f"share_{family}"] = out[f"share_{family}"].fillna(0.0)
     return out
+
+
+def _normalize_tract_geoid_crosswalk(
+    crosswalk: pd.DataFrame,
+    *,
+    legacy_col: str = "legacy_tract_geoid",
+    current_col: str = "tract_geoid",
+    weight_col: str = "weight",
+) -> pd.DataFrame:
+    missing = [c for c in [legacy_col, current_col, weight_col] if c not in crosswalk.columns]
+    if missing:
+        raise ValueError(f"tract geoid crosswalk missing columns: {missing}")
+    out = crosswalk[[legacy_col, current_col, weight_col]].copy()
+    out[legacy_col] = _canon_geoid_series(out[legacy_col], width=11)
+    out[current_col] = _canon_geoid_series(out[current_col], width=11)
+    out[weight_col] = pd.to_numeric(out[weight_col], errors="coerce").fillna(0.0)
+    out = out[out[weight_col] > 0.0].copy()
+    if out.empty:
+        return pd.DataFrame(columns=["legacy_tract_geoid", "tract_geoid", "weight"])
+    out = (
+        out.groupby([legacy_col, current_col], as_index=False, sort=False)[weight_col]
+        .sum()
+        .rename(columns={legacy_col: "legacy_tract_geoid", current_col: "tract_geoid", weight_col: "weight"})
+    )
+    totals = out.groupby("legacy_tract_geoid", sort=False)["weight"].transform("sum").replace(0.0, np.nan)
+    out["weight"] = (out["weight"] / totals).fillna(0.0)
+    return out[out["weight"] > 0.0].reset_index(drop=True)
+
+
+def remap_tract_od_geoids(
+    tract_od: pd.DataFrame,
+    tract_crosswalk: pd.DataFrame,
+    *,
+    legacy_col: str = "legacy_tract_geoid",
+    current_col: str = "tract_geoid",
+    weight_col: str = "weight",
+) -> pd.DataFrame:
+    """Remap OD tract GEOIDs through an area-weighted tract crosswalk."""
+    cw = _normalize_tract_geoid_crosswalk(
+        tract_crosswalk,
+        legacy_col=legacy_col,
+        current_col=current_col,
+        weight_col=weight_col,
+    )
+    if cw.empty or tract_od.empty:
+        return tract_od.copy()
+
+    out = tract_od.copy()
+    out["home_tract_geoid"] = _canon_geoid_series(out["home_tract_geoid"], width=11)
+    out["work_tract_geoid"] = _canon_geoid_series(out["work_tract_geoid"], width=11)
+    value_cols = [c for c in out.columns if c not in {"home_tract_geoid", "work_tract_geoid"}]
+
+    def _remap_side(frame: pd.DataFrame, *, col: str, suffix: str) -> pd.DataFrame:
+        side_cw = cw.rename(
+            columns={
+                "legacy_tract_geoid": f"__legacy_{suffix}",
+                "tract_geoid": f"__current_{suffix}",
+                "weight": f"__weight_{suffix}",
+            }
+        )
+        merged = frame.merge(side_cw, left_on=col, right_on=f"__legacy_{suffix}", how="left")
+        matched = merged[f"__current_{suffix}"].notna()
+        merged[col] = merged[f"__current_{suffix}"].where(matched, merged[col])
+        merged[f"__weight_{suffix}"] = merged[f"__weight_{suffix}"].where(matched, 1.0).astype(float)
+        return merged.drop(columns=[f"__legacy_{suffix}", f"__current_{suffix}"])
+
+    out = _remap_side(out, col="home_tract_geoid", suffix="home")
+    out = _remap_side(out, col="work_tract_geoid", suffix="work")
+    factor = out["__weight_home"].to_numpy(dtype=float) * out["__weight_work"].to_numpy(dtype=float)
+    for col in value_cols:
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0).to_numpy(dtype=float) * factor
+    out = out.drop(columns=["__weight_home", "__weight_work"])
+    return (
+        out.groupby(["home_tract_geoid", "work_tract_geoid"], as_index=False, sort=False)[value_cols]
+        .sum()
+        .sort_values(["home_tract_geoid", "work_tract_geoid"], kind="stable")
+        .reset_index(drop=True)
+    )
+
+
+def remap_tract_wac_geoids(
+    tract_wac: pd.DataFrame,
+    tract_crosswalk: pd.DataFrame,
+    *,
+    legacy_col: str = "legacy_tract_geoid",
+    current_col: str = "tract_geoid",
+    weight_col: str = "weight",
+) -> pd.DataFrame:
+    """Remap tract-level WAC counts through a tract crosswalk and recompute shares."""
+    cw = _normalize_tract_geoid_crosswalk(
+        tract_crosswalk,
+        legacy_col=legacy_col,
+        current_col=current_col,
+        weight_col=weight_col,
+    )
+    if cw.empty or tract_wac.empty:
+        return tract_wac.copy()
+
+    out = tract_wac.copy()
+    out["tract_geoid"] = _canon_geoid_series(out["tract_geoid"], width=11)
+    share_cols = [c for c in out.columns if str(c).startswith("share_")]
+    if share_cols:
+        out = out.drop(columns=share_cols)
+    value_cols = [c for c in out.columns if c != "tract_geoid"]
+
+    side_cw = cw.rename(
+        columns={
+            "legacy_tract_geoid": "__legacy",
+            "tract_geoid": "__current",
+            "weight": "__weight",
+        }
+    )
+    out = out.merge(side_cw, left_on="tract_geoid", right_on="__legacy", how="left")
+    matched = out["__current"].notna()
+    out["tract_geoid"] = out["__current"].where(matched, out["tract_geoid"])
+    weights = out["__weight"].where(matched, 1.0).astype(float).to_numpy(dtype=float)
+    for col in value_cols:
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0).to_numpy(dtype=float) * weights
+    out = out.drop(columns=["__legacy", "__current", "__weight"])
+    out = (
+        out.groupby("tract_geoid", as_index=False, sort=False)[value_cols]
+        .sum()
+        .sort_values("tract_geoid", kind="stable")
+        .reset_index(drop=True)
+    )
+    return _add_lodes_wac_share_columns(out)
+
+
+def build_tract_area_crosswalk(
+    *,
+    legacy_areas: Any,
+    current_areas: Any,
+    legacy_group_col: str = "GEOID",
+    current_group_col: str = "GEOID",
+    min_legacy_area_share: float = 1e-8,
+    projected_crs: str = "EPSG:5070",
+) -> pd.DataFrame:
+    """Build an area-weighted legacy-to-current tract GEOID crosswalk."""
+    try:
+        import geopandas as gpd
+    except Exception as e:  # pragma: no cover
+        raise RuntimeError("build_tract_area_crosswalk requires geopandas.") from e
+
+    if str(legacy_group_col) not in legacy_areas.columns:
+        raise ValueError(f"legacy areas missing group column: {legacy_group_col}")
+    if str(current_group_col) not in current_areas.columns:
+        raise ValueError(f"current areas missing group column: {current_group_col}")
+
+    legacy = legacy_areas[[str(legacy_group_col), "geometry"]].dropna(subset=["geometry"]).copy()
+    current = current_areas[[str(current_group_col), "geometry"]].dropna(subset=["geometry"]).copy()
+    legacy = legacy.rename(columns={str(legacy_group_col): "legacy_tract_geoid"})
+    current = current.rename(columns={str(current_group_col): "tract_geoid"})
+    legacy["legacy_tract_geoid"] = _canon_geoid_series(legacy["legacy_tract_geoid"], width=11)
+    current["tract_geoid"] = _canon_geoid_series(current["tract_geoid"], width=11)
+    legacy = legacy.drop_duplicates("legacy_tract_geoid", keep="first")
+    current = current.drop_duplicates("tract_geoid", keep="first")
+    if legacy.empty or current.empty:
+        return pd.DataFrame(columns=["legacy_tract_geoid", "tract_geoid", "weight", "legacy_area_share", "overlap_area"])
+
+    if legacy.crs is None:
+        legacy = legacy.set_crs("EPSG:4269", allow_override=True)
+    if current.crs is None:
+        current = current.set_crs("EPSG:4269", allow_override=True)
+    legacy = legacy.to_crs(projected_crs)
+    current = current.to_crs(projected_crs)
+    legacy["__legacy_area"] = legacy.geometry.area.astype(float)
+
+    inter = gpd.overlay(
+        legacy[["legacy_tract_geoid", "__legacy_area", "geometry"]],
+        current[["tract_geoid", "geometry"]],
+        how="intersection",
+        keep_geom_type=False,
+    )
+    if inter.empty:
+        return pd.DataFrame(columns=["legacy_tract_geoid", "tract_geoid", "weight", "legacy_area_share", "overlap_area"])
+    inter["overlap_area"] = inter.geometry.area.astype(float)
+    inter = inter[inter["overlap_area"] > 0.0].copy()
+    inter["legacy_area_share"] = inter["overlap_area"] / inter["__legacy_area"].replace(0.0, np.nan)
+    inter = inter[inter["legacy_area_share"] >= float(min_legacy_area_share)].copy()
+    if inter.empty:
+        return pd.DataFrame(columns=["legacy_tract_geoid", "tract_geoid", "weight", "legacy_area_share", "overlap_area"])
+    denom = inter.groupby("legacy_tract_geoid", sort=False)["overlap_area"].transform("sum").replace(0.0, np.nan)
+    inter["weight"] = (inter["overlap_area"] / denom).fillna(0.0)
+    out = inter.loc[:, ["legacy_tract_geoid", "tract_geoid", "weight", "legacy_area_share", "overlap_area"]].copy()
+    return out.sort_values(["legacy_tract_geoid", "tract_geoid"], kind="stable").reset_index(drop=True)
 
 
 def haversine_km(
@@ -439,10 +638,10 @@ def prepare_internal_study_tract_od(
     tract_od: pd.DataFrame,
     study_tracts: set[str] | list[str],
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
-    study = {str(x) for x in study_tracts}
+    study = {str(x).replace(".0", "").strip().zfill(11) for x in study_tracts}
     od = tract_od.copy()
-    od["home_tract_geoid"] = od["home_tract_geoid"].astype(str)
-    od["work_tract_geoid"] = od["work_tract_geoid"].astype(str)
+    od["home_tract_geoid"] = _canon_geoid_series(od["home_tract_geoid"], width=11)
+    od["work_tract_geoid"] = _canon_geoid_series(od["work_tract_geoid"], width=11)
     od["S000"] = pd.to_numeric(od["S000"], errors="coerce").fillna(0.0)
     value_cols = [c for c in od.columns if c not in {"home_tract_geoid", "work_tract_geoid"}]
     for col in value_cols:

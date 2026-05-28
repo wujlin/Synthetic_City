@@ -11,6 +11,15 @@ _INTERVAL_RE = re.compile(r"[\[\(]\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([^)\]]+)\s*[\)\
 _JOB_FAMILY_LABELS = ("JF_SERVICE", "JF_INDUSTRIAL", "JF_PROFESSIONAL")
 
 
+def _canon_geoid_series(s: pd.Series, *, width: int) -> pd.Series:
+    out = s.astype("string").str.replace(r"\.0$", "", regex=True).str.strip()
+    missing = out.isna() | out.str.lower().isin({"", "nan", "none", "<na>"})
+    numeric = out.str.fullmatch(r"\d+").fillna(False)
+    out.loc[numeric] = out.loc[numeric].str.zfill(int(width))
+    out.loc[missing] = pd.NA
+    return out
+
+
 def _resolve_work_eligible_mask(
     *,
     persons: pd.DataFrame,
@@ -330,11 +339,11 @@ def assign_work_destination_tract(
         raise ValueError(f"tract_od missing columns: {miss_od}")
 
     out = persons.copy().reset_index(drop=True)
-    out[str(home_group_col)] = out[str(home_group_col)].astype(str)
+    out[str(home_group_col)] = _canon_geoid_series(out[str(home_group_col)], width=11)
 
     od = tract_od.copy()
-    od["home_tract_geoid"] = od["home_tract_geoid"].astype(str)
-    od["work_tract_geoid"] = od["work_tract_geoid"].astype(str)
+    od["home_tract_geoid"] = _canon_geoid_series(od["home_tract_geoid"], width=11)
+    od["work_tract_geoid"] = _canon_geoid_series(od["work_tract_geoid"], width=11)
     od["S000"] = pd.to_numeric(od["S000"], errors="coerce").fillna(0.0)
     od = od[od["S000"] > 0.0].copy()
     use_distance = bool(distance_col) and str(distance_col) in od.columns and float(distance_beta) > 0.0

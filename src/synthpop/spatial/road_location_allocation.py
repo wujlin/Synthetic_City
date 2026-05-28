@@ -552,6 +552,9 @@ def _build_candidates_for_area(
             density=float(state["work_interpolation_density"]),
             dedupe_precision=dedupe_precision,
         )
+    if not work_points and bool(state["allow_work_fallback"]):
+        work_stage = "representative_point"
+        work_points = [{"geometry": geom.representative_point(), "source_mtfcc": None, "source_component": None}]
     if not work_points:
         work_stage = "no_candidates"
         work_points = []
