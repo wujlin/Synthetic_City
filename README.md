@@ -1,171 +1,109 @@
 # Synthetic City
 
-Research codebase for **synthetic population generation and spatialization** with a current focus on the **Detroit metropolitan area**. The repository combines two tightly related threads:
+Research code for generating a multi-attribute, geographically explicit synthetic population for the United States.
 
-- **distribution-level demographic generation** from PUMS / ACS constraints
-- **explicit home/work spatialization** from small-area population mass to reviewable road-supported locations
+The current mainline follows the framework in the SIGSPATIAL 2026 manuscript: it learns region-specific joint distributions of five demographic and socioeconomic attributes, then converts those distributions into synthetic individuals with explicit home and workplace coordinates.
 
-The project is organized around a simple idea: do not jump directly from marginals to point locations. Instead, separate three inferential tasks that should not be mixed together:
+## Data Release
 
-1. recover **who lives in a PUMA**
-2. disaggregate that joint mass to **tract / CBG**
-3. assign explicit **home / work locations** within each small area
+The release-format synthetic population dataset is hosted on OSF:
 
-## Project Status
+<https://osf.io/e7wp8/>
 
-The current Detroit pipeline is mature enough to support manuscript writing and figure production.
+The OSF release is organized by state under `synthetic_population/data/csv_by_state/`. Each compressed CSV contains one state or Washington, D.C., and uses the USPS abbreviation in the filename, for example `synthetic_individuals_CA.csv.gz`.
 
-- **Phase 1**: recover PUMA-level demographic joint structure
-- **Phase 2**: disaggregate PUMA mass to tract / CBG with ACS as the main anchor
-- **Phase 2.5**: synthesize households so that home assignment is household-semantic
-- **Phase 3**: assign explicit home/work locations under road-constrained supports
-
-Current empirical takeaways:
-
-- **home** is the strongest result and already has stable external validation
-- **work destination tract + commute shape** are reasonable and publishable as qualified results
-- **OD pairing** remains the main unresolved problem
-
-## What Is In This Repository
-
-This repo is not a polished software package. It is a **research-first working repository** that keeps reusable modules, experiment entrypoints, documentation, and manuscript assets in one place.
+Release columns:
 
 ```text
-src/         reusable library-style modules
-tools/       experiment entrypoints, data prep, validation, figure scripts
-docs/        methods notes, architecture notes, experiment findings, data guides
-tests/       lightweight tests and smoke checks
-data/        optional local link to external data root (not committed)
-outputs/     run artifacts and synced experiment products (gitignored)
-figures/     current figure products for manuscript/presentation use
+person_id, age, gender, education, employment, income,
+home_lon, home_lat, work_lon, work_lat
 ```
 
-Local writing/proposal workspaces such as `Essay/` or `NSFC/` may exist on a developer machine, but they are not part of the public repository contract.
+The dataset is released under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0). See the OSF `license.txt` for the exact license statement.
 
-## Architecture At A Glance
+## Framework
 
-### Phase 1: Demographic Joint Recovery
+The framework separates joint-distribution recovery from spatial assignment. This separation is the central design choice: the model first learns who lives in each region, then assigns those synthetic people to tracts and road-supported locations under census and commuting-flow constraints.
 
-Phase 1 reconstructs the **joint attribute structure** of a population within a macro geography such as a PUMA. In the repo this appears as diffusion-based tabular generation, conditional encoders, and alignment utilities.
+### Step 1: Target and Condition Construction
 
-Representative modules:
+Step 1 constructs one training target and two condition vectors for each Public Use Microdata Area (PUMA).
 
-- `src/synthpop/model/`
-- `src/synthpop/alignment/`
-- `src/synthpop/features/condition_vectors.py`
+- `p`: a PUMS-derived five-attribute joint distribution over age, gender, education, employment, and income.
+- `c`: a PUMA-level census condition vector built from ACS Detailed Tables.
+- `h`: a spatial representation vector built from POI and LODES-derived features.
 
-Representative experiment scripts:
+The PUMS target provides observed individual-level co-occurrence patterns, while ACS and spatial features provide the region-specific conditions used during inference.
 
-- `tools/train_us_puma_5var_diffusion.py`
-- `tools/train_us_puma_3var_diffusion.py`
-- `tools/poc_tabddpm_pums.py`
+### Step 2: Hierarchical Diffusion
 
-### Phase 2: PUMA -> Tract / CBG Disaggregation
+Step 2 learns the PUMA-level joint distribution with a two-stage diffusion process.
 
-Phase 2 is a **constrained decomposition** problem, not a person-level location prediction problem. ACS provides the main small-area anchor; mobility signals are useful mainly as residual spatial heterogeneity evidence or validation, not as the primary demographic truth.
+- Stage 1 predicts a coarse joint distribution using `c` and `h`.
+- Stage 2 refines each coarse group into fine-grained attribute combinations.
 
-Representative modules:
+The current paper configuration uses `K=960` coarse combinations in Stage 1 and refines them back to the full 3,000-cell joint distribution over the five attributes. This keeps the learning target compact while preserving the full attribute space used to sample individuals.
 
-- `src/synthpop/spatial/puma_to_small_area.py`
-- `src/synthpop/constraints/`
-- `src/synthpop/data/acs_crosstab.py`
+### Step 3: Spatial Synthetic Population Generation
 
-Representative experiment scripts:
+Step 3 turns the predicted joint distribution into individual records and explicit locations.
 
-- `tools/exp_phase2_puma_to_small_area.py`
-- `tools/exp5_tract_postalign.py`
+- Individuals are sampled from the predicted PUMA-level joint distribution.
+- Home tracts are assigned with tract-level ACS constraints, including age-gender consistency.
+- Home coordinates are placed on residential road-supported candidate locations.
+- Workers receive destination work tracts from LODES commuting flows.
+- Workplace coordinates are placed on road-supported workplace candidate locations.
 
-### Phase 2.5: Household Synthesis
+The resulting product is a national synthetic population with five attributes and explicit home/work coordinates.
 
-This stage turns person-level synthetic population into **household-consistent** population so that home assignment is semantically correct.
+## Data Sources
 
-Representative modules:
-
-- `src/synthpop/spatial/tract_householding.py`
-
-Representative experiment scripts:
-
-- `tools/exp_phase25_synthesize_households.py`
-
-### Phase 3: Explicit Home / Work Spatialization
-
-Phase 3 assigns explicit locations within each tract / CBG.
-
-- **home**: road-constrained residential support, household-aware assignment
-- **work**: worker -> destination tract -> explicit work point
-
-Representative modules:
-
-- `src/synthpop/spatial/road_location_allocation.py`
-- `src/synthpop/spatial/work_destination_allocation.py`
-- `src/synthpop/validation/mobility_anchor.py`
-
-Representative experiment and figure scripts:
-
-- `tools/exp_phase3b_assign_work_destinations.py`
-- `tools/exp_phase3_validate_mobility_anchor.py`
-- `tools/viz_phase3_detroit_overviews.py`
-- `tools/viz_phase3_validation_detroit.py`
-
-## Data Roles
-
-The project uses each data source for a specific inferential role rather than treating all of them as interchangeable evidence.
-
-| Data source | Role in pipeline |
+| Source | Role in the framework |
 |---|---|
-| **PUMS** | microdata seed for demographic joint structure |
-| **ACS / Census** | tract / CBG population anchors and household constraints |
-| **LODES** | work destination mass and OD skeleton |
-| **TIGER roads / MTFCC** | explicit home/work candidate supports |
-| **Mobility anchors** | external validation, local pattern checks, commute diagnostics |
-| **POI / visit products** | optional refinement or secondary diagnostics, not current mainline |
+| ACS PUMS | Constructs the PUMA-level target joint distribution `p` |
+| ACS Detailed Tables | Constructs census condition `c` and tract-level allocation constraints |
+| POI data | Contributes to the spatial representation `h` |
+| LODES | Contributes to `h` and provides work-destination flows |
+| Road network | Provides candidate supports for home and workplace coordinates |
 
-## Where To Start
+## Repository Layout
 
-If you are new to the repository, read these in order:
+This is a research-first repository rather than a packaged software library. Reusable logic is kept under `src/`, while experiment entrypoints and release utilities are under `tools/`.
 
-1. [`docs/synthpop_architecture.md`](docs/synthpop_architecture.md)  
-   Project architecture, phase logic, and module-to-question mapping.
-2. [`docs/detroit_code_data_structure.md`](docs/detroit_code_data_structure.md)  
-   Detroit-specific data layout and run structure.
-3. [`docs/phase3_small_area_to_road_constrained_locations_method.md`](docs/phase3_small_area_to_road_constrained_locations_method.md)  
-   Current explicit spatialization logic.
-4. [`docs/phase3_work_destination_detroit_2026-03-29.md`](docs/phase3_work_destination_detroit_2026-03-29.md)  
-   Work destination findings.
-5. [`docs/phase3_mobility_anchor_validation_detroit_2026-03-29.md`](docs/phase3_mobility_anchor_validation_detroit_2026-03-29.md)  
-   Home/work validation summary.
+```text
+src/         reusable modules for data loading, constraints, models, spatial allocation, and validation
+tools/       data preparation, training, evaluation, release export, and OSF upload scripts
+docs/        method notes, run notes, data contracts, and experiment summaries
+tests/       lightweight smoke tests and regression checks
+figures/     manuscript and presentation figure assets
+outputs/     local run artifacts, gitignored by default
+data/        optional local link to external data roots, gitignored by default
+```
 
-For the earlier distribution-level diffusion thread, see:
+## Pipeline Components
 
-- [`docs/methods.md`](docs/methods.md)
-- [`docs/findings.md`](docs/findings.md)
+The current national pipeline is script-driven. The repository contains utilities for:
 
-## Running Code
+- building aligned PUMS/ACS targets;
+- training and evaluating the hierarchical diffusion model;
+- generating state-level spatial synthetic populations;
+- exporting 10-column release-format CSV files;
+- preparing upload manifests and checksums for the OSF release.
 
-This repository is script-driven. Most experiments are launched from `tools/`, while reusable logic lives in `src/`.
+Large raw data, licensed data, model checkpoints, and generated state-level products are intentionally kept out of git. The public repository tracks code, documentation, lightweight tests, and manuscript-supporting assets.
 
-Basic setup:
+## Getting Started
+
+Install the Python dependencies in an isolated environment, then run the smoke tests:
 
 ```bash
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests
 ```
 
-Detroit public data bootstrap:
+For the manuscript framework and data schema, start with:
 
-```bash
-python tools/detroit_fetch_public_data.py tiger --out_root "$RAW_ROOT/synthetic_city/data"
-python tools/detroit_fetch_public_data.py acs --out_root "$RAW_ROOT/synthetic_city/data" --acs_year 2023
-python tools/detroit_fetch_public_data.py pums --out_root "$RAW_ROOT/synthetic_city/data" --pums_year 2022
-python tools/detroit_fetch_public_data.py osm --out_root "$RAW_ROOT/synthetic_city/data" --region michigan
-```
+- `docs/DATA_CONTRACT.md`
+- `docs/synthpop_architecture.md`
 
-## Data and Storage Policy
-
-Raw data, licensed data, synced experiment products, and large outputs are intentionally kept **out of git**.
-
-- `data/` should point to an external data root or symlink
-- `outputs/` is for experiment products and is gitignored
-- `figures/` only keeps current manuscript-ready products, not every intermediate rendering
-
-This repo tracks **code, documentation, and lightweight review artifacts**, not the full data lake.
+Most full-scale runs require external data roots and workstation-scale compute. Local users should treat `data/` and `outputs/` as machine-specific paths rather than versioned repository content.
