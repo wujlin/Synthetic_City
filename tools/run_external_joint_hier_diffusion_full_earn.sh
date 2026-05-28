@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RAW_ROOT="${RAW_ROOT:-/home/jinlin/data/geoexplicit_data}"
-DATA_ROOT="${SYNTHCITY_DATA_ROOT:-$RAW_ROOT/synthetic_city/data}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RAW_ROOT="${RAW_ROOT:-$ROOT_DIR/data}"
+DATA_ROOT="${DATA_ROOT:-${SYNTHCITY_DATA_ROOT:-$RAW_ROOT/synthetic_city/data}}"
 OUT_ROOT="${OUT_ROOT:-outputs}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 TARGET_WIDE_CSV="${TARGET_WIDE_CSV:-$DATA_ROOT/us/processed/external_targets/exttarget_v1_full_earn_pums_2023_puma_us_joint_wide.csv}"
 CONDITION_CSV="${CONDITION_CSV:-$DATA_ROOT/us/processed/external_conditions/extcond_v1_earn_v1_acs5_2022_puma_us.csv}"
-CONDITION_SCHEMA_JSON="${CONDITION_SCHEMA_JSON:-$CONDITION_CSV.schema.json}"
 SCHEMA_JSON="${SCHEMA_JSON:-$DATA_ROOT/us/processed/external_targets/exttarget_v1_full_earn_pums_2023_puma_us.schema.json}"
+CONDITION_SCHEMA_JSON="${CONDITION_SCHEMA_JSON:-$SCHEMA_JSON}"
+CONDITION_SCALE_MODE="${CONDITION_SCALE_MODE:-none}"
+CONDITION_EXTRA_CSV="${CONDITION_EXTRA_CSV:-}"
+CONDITION_EXTRA_STANDARDIZE="${CONDITION_EXTRA_STANDARDIZE:-none}"
+CONDITION_EXTRA_MISSING_POLICY="${CONDITION_EXTRA_MISSING_POLICY:-require}"
 
 EVAL_MODE="${EVAL_MODE:-leave_mi_out}"
+HELDOUT_STATEFP="${HELDOUT_STATEFP:-26}"
 N_FOLDS="${N_FOLDS:-5}"
 TIMESTEPS="${TIMESTEPS:-200}"
 EPOCHS="${EPOCHS:-3000}"
@@ -57,13 +63,19 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="${RUN_DIR:-$OUT_ROOT/_us_puma_external_joint_hier_diffusion_full_earn_v2_${TS}}"
 mkdir -p "$RUN_DIR"
 
+cd "$ROOT_DIR"
+
 CMD=(
   "$PYTHON_BIN" -u tools/train_external_joint_hier_diffusion_full_earn.py
   --joint_wide_csv "$TARGET_WIDE_CSV"
   --condition_csv "$CONDITION_CSV"
   --condition_schema_json "$CONDITION_SCHEMA_JSON"
   --schema_json "$SCHEMA_JSON"
+  --condition_scale_mode "$CONDITION_SCALE_MODE"
+  --condition_extra_standardize "$CONDITION_EXTRA_STANDARDIZE"
+  --condition_extra_missing_policy "$CONDITION_EXTRA_MISSING_POLICY"
   --eval_mode "$EVAL_MODE"
+  --heldout_statefp "$HELDOUT_STATEFP"
   --n_folds "$N_FOLDS"
   --timesteps "$TIMESTEPS"
   --epochs "$EPOCHS"
@@ -107,6 +119,9 @@ CMD=(
 if [[ -n "$DEVICE" ]]; then
   CMD+=(--device "$DEVICE")
 fi
+if [[ -n "$CONDITION_EXTRA_CSV" ]]; then
+  CMD+=(--condition_extra_csv "$CONDITION_EXTRA_CSV")
+fi
 if [[ "$SAVE_FINAL_MODEL" == "1" ]]; then
   CMD+=(--save_final_model)
 fi
@@ -123,6 +138,9 @@ fi
   echo "[info] TARGET_WIDE_CSV=$TARGET_WIDE_CSV"
   echo "[info] CONDITION_CSV=$CONDITION_CSV"
   echo "[info] CONDITION_SCHEMA_JSON=$CONDITION_SCHEMA_JSON"
+  echo "[info] CONDITION_EXTRA_CSV=${CONDITION_EXTRA_CSV:-none}"
+  echo "[info] CONDITION_EXTRA_STANDARDIZE=$CONDITION_EXTRA_STANDARDIZE"
+  echo "[info] CONDITION_EXTRA_MISSING_POLICY=$CONDITION_EXTRA_MISSING_POLICY"
   echo "[info] SCHEMA_JSON=$SCHEMA_JSON"
   echo "[info] PYTHON_BIN=$PYTHON_BIN"
   echo "[info] DEVICE=${DEVICE:-auto}"

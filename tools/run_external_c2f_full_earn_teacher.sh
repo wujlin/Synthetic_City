@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RAW_ROOT="${RAW_ROOT:-/home/jinlin/data/geoexplicit_data}"
+RAW_ROOT="${RAW_ROOT:-$ROOT_DIR/data}"
 DATA_ROOT="${DATA_ROOT:-$RAW_ROOT/synthetic_city/data}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
@@ -34,6 +34,10 @@ SEED="${SEED:-0}"
 SAVE_FINAL_MODEL="${SAVE_FINAL_MODEL:-0}"
 SAVE_BEST_MODEL="${SAVE_BEST_MODEL:-0}"
 EVAL_EVERY_EPOCHS="${EVAL_EVERY_EPOCHS:-0}"
+STRUCTURED_LOW_MEMORY="${STRUCTURED_LOW_MEMORY:-0}"
+READ_CHUNKSIZE="${READ_CHUNKSIZE:-10000}"
+EVAL_MODE="${EVAL_MODE:-leave_mi_out}"
+HELDOUT_STATEFP="${HELDOUT_STATEFP:-26}"
 RUN_DIR="${RUN_DIR:-outputs/_us_puma_external_c2f_full_earn_teacher_$(date -u +%Y%m%dT%H%M%SZ)}"
 
 cd "$ROOT_DIR"
@@ -55,10 +59,14 @@ echo "[info] DIFF_LOSS_REWEIGHT_FLOOR=$DIFF_LOSS_REWEIGHT_FLOOR"
 echo "[info] DIFF_LOSS_REWEIGHT_CAP=$DIFF_LOSS_REWEIGHT_CAP"
 echo "[info] SAVE_BEST_MODEL=$SAVE_BEST_MODEL"
 echo "[info] EVAL_EVERY_EPOCHS=$EVAL_EVERY_EPOCHS"
+echo "[info] STRUCTURED_LOW_MEMORY=$STRUCTURED_LOW_MEMORY"
+echo "[info] READ_CHUNKSIZE=$READ_CHUNKSIZE"
 CMD=(
   "$PYTHON_BIN" -u tools/train_external_c2f_full_earn_teacher.py
   --wide_csv "$WIDE_CSV"
   --schema_json "$SCHEMA_JSON"
+  --eval_mode "$EVAL_MODE"
+  --heldout_statefp "$HELDOUT_STATEFP"
   --timesteps "$TIMESTEPS"
   --epochs "$EPOCHS"
   --batch_size "$BATCH_SIZE"
@@ -84,6 +92,9 @@ CMD=(
   --eval_every_epochs "$EVAL_EVERY_EPOCHS"
   --out_dir "$RUN_DIR"
 )
+if [[ "$STRUCTURED_LOW_MEMORY" == "1" ]]; then
+  CMD+=(--structured_low_memory --read_chunksize "$READ_CHUNKSIZE")
+fi
 if [[ "$SAVE_FINAL_MODEL" == "1" ]]; then
   CMD+=(--save_final_model)
 fi

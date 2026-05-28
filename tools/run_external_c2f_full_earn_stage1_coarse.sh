@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RAW_ROOT="${RAW_ROOT:-/home/jinlin/data/geoexplicit_data}"
+RAW_ROOT="${RAW_ROOT:-$ROOT_DIR/data}"
 DATA_ROOT="${DATA_ROOT:-$RAW_ROOT/synthetic_city/data}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
@@ -10,6 +10,12 @@ JOINT_WIDE_CSV="${JOINT_WIDE_CSV:-$DATA_ROOT/us/processed/external_targets/extta
 SCHEMA_JSON="${SCHEMA_JSON:-$DATA_ROOT/us/processed/external_targets/exttarget_v1_full_earn_pums_2023_puma_us.schema.json}"
 CONDITION_CSV="${CONDITION_CSV:-$DATA_ROOT/us/processed/external_conditions/extcond_v1_earn_v1_acs5_2022_puma_us.csv}"
 CONDITION_SCHEMA_JSON="${CONDITION_SCHEMA_JSON:-$SCHEMA_JSON}"
+CONDITION_SCALE_MODE="${CONDITION_SCALE_MODE:-none}"
+CONDITION_EXTRA_CSV="${CONDITION_EXTRA_CSV:-}"
+CONDITION_EXTRA_STANDARDIZE="${CONDITION_EXTRA_STANDARDIZE:-none}"
+CONDITION_EXTRA_MISSING_POLICY="${CONDITION_EXTRA_MISSING_POLICY:-require}"
+EVAL_MODE="${EVAL_MODE:-leave_mi_out}"
+HELDOUT_STATEFP="${HELDOUT_STATEFP:-26}"
 
 TIMESTEPS="${TIMESTEPS:-200}"
 EPOCHS="${EPOCHS:-600}"
@@ -57,6 +63,11 @@ CMD=(
   --condition_csv "$CONDITION_CSV"
   --schema_json "$SCHEMA_JSON"
   --condition_schema_json "$CONDITION_SCHEMA_JSON"
+  --condition_scale_mode "$CONDITION_SCALE_MODE"
+  --condition_extra_standardize "$CONDITION_EXTRA_STANDARDIZE"
+  --condition_extra_missing_policy "$CONDITION_EXTRA_MISSING_POLICY"
+  --eval_mode "$EVAL_MODE"
+  --heldout_statefp "$HELDOUT_STATEFP"
   --timesteps "$TIMESTEPS"
   --epochs "$EPOCHS"
   --batch_size "$BATCH_SIZE"
@@ -98,6 +109,9 @@ CMD=(
 )
 if [[ -n "$TEACHER_STAGE1_CHECKPOINT" ]]; then
   CMD+=(--teacher_stage1_checkpoint "$TEACHER_STAGE1_CHECKPOINT")
+fi
+if [[ -n "$CONDITION_EXTRA_CSV" ]]; then
+  CMD+=(--condition_extra_csv "$CONDITION_EXTRA_CSV")
 fi
 
 printf '[info] CMD='
