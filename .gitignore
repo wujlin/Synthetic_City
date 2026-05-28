@@ -107,10 +107,27 @@ figures/phase3_detroit_teacher_home_validation/
 /NSFC/
 /Essay/
 /skills/
+/SigSpatial2026_spop/
+/tools/essay/
 /visual_style_guide.md
 /Writing_guide.md
 /plot_style.py
 /Mobility_intro.tex
+
+# Manuscript build artifacts and local figure workspaces
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+figure_backups/
+figure_materials/
+figure_archive_*/
+figure_previews/
 
 # Temporary office files
 ~$*.pptx
