@@ -1,3 +1,0 @@
-/home/jinlin/projects/Synthetic_City/tools/poc_tabddpm_acs_supervised_b01001.py:1361: MatplotlibDeprecationWarning: The 'labels' parameter of boxplot() has been renamed 'tick_labels' since Matplotlib 3.9; support for the old name will be dropped in 3.11.
-  plt.boxplot(data, labels=order, showfliers=False)
-[ok] wrote: /home/jinlin/projects/Synthetic_City/outputs/_poc_acs_supervised_b01001_marginal_20260203T120953Z

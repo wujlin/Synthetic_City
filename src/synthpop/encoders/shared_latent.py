@@ -134,12 +134,14 @@ class SharedLatentSpace:
         min_samples: int = 10,
     ) -> Any:
         """
-        总对齐损失 = 对比 + 分布匹配 + 空间先验（Scheme C-v2 P0）。
+        Total alignment loss = contrastive loss + distribution matching + spatial prior.
 
         Components:
-        1) Device-Building 对比（同 CBG 为正样本，InfoNCE）
-        2) Person-Device MMD（默认全局；若提供 person_cbg_ids，则按 CBG 分组平均）
-        3) 活动圈一致性（可选，需提供配对的 activity_centers/building_locations）
+        1) Device-building contrastive loss with same-CBG positives.
+        2) Person-device MMD, globally by default or averaged by CBG when
+           person_cbg_ids are provided.
+        3) Optional activity-center consistency with paired activity centers
+           and building locations.
         """
         torch = _require_torch()
 

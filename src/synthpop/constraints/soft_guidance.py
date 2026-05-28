@@ -34,16 +34,17 @@ def apply_soft_guidance_v0(
     eps: float = 1e-12,
 ) -> Any:
     """
-    v0 简化版：post-hoc importance reweighting（分批采样/生成后重加权或重采样）。
+    v0 implementation: post-hoc importance reweighting after batched sampling.
 
-    设计动机：
-    - 先把闭环跑通，证明“边际能拉回”；
-    - 后续可迁移到 step-wise guidance（每步去噪后持续拉回）。
+    Design intent:
+    - close the simplest loop and verify that marginals can be pulled back;
+    - keep a path toward step-wise guidance during denoising.
 
-    约定（KISS）：
-    - samples/marginals 期望为 pandas.DataFrame
-    - marginals 至少提供：类别列（默认 category）与目标值列（默认 target）
-    - 返回的 DataFrame 会包含 out_weight_col；若 resample=True，则返回重采样后的样本（同大小）。
+    Conventions:
+    - samples and marginals must be pandas DataFrame objects;
+    - marginals must provide a category column and a target-value column;
+    - the returned DataFrame includes out_weight_col; if resample=True, it
+      returns a same-size resampled DataFrame.
     """
     try:
         import numpy as np  # type: ignore

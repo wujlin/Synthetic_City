@@ -2,6 +2,7 @@
 # Data / Outputs (usually large or private)
 # --------
 /data/
+/_local_data/
 /_sync/
 /dataset/
 /outputs/

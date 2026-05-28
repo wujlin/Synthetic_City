@@ -51,23 +51,25 @@ def build_training_pairs(
     return_meta: bool = False,
 ) -> Any:
     """
-    构造 (z_person, z_building, cbg_id) 训练对（软标签配对，Scheme C-v2 P0）。
+    Build (z_person, z_building, cbg_id) training pairs using soft labels.
 
-    逻辑（KISS, v0）：
-    1) 对每个 person，在其 CBG 内找最近的 device（基于 latent L2 距离）；若该 CBG 无 device，则回退到全局最近。
-    2) 对该 device，在其 CBG 内按 softmax(-dist^2 / temperature) 采样 k 个 building；若该 CBG 无 building，则回退到全局 building。
+    Logic:
+    1) For each person, find the closest device within the same CBG using
+       latent L2 distance; fall back to the global nearest device if needed.
+    2) For that device, sample k buildings within the same CBG with
+       softmax(-dist^2 / temperature); fall back to global buildings if needed.
 
-    输入约定：
-    - persons/devices/buildings 为 pandas.DataFrame
-    - z_* 为 numpy array，且行数与对应 DataFrame 的 len 一致
-    - CBG 列为字符串或可转为字符串（如 bg_geoid/12位 GEOID）
+    Input conventions:
+    - persons/devices/buildings are pandas DataFrame objects;
+    - z_* are numpy arrays whose row counts match the corresponding frames;
+    - CBG columns are strings or castable to strings.
 
-    Returns（默认）：
+    Default return:
       z_person_out: (n*k, d)
       z_building_out: (n*k, d)
       cbg_ids: (n*k,)
 
-    若 return_meta=True，则返回 4-tuple，最后一项为 TrainingPairsMeta。
+    If return_meta=True, return a 4-tuple with TrainingPairsMeta at the end.
     """
     np, pd = _require_numpy_pandas()
 

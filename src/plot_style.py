@@ -1,14 +1,14 @@
 """
-论文级可视化统一样式（偏“子刊可投”的简洁可打印风格）。
+Shared publication-style plotting defaults.
 
-目标：
-- 统一字体（Times New Roman / STIXGeneral 兜底）、字号、线宽、配色
-- 统一导出参数，降低 LaTeX 合图后的不一致感
-- 提供面板标签（a/b/c/d）工具，避免 LaTeX 子图标签跑位
+Goals:
+- use consistent fonts, sizes, line widths, and colors;
+- keep export parameters stable across LaTeX composites;
+- provide robust panel labels for multi-panel figures.
 
-约定：
-- 不依赖 seaborn，保持最小依赖与可控性
-- rcParams 全局设置 + 可选的 rc_context
+Conventions:
+- avoid a seaborn dependency;
+- expose global rcParams plus an optional rc_context wrapper.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import matplotlib.patheffects as pe
 from matplotlib import font_manager as fm
 
 
-# Okabe–Ito 色盲友好配色（推荐用于期刊图）
+# Okabe-Ito colorblind-friendly palette.
 OKABE_ITO: Dict[str, str] = {
     "black": "#000000",
     "orange": "#E69F00",
@@ -41,19 +41,18 @@ OKABE_ITO: Dict[str, str] = {
 
 @dataclass(frozen=True)
 class PaperStyle:
-    # 说明：这些字号是"以最终 LaTeX 嵌入后的可读性"为目标校准的。
-    # 典型用法：
-    # - 半栏子图：在 LaTeX 中以 ~0.48\\linewidth 插入（约 3.1in 宽）
-    # - 全栏子图：在 LaTeX 中以 ~\\linewidth 插入（约 6.5in 宽）
-    # 因此脚本中 figure 物理尺寸（figsize）应与嵌入宽度同量级，避免缩放导致字号过小。
+    # These defaults are calibrated for readability after LaTeX embedding.
+    # Typical use:
+    # - half-width panels: inserted near 0.48\\linewidth, about 3.1in wide;
+    # - full-width panels: inserted near \\linewidth, about 6.5in wide.
+    # Keep script-side figsize close to the final embedded width.
     # 
-    # 2024-12 调整：减小字号，避免半栏图中 title/label/tick 拥挤与重叠
-    font_size: float = 11.0          # 基础字号：12 → 11
-    axes_labelsize: float = 12.0     # 轴标签：14 → 12
-    axes_titlesize: float = 11.0     # 标题字号：14 → 11（新增独立控制）
-    tick_labelsize: float = 10.0     # tick 标签：11 → 10
-    # 子刊常见：legend 字号约为正文的 80–90%
-    legend_fontsize: float = 9.0     # 保持不变
+    # 2024-12 adjustment: smaller labels reduce crowding in half-width panels.
+    font_size: float = 11.0
+    axes_labelsize: float = 12.0
+    axes_titlesize: float = 11.0
+    tick_labelsize: float = 10.0
+    legend_fontsize: float = 9.0
     axes_linewidth: float = 1.2
     lines_linewidth: float = 2.4
     lines_markersize: float = 5.5
@@ -62,15 +61,15 @@ class PaperStyle:
 
 
 FIGSIZE_FULL: tuple[float, float] = (6.5, 4.0)
-"""用于整栏/全宽图（LaTeX 中接近 \\linewidth）。"""
+"""Figure size for full-width panels, close to LaTeX \\linewidth."""
 
 FIGSIZE_HALF: tuple[float, float] = (3.2, 2.45)
-"""用于半栏子图（LaTeX 中接近 0.48\\linewidth）。"""
+"""Figure size for half-width panels, close to 0.48\\linewidth."""
 
 
 def _resolve_times_font() -> tuple[str, list[str]]:
     """
-    尽量使用 Times New Roman（WSL 常见 Windows 字体路径），否则退化为 STIXGeneral。
+    Prefer Times New Roman when available; otherwise fall back to STIXGeneral.
     """
 
     times_paths = [
@@ -91,7 +90,7 @@ def paper_rcparams(style: PaperStyle | None = None) -> Dict[str, object]:
     style = style or PaperStyle()
     font_family, serif_fallback = _resolve_times_font()
 
-    # 限制 BLAS 线程：减少 WSL/容器环境下的噪声（不影响数值正确性）
+    # Limit BLAS threads to reduce noise in WSL/container environments.
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -110,12 +109,12 @@ def paper_rcparams(style: PaperStyle | None = None) -> Dict[str, object]:
         "xtick.major.width": 1.1,
         "ytick.major.width": 1.1,
         "font.size": style.font_size,
-        "axes.titlesize": style.axes_titlesize,  # 使用独立的 titlesize
+        "axes.titlesize": style.axes_titlesize,
         "axes.labelsize": style.axes_labelsize,
         "xtick.labelsize": style.tick_labelsize,
         "ytick.labelsize": style.tick_labelsize,
         "legend.fontsize": style.legend_fontsize,
-        # 避免 Type3 字体（更利于 Overleaf/期刊印刷）
+        # Avoid Type 3 fonts for cleaner LaTeX/printing output.
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
         "figure.dpi": style.figure_dpi,
@@ -127,7 +126,7 @@ def paper_rcparams(style: PaperStyle | None = None) -> Dict[str, object]:
 
 @contextmanager
 def paper_style(style: PaperStyle | None = None) -> Iterator[None]:
-    """在 with 作用域内启用论文统一样式。"""
+    """Apply the paper style inside a context manager."""
 
     with mpl.rc_context(paper_rcparams(style=style)):
         yield
@@ -140,8 +139,8 @@ def save_figure(
     dpi: Optional[int] = None,
 ) -> None:
     """
-    统一保存入口：不使用 bbox_inches='tight'，避免不同文本元素导致的
-    bounding box 抖动，从而引发 LaTeX 子图错位。
+    Save figures without bbox_inches='tight' so panel extents remain stable
+    across LaTeX composites.
     """
 
     out_path = Path(out_path)
@@ -150,14 +149,14 @@ def save_figure(
 
 
 def despine(ax: mpl.axes.Axes) -> None:
-    """轻量去除上/右边框，保持期刊图常见风格。"""
+    """Remove top and right spines."""
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
 
 def apply_paper_style(style: PaperStyle | None = None) -> None:
-    """直接应用全局 rcParams（适合脚本式制图）。"""
+    """Apply the style to global rcParams."""
 
     mpl.rcParams.update(paper_rcparams(style=style))
 
@@ -166,7 +165,7 @@ def add_panel_label(
     ax: mpl.axes.Axes,
     label: str,
     *,
-    # 以 axes 的左上角为锚点，用 points 做固定偏移（更稳，不受 tick 文本宽度影响）
+    # Anchor to the upper-left axes corner and use fixed point offsets.
     x: float = 0.0,
     y: float = 1.0,
     dx: float = -42.0,
@@ -174,16 +173,19 @@ def add_panel_label(
     fontsize: float | None = None,
 ) -> mpl.text.Text:
     """
-    在坐标轴左上角**外部**添加面板标签（a/b/c/d），并避免与 tick/title 冲突。
+    Add a panel label outside the upper-left corner of an axes.
 
-    设计原则（KISS + 稳定排版）：
-    - 使用 axes fraction 作为锚点：默认 (x,y)=(0,1) 对应轴域左上角
-    - 再用 points 做固定偏移：默认向左 42pt、向上 4pt
-      这样不会因为 y 轴 tick label 变长（如 1.00 / 12）而发生重叠
+    Layout rules:
+    - use axes-fraction coordinates for the anchor;
+    - use point offsets so long tick labels do not shift the label.
     """
 
+    label_text = str(label)
+    if not (label_text.startswith("(") and label_text.endswith(")")):
+        label_text = f"({label_text})"
+
     t = ax.annotate(
-        str(label),
+        label_text,
         xy=(x, y),
         xycoords="axes fraction",
         xytext=(dx, dy),
