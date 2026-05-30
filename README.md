@@ -35,6 +35,14 @@ Step 1 constructs one training target and two condition vectors for each Public 
 
 The PUMS target provides observed individual-level co-occurrence patterns, while ACS and spatial features provide the region-specific conditions used during inference.
 
+Primary code entrypoints:
+
+- PUMA target distribution `p`: `tools/build_external_target_v1_full_earn.py`
+- PUMA census condition `c`: `tools/build_external_condition_earn_v1_acs_puma.py`
+- Tract-level ACS constraints and state spatial assets: `tools/build_full_us_spatial_inputs.py`
+- LODES and TIGER support data helpers: `tools/download_lodes_functional_assets.py`, `tools/download_tiger2023_cache.py`, `tools/build_lodes_home_outbound_cache.py`
+- Shared data loading utilities: `src/synthpop/data/census.py`, `src/synthpop/data/lodes.py`, `src/synthpop/data/geo.py`
+
 ### Step 2: Hierarchical Diffusion
 
 Step 2 learns the PUMA-level joint distribution with a two-stage diffusion process.
@@ -43,6 +51,15 @@ Step 2 learns the PUMA-level joint distribution with a two-stage diffusion proce
 - Stage 2 refines each coarse group into fine-grained attribute combinations.
 
 The current paper configuration uses `K=960` coarse combinations in Stage 1 and refines them back to the full 3,000-cell joint distribution over the five attributes. This keeps the learning target compact while preserving the full attribute space used to sample individuals.
+
+Primary code entrypoints:
+
+- Coarse-to-fine schema and support logic: `tools/external_c2f_full_earn_schema.py`, `tools/external_c2f_full_earn_stage2_model.py`
+- Stage 1 coarse model: `tools/train_external_c2f_full_earn_stage1_coarse.py`
+- Stage 2 fine refinement model: `tools/train_external_c2f_full_earn_teacher.py`
+- End-to-end evaluation: `tools/eval_external_c2f_full_earn_pipeline.py`
+- Script wrappers for reproducible runs: `tools/run_external_c2f_full_earn_stage1_coarse.sh`, `tools/run_external_c2f_full_earn_teacher.sh`, `tools/run_external_c2f_full_earn_pipeline.sh`
+- Baseline and earlier joint-diffusion entrypoints: `tools/train_external_joint_hier_diffusion_full.py`, `tools/train_external_joint_hier_diffusion_full_earn.py`
 
 ### Step 3: Spatial Synthetic Population Generation
 
@@ -55,6 +72,25 @@ Step 3 turns the predicted joint distribution into individual records and explic
 - Workplace coordinates are placed on road-supported workplace candidate locations.
 
 The resulting product is a national synthetic population with five attributes and explicit home/work coordinates.
+
+Primary code entrypoints:
+
+- Predicted joint distribution export: `tools/export_predicted_joint_wide_from_npz.py`
+- Person-level expansion from PUMA distributions: `tools/exp_phase2_expand_to_persons.py`
+- Home tract allocation under tract ACS constraints: `tools/exp_phase2_puma_to_small_area.py`, `src/synthpop/spatial/puma_to_small_area.py`
+- Work-destination tract allocation from LODES: `tools/exp_phase3b_assign_work_destinations.py`, `src/synthpop/spatial/work_destination_allocation.py`
+- Road-supported home and workplace coordinates: `tools/exp_phase3_road_locations.py`, `src/synthpop/spatial/road_location_allocation.py`
+- National QC aggregation: `tools/aggregate_paper1_spatial_national_qc.py`
+
+### Release Export
+
+The final product is exported as state-level 10-column CSV files and uploaded to OSF.
+
+Primary code entrypoints:
+
+- Release-format CSV export: `tools/export_paper1_release_csv.py`
+- OSF file naming and upload utilities: `tools/osf_rename_state_files_to_postal.py`, `tools/upload_osf_release_incremental.py`
+- Manuscript data-product summaries and figures: `tools/make_sigspatial_data_product.py`, `tools/make_sigspatial_national_spatial_product.py`
 
 ## Data Sources
 
@@ -80,15 +116,18 @@ outputs/     local run artifacts, gitignored by default
 data/        optional local link to external data roots, gitignored by default
 ```
 
-## Pipeline Components
+## Implementation Map
 
-The current national pipeline is script-driven. The repository contains utilities for:
+The current national pipeline is script-driven. The table below links each manuscript step to the corresponding code names in this repository.
 
-- building aligned PUMS/ACS targets;
-- training and evaluating the hierarchical diffusion model;
-- generating state-level spatial synthetic populations;
-- exporting 10-column release-format CSV files;
-- preparing upload manifests and checksums for the OSF release.
+| Manuscript step | Main task | Code entrypoints |
+|---|---|---|
+| Step 1 | Build PUMS targets, ACS conditions, POI/LODES spatial features, and tract-level constraints | `tools/build_external_target_v1_full_earn.py`; `tools/build_external_condition_earn_v1_acs_puma.py`; `tools/build_full_us_spatial_inputs.py`; `src/synthpop/data/lodes.py` |
+| Step 2 | Train and evaluate the hierarchical diffusion model | `tools/train_external_c2f_full_earn_stage1_coarse.py`; `tools/train_external_c2f_full_earn_teacher.py`; `tools/eval_external_c2f_full_earn_pipeline.py` |
+| Step 3 | Expand predicted distributions into individuals and assign home/work locations | `tools/exp_phase2_expand_to_persons.py`; `tools/exp_phase2_puma_to_small_area.py`; `tools/exp_phase3b_assign_work_destinations.py`; `tools/exp_phase3_road_locations.py`; `tools/aggregate_paper1_spatial_national_qc.py` |
+| Release | Export the public dataset and synchronize OSF files | `tools/export_paper1_release_csv.py`; `tools/osf_rename_state_files_to_postal.py`; `tools/upload_osf_release_incremental.py` |
+
+Some script names retain historical experiment labels such as `external`, `full_earn`, or `paper1`. In the current mainline, these names correspond to the five-attribute national pipeline used for the SIGSPATIAL 2026 manuscript.
 
 Large raw data, licensed data, model checkpoints, and generated state-level products are intentionally kept out of git. The public repository tracks code, documentation, lightweight tests, and manuscript-supporting assets.
 
