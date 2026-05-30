@@ -20,9 +20,9 @@ PUMS supplies observed co-occurrence patterns. ACS supplies accessible aggregate
 
 Manuscript-facing entrypoints:
 
-- `tools/step1_build_puma_joint_targets.py`
-- `tools/step1_build_puma_census_conditions.py`
-- `tools/step1_build_puma_spatial_features.py`
+- `tools/workflow/step1_build_puma_joint_targets.py`
+- `tools/workflow/step1_build_puma_census_conditions.py`
+- `tools/workflow/step1_build_puma_spatial_features.py`
 
 ## Step 2: Hierarchical Diffusion
 
@@ -36,10 +36,10 @@ The hierarchy reduces the learning burden while retaining the full final attribu
 
 Manuscript-facing entrypoints:
 
-- `tools/step2_train_coarse_diffusion.py`
-- `tools/step2_build_refinement_targets.py`
-- `tools/step2_train_refinement_diffusion.py`
-- `tools/step2_eval_joint_recovery.py`
+- `tools/workflow/step2_train_coarse_diffusion.py`
+- `tools/workflow/step2_build_refinement_targets.py`
+- `tools/workflow/step2_train_refinement_diffusion.py`
+- `tools/workflow/step2_eval_joint_recovery.py`
 
 ## Step 3: Spatial Population Generation
 
@@ -49,11 +49,11 @@ Workers receive work destination tracts from LODES commuting flows. Workplace co
 
 Manuscript-facing entrypoints:
 
-- `tools/step3_expand_individuals.py`
-- `tools/step3_assign_home_tracts.py`
-- `tools/step3_assign_work_tracts.py`
-- `tools/step3_assign_road_locations.py`
-- `tools/step3_aggregate_spatial_qc.py`
+- `tools/workflow/step3_expand_individuals.py`
+- `tools/workflow/step3_assign_home_tracts.py`
+- `tools/workflow/step3_assign_work_tracts.py`
+- `tools/workflow/step3_assign_road_locations.py`
+- `tools/workflow/step3_aggregate_spatial_qc.py`
 
 ## Data Roles
 

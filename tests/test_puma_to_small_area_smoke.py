@@ -8,7 +8,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from tools.build_acs_targets_long_michigan import _b01001_records
+        from tools.data.build_acs_targets_long_michigan import _b01001_records
 
         row = {"tract_geoid": "26163500100"}
         for i in range(1, 50):
@@ -523,7 +523,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from tools.exp_phase2_puma_to_small_area import _shuffle_feature_rows_within_region
+        from tools.spatial.exp_phase2_puma_to_small_area import _shuffle_feature_rows_within_region
 
         df = pd.DataFrame(
             {

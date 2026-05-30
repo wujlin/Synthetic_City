@@ -17,21 +17,21 @@ Backend files may retain older experiment labels so that existing run artifacts 
 
 | Manuscript component | Public entrypoint | Backend implementation |
 |---|---|---|
-| Step 1 target `p` | `tools/step1_build_puma_joint_targets.py` | `tools/build_external_target_v1_full_earn.py` |
-| Step 1 census condition `c` | `tools/step1_build_puma_census_conditions.py` | `tools/build_external_condition_earn_v1_acs_puma.py` |
-| Step 1 spatial representation `h` | `tools/step1_build_puma_spatial_features.py` | `tools/build_puma_spatial_features.py` |
-| Step 1 tract constraints and spatial assets | `tools/build_full_us_spatial_inputs.py` | `tools/build_full_us_spatial_inputs.py` |
-| Step 2 Stage 1 coarse model | `tools/step2_train_coarse_diffusion.py` | `tools/train_external_c2f_full_earn_stage1_coarse.py` |
-| Step 2 Stage 2 refinement target | `tools/step2_build_refinement_targets.py` | `tools/build_external_c2f_full_earn_teacher.py` |
-| Step 2 Stage 2 refinement model | `tools/step2_train_refinement_diffusion.py` | `tools/train_external_c2f_full_earn_teacher.py` |
-| Step 2 held-out and national evaluation | `tools/step2_eval_joint_recovery.py` | `tools/eval_external_c2f_full_earn_pipeline.py` |
-| Step 3 individual expansion | `tools/step3_expand_individuals.py` | `tools/exp_phase2_expand_to_persons.py` |
-| Step 3 home tract assignment | `tools/step3_assign_home_tracts.py` | `tools/exp_phase2_puma_to_small_area.py` |
-| Step 3 work tract assignment | `tools/step3_assign_work_tracts.py` | `tools/exp_phase3b_assign_work_destinations.py` |
-| Step 3 road-supported coordinates | `tools/step3_assign_road_locations.py` | `tools/exp_phase3_road_locations.py` |
-| Step 3 national spatial QC | `tools/step3_aggregate_spatial_qc.py` | `tools/aggregate_paper1_spatial_national_qc.py` |
-| Release CSV export | `tools/release_export_state_csv.py` | `tools/export_paper1_release_csv.py` |
-| Release OSF upload | `tools/release_upload_osf.py` | `tools/upload_osf_release_incremental.py` |
+| Step 1 target `p` | `tools/workflow/step1_build_puma_joint_targets.py` | `tools/data/build_external_target_v1_full_earn.py` |
+| Step 1 census condition `c` | `tools/workflow/step1_build_puma_census_conditions.py` | `tools/data/build_external_condition_earn_v1_acs_puma.py` |
+| Step 1 spatial representation `h` | `tools/workflow/step1_build_puma_spatial_features.py` | `tools/data/build_puma_spatial_features.py` |
+| Step 1 tract constraints and spatial assets | `tools/data/build_full_us_spatial_inputs.py` | `tools/data/build_full_us_spatial_inputs.py` |
+| Step 2 Stage 1 coarse model | `tools/workflow/step2_train_coarse_diffusion.py` | `tools/model/train_external_c2f_full_earn_stage1_coarse.py` |
+| Step 2 Stage 2 refinement target | `tools/workflow/step2_build_refinement_targets.py` | `tools/model/build_external_c2f_full_earn_teacher.py` |
+| Step 2 Stage 2 refinement model | `tools/workflow/step2_train_refinement_diffusion.py` | `tools/model/train_external_c2f_full_earn_teacher.py` |
+| Step 2 held-out and national evaluation | `tools/workflow/step2_eval_joint_recovery.py` | `tools/model/eval_external_c2f_full_earn_pipeline.py` |
+| Step 3 individual expansion | `tools/workflow/step3_expand_individuals.py` | `tools/spatial/exp_phase2_expand_to_persons.py` |
+| Step 3 home tract assignment | `tools/workflow/step3_assign_home_tracts.py` | `tools/spatial/exp_phase2_puma_to_small_area.py` |
+| Step 3 work tract assignment | `tools/workflow/step3_assign_work_tracts.py` | `tools/spatial/exp_phase3b_assign_work_destinations.py` |
+| Step 3 road-supported coordinates | `tools/workflow/step3_assign_road_locations.py` | `tools/spatial/exp_phase3_road_locations.py` |
+| Step 3 national spatial QC | `tools/workflow/step3_aggregate_spatial_qc.py` | `tools/spatial/aggregate_paper1_spatial_national_qc.py` |
+| Release CSV export | `tools/workflow/release_export_state_csv.py` | `tools/release/export_paper1_release_csv.py` |
+| Release OSF upload | `tools/workflow/release_upload_osf.py` | `tools/release/upload_osf_release_incremental.py` |
 
 ## Public Release Schema
 

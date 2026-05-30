@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+RAW_ROOT="${RAW_ROOT:-}"
+if [[ -n "${SYNTHCITY_DATA_ROOT:-}" ]]; then
+  DATA_ROOT="${SYNTHCITY_DATA_ROOT}"
+elif [[ -n "$RAW_ROOT" ]]; then
+  DATA_ROOT="$RAW_ROOT/synthetic_city/data"
+else
+  DATA_ROOT="$REPO_ROOT/data"
+fi
+OUT_ROOT="${OUT_ROOT:-outputs}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+
+TARGET_WIDE_CSV="${TARGET_WIDE_CSV:-$DATA_ROOT/us/processed/external_targets/exttarget_v1_full_income_v2_pums_2023_puma_us_joint_wide.csv}"
+CONDITION_CSV="${CONDITION_CSV:-$DATA_ROOT/us/processed/external_conditions/extcond_v1_income_v2_acs5_2022_puma_us.csv}"
+CONDITION_SCHEMA_JSON="${CONDITION_SCHEMA_JSON:-$CONDITION_CSV.schema.json}"
+SCHEMA_JSON="${SCHEMA_JSON:-$DATA_ROOT/us/processed/external_targets/exttarget_v1_full_income_v2_pums_2023_puma_us.schema.json}"
+
+EVAL_MODE="${EVAL_MODE:-leave_mi_out}"
+N_FOLDS="${N_FOLDS:-5}"
+TIMESTEPS="${TIMESTEPS:-200}"
+EPOCHS="${EPOCHS:-3000}"
+BATCH_SIZE="${BATCH_SIZE:-512}"
+ENCODER_HIDDEN_DIMS="${ENCODER_HIDDEN_DIMS:-256,256}"
+COARSE_HIDDEN_DIMS="${COARSE_HIDDEN_DIMS:-256}"
+DIFFUSION_HIDDEN_DIMS="${DIFFUSION_HIDDEN_DIMS:-512,512}"
+LATENT_DIM="${LATENT_DIM:-128}"
+LR="${LR:-1e-3}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-1e-4}"
+CONDITION_INJECTION="${CONDITION_INJECTION:-concat}"
+FILM_HIDDEN_DIM="${FILM_HIDDEN_DIM:-128}"
+COARSE_WEIGHT="${COARSE_WEIGHT:-0.5}"
+CONSISTENCY_WEIGHT="${CONSISTENCY_WEIGHT:-1.0}"
+MARGINAL_WEIGHT="${MARGINAL_WEIGHT:-1.0}"
+SELECTION_METRIC="${SELECTION_METRIC:-val_tvd_coarse_head}"
+SELECTION_RAW_WEIGHT="${SELECTION_RAW_WEIGHT:-0.25}"
+LOGP_CLIP_QUANTILE_LOW="${LOGP_CLIP_QUANTILE_LOW:--1.0}"
+LOGP_CLIP_QUANTILE_HIGH="${LOGP_CLIP_QUANTILE_HIGH:--1.0}"
+AUX_T_GATE="${AUX_T_GATE:-50}"
+DETACH_COARSE_ENCODER="${DETACH_COARSE_ENCODER:-1}"
+DIFF_LOSS_REWEIGHT_ALPHA="${DIFF_LOSS_REWEIGHT_ALPHA:-0.5}"
+DIFF_LOSS_REWEIGHT_FLOOR="${DIFF_LOSS_REWEIGHT_FLOOR:-0.05}"
+DIFF_LOSS_REWEIGHT_CAP="${DIFF_LOSS_REWEIGHT_CAP:-5.0}"
+SUPPORT_MASK_MODE="${SUPPORT_MASK_MODE:-dataset_nonzero}"
+SUPPORT_MASK_EPS="${SUPPORT_MASK_EPS:-1e-12}"
+DEVICE="${DEVICE:-}"
+SEED="${SEED:-0}"
+LOG_EVERY="${LOG_EVERY:-200}"
+EVAL_EVERY="${EVAL_EVERY:-200}"
+VAL_FRAC="${VAL_FRAC:-0.05}"
+VAL_MIN_GROUPS="${VAL_MIN_GROUPS:-96}"
+N_VAL_JOINT_SAMPLES="${N_VAL_JOINT_SAMPLES:-16}"
+VAL_IPF_ITERS="${VAL_IPF_ITERS:-200}"
+N_EVAL_JOINT_SAMPLES="${N_EVAL_JOINT_SAMPLES:-32}"
+IPF_ITERS="${IPF_ITERS:-200}"
+EMA_DECAY="${EMA_DECAY:-0.999}"
+SAVE_BEST_CHECKPOINT="${SAVE_BEST_CHECKPOINT:-1}"
+SAVE_FINAL_MODEL="${SAVE_FINAL_MODEL:-0}"
+SAVE_EVAL_CHECKPOINT_EVERY="${SAVE_EVAL_CHECKPOINT_EVERY:-0}"
+
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_DIR="${RUN_DIR:-$OUT_ROOT/_us_puma_external_joint_hier_diffusion_full_income_v2_${TS}}"
+mkdir -p "$RUN_DIR"
+
+CMD=(
+  "$PYTHON_BIN" -u tools/model/train_external_joint_hier_diffusion_full_income.py
+  --joint_wide_csv "$TARGET_WIDE_CSV"
+  --condition_csv "$CONDITION_CSV"
+  --condition_schema_json "$CONDITION_SCHEMA_JSON"
+  --schema_json "$SCHEMA_JSON"
+  --eval_mode "$EVAL_MODE"
+  --n_folds "$N_FOLDS"
+  --timesteps "$TIMESTEPS"
+  --epochs "$EPOCHS"
+  --batch_size "$BATCH_SIZE"
+  --encoder_hidden_dims "$ENCODER_HIDDEN_DIMS"
+  --coarse_hidden_dims "$COARSE_HIDDEN_DIMS"
+  --diffusion_hidden_dims "$DIFFUSION_HIDDEN_DIMS"
+  --latent_dim "$LATENT_DIM"
+  --lr "$LR"
+  --weight_decay "$WEIGHT_DECAY"
+  --condition_injection "$CONDITION_INJECTION"
+  --film_hidden_dim "$FILM_HIDDEN_DIM"
+  --coarse_weight "$COARSE_WEIGHT"
+  --consistency_weight "$CONSISTENCY_WEIGHT"
+  --marginal_weight "$MARGINAL_WEIGHT"
+  --selection_metric "$SELECTION_METRIC"
+  --selection_raw_weight "$SELECTION_RAW_WEIGHT"
+  --logp_clip_quantile_low "$LOGP_CLIP_QUANTILE_LOW"
+  --logp_clip_quantile_high "$LOGP_CLIP_QUANTILE_HIGH"
+  --aux_t_gate "$AUX_T_GATE"
+  --diff_loss_reweight_alpha "$DIFF_LOSS_REWEIGHT_ALPHA"
+  --diff_loss_reweight_floor "$DIFF_LOSS_REWEIGHT_FLOOR"
+  --diff_loss_reweight_cap "$DIFF_LOSS_REWEIGHT_CAP"
+  --support_mask_mode "$SUPPORT_MASK_MODE"
+  --support_mask_eps "$SUPPORT_MASK_EPS"
+  --seed "$SEED"
+  --log_every "$LOG_EVERY"
+  --eval_every "$EVAL_EVERY"
+  --val_frac "$VAL_FRAC"
+  --val_min_groups "$VAL_MIN_GROUPS"
+  --n_val_joint_samples "$N_VAL_JOINT_SAMPLES"
+  --val_ipf_iters "$VAL_IPF_ITERS"
+  --n_eval_joint_samples "$N_EVAL_JOINT_SAMPLES"
+  --ipf_iters "$IPF_ITERS"
+  --ema_decay "$EMA_DECAY"
+  --save_eval_checkpoint_every "$SAVE_EVAL_CHECKPOINT_EVERY"
+  --run_label "external_joint_hier_diffusion_full_income_v2"
+  --out_dir "$RUN_DIR"
+)
+
+if [[ -n "$DEVICE" ]]; then
+  CMD+=(--device "$DEVICE")
+fi
+if [[ "$SAVE_FINAL_MODEL" == "1" ]]; then
+  CMD+=(--save_final_model)
+fi
+if [[ "$SAVE_BEST_CHECKPOINT" == "1" ]]; then
+  CMD+=(--save_best_checkpoint)
+fi
+if [[ "$DETACH_COARSE_ENCODER" == "1" ]]; then
+  CMD+=(--detach_coarse_encoder)
+fi
+
+{
+  echo "[info] RAW_ROOT=$RAW_ROOT"
+  echo "[info] DATA_ROOT=$DATA_ROOT"
+  echo "[info] TARGET_WIDE_CSV=$TARGET_WIDE_CSV"
+  echo "[info] CONDITION_CSV=$CONDITION_CSV"
+  echo "[info] CONDITION_SCHEMA_JSON=$CONDITION_SCHEMA_JSON"
+  echo "[info] SCHEMA_JSON=$SCHEMA_JSON"
+  printf '[info] CMD='
+  printf '%q ' "${CMD[@]}"
+  printf '\n'
+  "${CMD[@]}"
+} 2>&1 | tee "$RUN_DIR/run.log"
+
+echo "[ok] run dir: $RUN_DIR"

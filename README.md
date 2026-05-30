@@ -37,11 +37,11 @@ The PUMS target provides observed individual-level co-occurrence patterns, while
 
 Primary manuscript-facing entrypoints:
 
-- PUMA target distribution `p`: `tools/step1_build_puma_joint_targets.py`
-- PUMA census condition `c`: `tools/step1_build_puma_census_conditions.py`
-- PUMA spatial representation `h`: `tools/step1_build_puma_spatial_features.py`
-- Tract-level ACS constraints and state spatial assets: `tools/build_full_us_spatial_inputs.py`
-- LODES and TIGER support data helpers: `tools/download_lodes_functional_assets.py`, `tools/download_tiger2023_cache.py`, `tools/build_lodes_home_outbound_cache.py`
+- PUMA target distribution `p`: `tools/workflow/step1_build_puma_joint_targets.py`
+- PUMA census condition `c`: `tools/workflow/step1_build_puma_census_conditions.py`
+- PUMA spatial representation `h`: `tools/workflow/step1_build_puma_spatial_features.py`
+- Tract-level ACS constraints and state spatial assets: `tools/data/build_full_us_spatial_inputs.py`
+- LODES and TIGER support data helpers: `tools/data/download_lodes_functional_assets.py`, `tools/data/download_tiger2023_cache.py`, `tools/data/build_lodes_home_outbound_cache.py`
 - Shared data loading utilities: `src/synthpop/data/census.py`, `src/synthpop/data/lodes.py`, `src/synthpop/data/geo.py`
 
 ### Step 2: Hierarchical Diffusion
@@ -55,11 +55,11 @@ The current paper configuration uses `K=960` coarse combinations in Stage 1 and 
 
 Primary manuscript-facing entrypoints:
 
-- Stage 1 coarse model: `tools/step2_train_coarse_diffusion.py`
-- Stage 2 refinement target construction: `tools/step2_build_refinement_targets.py`
-- Stage 2 fine refinement model: `tools/step2_train_refinement_diffusion.py`
-- End-to-end joint recovery evaluation: `tools/step2_eval_joint_recovery.py`
-- Coarse-to-fine schema and support logic: `tools/external_c2f_full_earn_schema.py`, `tools/external_c2f_full_earn_stage2_model.py`
+- Stage 1 coarse model: `tools/workflow/step2_train_coarse_diffusion.py`
+- Stage 2 refinement target construction: `tools/workflow/step2_build_refinement_targets.py`
+- Stage 2 fine refinement model: `tools/workflow/step2_train_refinement_diffusion.py`
+- End-to-end joint recovery evaluation: `tools/workflow/step2_eval_joint_recovery.py`
+- Coarse-to-fine schema and support logic: `tools/model/external_c2f_full_earn_schema.py`, `tools/model/external_c2f_full_earn_stage2_model.py`
 
 ### Step 3: Spatial Synthetic Population Generation
 
@@ -75,12 +75,12 @@ The resulting product is a national synthetic population with five attributes an
 
 Primary manuscript-facing entrypoints:
 
-- Predicted joint distribution export: `tools/export_predicted_joint_wide_from_npz.py`
-- Person-level expansion from PUMA distributions: `tools/step3_expand_individuals.py`
-- Home tract allocation under tract ACS constraints: `tools/step3_assign_home_tracts.py`, `src/synthpop/spatial/puma_to_small_area.py`
-- Work-destination tract allocation from LODES: `tools/step3_assign_work_tracts.py`, `src/synthpop/spatial/work_destination_allocation.py`
-- Road-supported home and workplace coordinates: `tools/step3_assign_road_locations.py`, `src/synthpop/spatial/road_location_allocation.py`
-- National QC aggregation: `tools/step3_aggregate_spatial_qc.py`
+- Predicted joint distribution export: `tools/model/export_predicted_joint_wide_from_npz.py`
+- Person-level expansion from PUMA distributions: `tools/workflow/step3_expand_individuals.py`
+- Home tract allocation under tract ACS constraints: `tools/workflow/step3_assign_home_tracts.py`, `src/synthpop/spatial/puma_to_small_area.py`
+- Work-destination tract allocation from LODES: `tools/workflow/step3_assign_work_tracts.py`, `src/synthpop/spatial/work_destination_allocation.py`
+- Road-supported home and workplace coordinates: `tools/workflow/step3_assign_road_locations.py`, `src/synthpop/spatial/road_location_allocation.py`
+- National QC aggregation: `tools/workflow/step3_aggregate_spatial_qc.py`
 
 ### Release Export
 
@@ -88,9 +88,9 @@ The final product is exported as state-level 10-column CSV files and uploaded to
 
 Primary manuscript-facing entrypoints:
 
-- Release-format CSV export: `tools/release_export_state_csv.py`
-- OSF file naming and upload utilities: `tools/osf_rename_state_files_to_postal.py`, `tools/release_upload_osf.py`
-- Manuscript data-product summaries and figures: `tools/make_sigspatial_data_product.py`, `tools/make_sigspatial_national_spatial_product.py`
+- Release-format CSV export: `tools/workflow/release_export_state_csv.py`
+- OSF file naming and upload utilities: `tools/release/osf_rename_state_files_to_postal.py`, `tools/workflow/release_upload_osf.py`
+- Manuscript data-product summaries and figures: `tools/figures/make_sigspatial_data_product.py`, `tools/figures/make_sigspatial_national_spatial_product.py`
 
 ## Data Sources
 
@@ -107,13 +107,17 @@ Primary manuscript-facing entrypoints:
 This is a research-first repository rather than a packaged software library. Reusable logic is kept under `src/`, while experiment entrypoints and release utilities are under `tools/`.
 
 ```text
-src/         reusable modules for data loading, constraints, models, spatial allocation, and validation
-tools/       data preparation, training, evaluation, release export, and OSF upload scripts
-docs/        method notes, run notes, data contracts, and experiment summaries
-tests/       lightweight smoke tests and regression checks
-figures/     manuscript and presentation figure assets
-outputs/     local run artifacts, gitignored by default
-data/        optional local link to external data roots, gitignored by default
+src/synthpop/      reusable package modules for data loading, constraints, models, spatial allocation, and validation
+tools/workflow/    stable manuscript-facing Step 1, Step 2, Step 3, and release entrypoints
+tools/data/        data construction, schema, ACS/PUMS/LODES/POI preparation
+tools/model/       model training, evaluation, and coarse-to-fine backend utilities
+tools/spatial/     individual expansion, home/work assignment, road-location placement, and spatial QC
+tools/figures/     manuscript figure, table, and validation-summary builders
+tools/release/     public CSV export, file naming, and OSF upload helpers
+docs/              method notes, run notes, data contracts, and experiment summaries
+tests/             lightweight smoke tests and regression checks
+outputs/           local run artifacts, gitignored by default
+data/              optional local link to external data roots, gitignored by default
 ```
 
 ## Implementation Map
@@ -122,10 +126,10 @@ The current national pipeline is script-driven. The table below links each manus
 
 | Manuscript step | Main task | Code entrypoints |
 |---|---|---|
-| Step 1 | Build PUMS targets, ACS conditions, POI/LODES spatial features, and tract-level constraints | `tools/step1_build_puma_joint_targets.py`; `tools/step1_build_puma_census_conditions.py`; `tools/step1_build_puma_spatial_features.py`; `tools/build_full_us_spatial_inputs.py`; `src/synthpop/data/lodes.py` |
-| Step 2 | Train and evaluate the hierarchical diffusion model | `tools/step2_train_coarse_diffusion.py`; `tools/step2_build_refinement_targets.py`; `tools/step2_train_refinement_diffusion.py`; `tools/step2_eval_joint_recovery.py` |
-| Step 3 | Expand predicted distributions into individuals and assign home/work locations | `tools/step3_expand_individuals.py`; `tools/step3_assign_home_tracts.py`; `tools/step3_assign_work_tracts.py`; `tools/step3_assign_road_locations.py`; `tools/step3_aggregate_spatial_qc.py` |
-| Release | Export the public dataset and synchronize OSF files | `tools/release_export_state_csv.py`; `tools/osf_rename_state_files_to_postal.py`; `tools/release_upload_osf.py` |
+| Step 1 | Build PUMS targets, ACS conditions, POI/LODES spatial features, and tract-level constraints | `tools/workflow/step1_build_puma_joint_targets.py`; `tools/workflow/step1_build_puma_census_conditions.py`; `tools/workflow/step1_build_puma_spatial_features.py`; `tools/data/build_full_us_spatial_inputs.py`; `src/synthpop/data/lodes.py` |
+| Step 2 | Train and evaluate the hierarchical diffusion model | `tools/workflow/step2_train_coarse_diffusion.py`; `tools/workflow/step2_build_refinement_targets.py`; `tools/workflow/step2_train_refinement_diffusion.py`; `tools/workflow/step2_eval_joint_recovery.py` |
+| Step 3 | Expand predicted distributions into individuals and assign home/work locations | `tools/workflow/step3_expand_individuals.py`; `tools/workflow/step3_assign_home_tracts.py`; `tools/workflow/step3_assign_work_tracts.py`; `tools/workflow/step3_assign_road_locations.py`; `tools/workflow/step3_aggregate_spatial_qc.py` |
+| Release | Export the public dataset and synchronize OSF files | `tools/workflow/release_export_state_csv.py`; `tools/release/osf_rename_state_files_to_postal.py`; `tools/workflow/release_upload_osf.py` |
 
 Use the `step*` and `release*` entrypoints when citing code paths in manuscript notes, slides, or repository documentation. Some backend implementation modules retain historical experiment labels for reproducibility; `docs/IMPLEMENTATION_MANIFEST.md` records the mapping from manuscript-facing names to those backend files.
 
