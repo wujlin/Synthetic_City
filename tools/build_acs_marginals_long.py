@@ -5,7 +5,6 @@ from __future__ import annotations
 Build a lightweight "marginals_long" table from downloaded ACS detailed tables.
 
 Why:
-- detroit_fetch_public_data.py can download ACS 5-year tables at tract/BG.
 - For validation and controlled generation we need a normalized, reviewable marginals format:
   (group, variable, category, target_count).
 
@@ -307,7 +306,7 @@ def main() -> None:
     for table_id in tables:
         in_path = acs_dir / f"acs5_{acs_year}_{table_id}_{geo_level}_state{statefp}_county{countyfp}.csv.gz"
         if not in_path.exists():
-            raise SystemExit(f"ACS table not found: {in_path} (run detroit_fetch_public_data.py acs first)")
+            raise SystemExit(f"ACS table not found: {in_path} (download the ACS detailed table first)")
         table_dfs[table_id] = _load_acs_csv_gz(in_path)
 
     # Build tract geoid
@@ -328,7 +327,7 @@ def main() -> None:
         tiger_puma_zip = tiger_dir / f"tl_{int(args.tiger_year)}_{statefp}_puma20.zip"
         if not tiger_tract_zip.exists() or not tiger_puma_zip.exists():
             raise SystemExit(
-                "TIGER tract/puma zip not found. Run detroit_fetch_public_data.py tiger first.\n"
+                "TIGER tract/puma zip not found. Download the TIGER tract and PUMA shapefiles first.\n"
                 f"Expected:\n  - {tiger_tract_zip}\n  - {tiger_puma_zip}"
             )
         tract_to_puma = _tract_to_puma_map(tiger_tract_zip=tiger_tract_zip, tiger_puma_zip=tiger_puma_zip)

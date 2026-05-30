@@ -7,9 +7,9 @@ Build ACS "targets_long" (marginals_long) for Michigan (statewide) at tract leve
 Why:
 - compute_stats_metrics_against_targets_long expects a normalized format:
     (tract_geoid, variable, category, target)
-- Our workstation downloads sometimes use custom filenames like:
+- Workstation downloads sometimes use custom filenames like:
     acs5_2022_B01001_tract_michigan.csv.gz
-  instead of the detroit_fetch_public_data.py naming convention.
+  instead of the national state/county naming convention.
 
 Scope (KISS, v0):
 - B01001 -> SEX + AGEP_bin, optionally AGEP_SEX_cross
@@ -341,7 +341,7 @@ def _b19001_records(df: Any, *, group_col: str) -> list[dict[str, Any]]:
 
 
 def _default_table_path(*, acs_dir: pathlib.Path, acs_year: int, table_id: str) -> pathlib.Path:
-    # Prefer detroit_fetch_public_data.py naming if present; else fall back to "michigan" tag.
+    # Prefer national state/county naming if present; else fall back to the Michigan tag.
     cand = [
         acs_dir / f"acs5_{acs_year}_{table_id}_tract_state26_countyall.csv.gz",
         acs_dir / f"acs5_{acs_year}_{table_id}_tract_michigan.csv.gz",

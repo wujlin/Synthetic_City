@@ -18,6 +18,12 @@ For each Public Use Microdata Area (PUMA), the pipeline builds:
 
 PUMS supplies observed co-occurrence patterns. ACS supplies accessible aggregate conditions. POI and LODES provide spatial context beyond census marginals.
 
+Manuscript-facing entrypoints:
+
+- `tools/step1_build_puma_joint_targets.py`
+- `tools/step1_build_puma_census_conditions.py`
+- `tools/step1_build_puma_spatial_features.py`
+
 ## Step 2: Hierarchical Diffusion
 
 The model predicts the joint distribution in two stages.
@@ -28,11 +34,26 @@ Stage 2 refines each coarse group into fine-grained combinations and reconstruct
 
 The hierarchy reduces the learning burden while retaining the full final attribute space.
 
+Manuscript-facing entrypoints:
+
+- `tools/step2_train_coarse_diffusion.py`
+- `tools/step2_build_refinement_targets.py`
+- `tools/step2_train_refinement_diffusion.py`
+- `tools/step2_eval_joint_recovery.py`
+
 ## Step 3: Spatial Population Generation
 
 The predicted PUMA-level joint distribution is sampled into individuals. Home tracts are assigned with tract-level ACS constraints, including age-gender consistency. Home coordinates are placed on residential road-supported candidate points.
 
 Workers receive work destination tracts from LODES commuting flows. Workplace coordinates are then placed on road-supported workplace candidate points.
+
+Manuscript-facing entrypoints:
+
+- `tools/step3_expand_individuals.py`
+- `tools/step3_assign_home_tracts.py`
+- `tools/step3_assign_work_tracts.py`
+- `tools/step3_assign_road_locations.py`
+- `tools/step3_aggregate_spatial_qc.py`
 
 ## Data Roles
 

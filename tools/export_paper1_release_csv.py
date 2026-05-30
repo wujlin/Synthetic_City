@@ -9,7 +9,6 @@ import pathlib
 from typing import Any
 
 import pandas as pd
-import pyarrow.parquet as pq
 
 
 RELEASE_COLUMNS = [
@@ -115,6 +114,8 @@ def _export_state(
     out_csv: pathlib.Path,
     chunksize: int,
 ) -> dict[str, Any]:
+    import pyarrow.parquet as pq
+
     pf = pq.ParquetFile(parquet_path)
     required = list(SOURCE_COLUMNS.values())
     missing = [c for c in required if c not in pf.schema.names]
