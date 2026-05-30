@@ -29,7 +29,7 @@ from src.synthpop.paths import data_root
 from tools.build_external_condition_earn_v1_michigan import _b20001_records
 from tools.build_external_condition_v1_acs_puma import _parse_states, _scope_tag
 from tools.build_external_condition_v1_michigan import _utc_now_iso
-from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
+from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.external_earn_v1_schema import EARN_LABELS
 
 

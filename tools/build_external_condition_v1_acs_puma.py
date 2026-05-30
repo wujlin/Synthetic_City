@@ -42,7 +42,7 @@ from tools.build_external_condition_v1_michigan import (
     _condition_schema_bundle,
     _utc_now_iso,
 )
-from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
+from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from src.synthpop.paths import data_root
 
 

@@ -24,7 +24,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from src.synthpop.paths import data_root
-from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
+from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.build_external_target_v1_michigan import (
     AGE_LABELS,
     ESR_LABELS,

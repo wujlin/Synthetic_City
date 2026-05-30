@@ -38,7 +38,7 @@ from tools.build_external_condition_v1_michigan import (
     _b23025_records,
     _utc_now_iso,
 )
-from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
+from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.external_income_v1_schema import B06010_INCOME_COLS, B06010_TOTAL_COL, INCOME_LABELS, b06010_schema_present
 
 

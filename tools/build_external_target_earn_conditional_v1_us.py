@@ -43,7 +43,7 @@ from tools.build_external_target_v1_michigan import (
     _resolve_person_zip,
     _utc_now_iso,
 )
-from tools.detroit_fetch_public_data import _STATEFP_TO_POSTAL_50
+from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.external_earn_v1_schema import EARN_LABELS, bin_earn_allpop
 from tools.train_us_puma_5var_diffusion import _canon_puma5, _canon_statefp, _canon_uid
 
