@@ -21,7 +21,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.paths import data_root
+from synthpop.paths import data_root
 from tools.data.build_external_condition_v1_acs_puma import _parse_states, _scope_tag
 from tools.data.build_external_target_v1_michigan import (
     AGE_LABELS,
@@ -35,7 +35,7 @@ from tools.data.build_external_target_v1_michigan import (
     _resolve_person_zip,
     _utc_now_iso,
 )
-from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
+from synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.data.external_income_v1_schema import INCOME_LABELS, bin_income_allpop
 from tools.model.train_us_puma_5var_diffusion import _canon_puma5, _canon_statefp, _canon_uid, _canon_uid_loose
 

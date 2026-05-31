@@ -16,7 +16,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.data.lodes import (
+from synthpop.data.lodes import (
     assign_job_center_membership,
     aggregate_lodes_to_tract_od,
     aggregate_lodes_wac_to_tract,
@@ -32,7 +32,7 @@ from src.synthpop.data.lodes import (
     remap_tract_od_geoids,
     remap_tract_wac_geoids,
 )
-from src.synthpop.paths import ensure_dir, project_root
+from synthpop.paths import ensure_dir, project_root
 
 CT_PLANNING_REGION_COUNTYFPS = {"110", "120", "130", "140", "150", "160", "170", "180", "190"}
 

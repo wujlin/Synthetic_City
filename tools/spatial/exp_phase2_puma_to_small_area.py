@@ -14,9 +14,9 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.data.poi_safegraph import aggregate_home_origin_profiles
-from src.synthpop.paths import ensure_dir, project_root
-from src.synthpop.spatial.puma_to_small_area import (
+from synthpop.data.poi_safegraph import aggregate_home_origin_profiles
+from synthpop.paths import ensure_dir, project_root
+from synthpop.spatial.puma_to_small_area import (
     allocate_joint_wide_to_small_areas,
     blend_prior_targets_long,
     compare_targets_long,

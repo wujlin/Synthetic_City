@@ -34,7 +34,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 import tools.model.train_external_joint_hier_diffusion_full_earn as _full_earn  # noqa: F401
 import tools.model.train_external_joint_hier_diffusion_full as stage1_base
-from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
+from synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
 from tools.model.external_c2f_full_earn_stage2_model import load_stage2_model, sample_stage2_local_raw_batch
 from tools.model.external_c2f_full_earn_schema import (
     AGE_FINE_TO_COARSE,

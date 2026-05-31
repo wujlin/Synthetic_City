@@ -137,7 +137,7 @@ def _b01001_to_marginals(df, *, group_col: str) -> list[dict[str, Any]]:
     def num(col: str) -> Any:
         return pd.to_numeric(df.get(col), errors="coerce").fillna(0.0)
 
-    # Coarse bins aligned with src/synthpop/validation/stats.py defaults.
+    # Coarse bins aligned with synthpop/validation/stats.py defaults.
     age_edges = [0.0, 5.0, 18.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 1000.0]
     age_labels = _interval_labels(age_edges)
 
@@ -263,7 +263,7 @@ def _b23025_to_marginals(df, *, group_col: str) -> list[dict[str, Any]]:
 
 
 def main() -> None:
-    from src.synthpop.paths import data_root as default_data_root
+    from synthpop.paths import data_root as default_data_root
 
     p = argparse.ArgumentParser(prog="build_acs_marginals_long")
     p.add_argument("--out_root", default=str(default_data_root()))

@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.synthpop.plot_style import OKABE_ITO, PaperStyle, despine, paper_style, save_figure
+from synthpop.plot_style import OKABE_ITO, PaperStyle, despine, paper_style, save_figure
 
 
 SOURCE_CSV = REPO_ROOT / "SigSpatial2026_spop" / "figure_source_data" / "k_sweep_poilodes_20260525.csv"

@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from src.synthpop.model.diffusion_tabular import (
+from synthpop.model.diffusion_tabular import (
     DiffusionTabularModel,
     TabDDPMConfig,
     _DenoiserMLP,

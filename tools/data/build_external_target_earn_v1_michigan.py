@@ -146,7 +146,7 @@ def _condition_alignment(*, rows: list[dict[str, Any]], condition_csv: pathlib.P
 
 
 def main() -> None:
-    from src.synthpop.paths import data_root as default_data_root
+    from synthpop.paths import data_root as default_data_root
 
     default_data = pathlib.Path(default_data_root()).expanduser().resolve()
     ap = argparse.ArgumentParser(prog="build_external_target_earn_v1_michigan")

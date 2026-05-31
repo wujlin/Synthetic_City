@@ -42,7 +42,7 @@ Primary manuscript-facing entrypoints:
 - PUMA spatial representation `h`: `tools/workflow/step1_build_puma_spatial_features.py`
 - Tract-level ACS constraints and state spatial assets: `tools/data/build_full_us_spatial_inputs.py`
 - LODES and TIGER support data helpers: `tools/data/download_lodes_functional_assets.py`, `tools/data/download_tiger2023_cache.py`, `tools/data/build_lodes_home_outbound_cache.py`
-- Shared data loading utilities: `src/synthpop/data/census.py`, `src/synthpop/data/lodes.py`, `src/synthpop/data/geo.py`
+- Shared data loading utilities: `synthpop/data/census.py`, `synthpop/data/lodes.py`, `synthpop/data/geo.py`
 
 ### Step 2: Hierarchical Diffusion
 
@@ -77,9 +77,9 @@ Primary manuscript-facing entrypoints:
 
 - Predicted joint distribution export: `tools/model/export_predicted_joint_wide_from_npz.py`
 - Person-level expansion from PUMA distributions: `tools/workflow/step3_expand_individuals.py`
-- Home tract allocation under tract ACS constraints: `tools/workflow/step3_assign_home_tracts.py`, `src/synthpop/spatial/puma_to_small_area.py`
-- Work-destination tract allocation from LODES: `tools/workflow/step3_assign_work_tracts.py`, `src/synthpop/spatial/work_destination_allocation.py`
-- Road-supported home and workplace coordinates: `tools/workflow/step3_assign_road_locations.py`, `src/synthpop/spatial/road_location_allocation.py`
+- Home tract allocation under tract ACS constraints: `tools/workflow/step3_assign_home_tracts.py`, `synthpop/spatial/puma_to_small_area.py`
+- Work-destination tract allocation from LODES: `tools/workflow/step3_assign_work_tracts.py`, `synthpop/spatial/work_destination_allocation.py`
+- Road-supported home and workplace coordinates: `tools/workflow/step3_assign_road_locations.py`, `synthpop/spatial/road_location_allocation.py`
 - National QC aggregation: `tools/workflow/step3_aggregate_spatial_qc.py`
 
 ### Release Export
@@ -104,10 +104,10 @@ Primary manuscript-facing entrypoints:
 
 ## Repository Layout
 
-This is a research-first repository rather than a packaged software library. Reusable logic is kept under `src/`, while experiment entrypoints and release utilities are under `tools/`.
+This is a research-first repository rather than a packaged software library. Reusable logic is kept under `synthpop/`, while experiment entrypoints and release utilities are under `tools/`.
 
 ```text
-src/synthpop/      reusable package modules for data loading, constraints, models, spatial allocation, and validation
+synthpop/       reusable package modules for data loading, constraints, models, spatial allocation, and validation
 tools/workflow/    stable manuscript-facing Step 1, Step 2, Step 3, and release entrypoints
 tools/data/        data construction, schema, ACS/PUMS/LODES/POI preparation
 tools/model/       model training, evaluation, and coarse-to-fine backend utilities
@@ -126,7 +126,7 @@ The current national pipeline is script-driven. The table below links each manus
 
 | Manuscript step | Main task | Code entrypoints |
 |---|---|---|
-| Step 1 | Build PUMS targets, ACS conditions, POI/LODES spatial features, and tract-level constraints | `tools/workflow/step1_build_puma_joint_targets.py`; `tools/workflow/step1_build_puma_census_conditions.py`; `tools/workflow/step1_build_puma_spatial_features.py`; `tools/data/build_full_us_spatial_inputs.py`; `src/synthpop/data/lodes.py` |
+| Step 1 | Build PUMS targets, ACS conditions, POI/LODES spatial features, and tract-level constraints | `tools/workflow/step1_build_puma_joint_targets.py`; `tools/workflow/step1_build_puma_census_conditions.py`; `tools/workflow/step1_build_puma_spatial_features.py`; `tools/data/build_full_us_spatial_inputs.py`; `synthpop/data/lodes.py` |
 | Step 2 | Train and evaluate the hierarchical diffusion model | `tools/workflow/step2_train_coarse_diffusion.py`; `tools/workflow/step2_build_refinement_targets.py`; `tools/workflow/step2_train_refinement_diffusion.py`; `tools/workflow/step2_eval_joint_recovery.py` |
 | Step 3 | Expand predicted distributions into individuals and assign home/work locations | `tools/workflow/step3_expand_individuals.py`; `tools/workflow/step3_assign_home_tracts.py`; `tools/workflow/step3_assign_work_tracts.py`; `tools/workflow/step3_assign_road_locations.py`; `tools/workflow/step3_aggregate_spatial_qc.py` |
 | Release | Export the public dataset and synchronize OSF files | `tools/workflow/release_export_state_csv.py`; `tools/release/osf_rename_state_files_to_postal.py`; `tools/workflow/release_upload_osf.py` |

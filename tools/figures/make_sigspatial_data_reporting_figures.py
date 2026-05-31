@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.synthpop.plot_style import OKABE_ITO, PaperStyle, add_panel_label, despine, paper_style, save_figure
+from synthpop.plot_style import OKABE_ITO, PaperStyle, add_panel_label, despine, paper_style, save_figure
 
 
 VARIABLE_ORDER = ["AGEP_bin", "SEX", "SCHL_allpop", "ESR_allpop", "EARN_16p_bin"]

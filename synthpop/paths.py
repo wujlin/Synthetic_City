@@ -5,8 +5,7 @@ import pathlib
 
 
 def project_root() -> pathlib.Path:
-    # src/synthpop/paths.py -> repo root is 2 parents up.
-    return pathlib.Path(__file__).resolve().parents[2]
+    return pathlib.Path(__file__).resolve().parents[1]
 
 
 def data_root() -> pathlib.Path:
@@ -30,4 +29,3 @@ def data_root() -> pathlib.Path:
 def ensure_dir(path: pathlib.Path) -> pathlib.Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
-

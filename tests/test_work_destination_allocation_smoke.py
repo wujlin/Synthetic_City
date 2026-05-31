@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from src.synthpop.spatial.work_destination_allocation import assign_work_destination_tract
+from synthpop.spatial.work_destination_allocation import assign_work_destination_tract
 
 
 class TestWorkDestinationAllocationSmoke(unittest.TestCase):

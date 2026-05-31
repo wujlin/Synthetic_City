@@ -46,7 +46,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import (
+        from synthpop.spatial.puma_to_small_area import (
             allocate_region_type_counts,
             build_type_catalog,
             joint_wide_to_type_counts,
@@ -115,7 +115,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import (
+        from synthpop.spatial.puma_to_small_area import (
             allocate_region_type_counts,
             build_type_catalog,
             build_type_to_group_prior,
@@ -203,7 +203,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.data.poi_safegraph import aggregate_home_origin_profiles
+        from synthpop.data.poi_safegraph import aggregate_home_origin_profiles
 
         poi = pd.DataFrame(
             {
@@ -245,7 +245,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import (
+        from synthpop.spatial.puma_to_small_area import (
             blend_prior_targets_long,
             compare_targets_long,
             predict_targets_from_group_features,
@@ -327,7 +327,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import low_rank_project_targets_long
+        from synthpop.spatial.puma_to_small_area import low_rank_project_targets_long
 
         targets = pd.DataFrame(
             {
@@ -362,7 +362,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import (
+        from synthpop.spatial.puma_to_small_area import (
             compare_targets_long,
             low_rank_plus_sparse_project_targets_long,
         )
@@ -405,7 +405,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import low_rank_plus_smooth_project_targets_long
+        from synthpop.spatial.puma_to_small_area import low_rank_plus_smooth_project_targets_long
 
         targets = pd.DataFrame(
             {
@@ -470,7 +470,7 @@ class TestPumaToSmallAreaSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.puma_to_small_area import build_type_catalog, build_type_to_group_prior
+        from synthpop.spatial.puma_to_small_area import build_type_catalog, build_type_to_group_prior
 
         schema = {
             "variable_order": ["EARN_16p_bin"],

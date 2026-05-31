@@ -13,8 +13,8 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.paths import ensure_dir, project_root
-from src.synthpop.spatial.work_destination_allocation import assign_work_destination_tract
+from synthpop.paths import ensure_dir, project_root
+from synthpop.spatial.work_destination_allocation import assign_work_destination_tract
 
 
 def _utc_now_compact() -> str:

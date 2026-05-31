@@ -16,7 +16,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.data.lodes import (
+from synthpop.data.lodes import (
     aggregate_lodes_to_tract_od,
     build_tract_area_crosswalk,
     load_lodes_od,

@@ -24,9 +24,9 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.paths import data_root
+from synthpop.paths import data_root
 from tools.data.build_external_target_earn_v1_michigan import _aggregate_state, _utc_now_iso
-from src.synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
+from synthpop.data.state_codes import STATEFP_TO_POSTAL as _STATEFP_TO_POSTAL_50
 from tools.model.train_us_puma_5var_diffusion import _canon_statefp
 
 

@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from src.synthpop.data.lodes import (
+from synthpop.data.lodes import (
     prepare_internal_study_tract_od,
     remap_tract_od_geoids,
     remap_tract_wac_geoids,

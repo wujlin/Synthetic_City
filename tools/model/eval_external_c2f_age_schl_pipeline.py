@@ -35,7 +35,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
+from synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
 from tools.model.build_external_c2f_age_schl_teacher import (
     COARSE_SHAPE,
     ESR_LITE_LABELS,

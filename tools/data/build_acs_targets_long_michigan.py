@@ -13,7 +13,7 @@ Why:
 
 Scope (KISS, v0):
 - B01001 -> SEX + AGEP_bin, optionally AGEP_SEX_cross
-  (coarse bins aligned with src/synthpop/validation/stats.py)
+  (coarse bins aligned with synthpop/validation/stats.py)
 - B23025 -> ESR_16p (coarse 16+ categories aligned with stats.py derived ESR_16p)
 - B15003 -> SCHL_25p (4 coarse bins for age 25+)
 - B20001 -> PINCP_16p_bin (5 coarse bins for workers with earnings, age 16+)
@@ -353,7 +353,7 @@ def _default_table_path(*, acs_dir: pathlib.Path, acs_year: int, table_id: str) 
 
 
 def main() -> None:
-    from src.synthpop.paths import data_root as default_data_root
+    from synthpop.paths import data_root as default_data_root
 
     ap = argparse.ArgumentParser(prog="build_acs_targets_long_michigan")
     ap.add_argument("--data_root", default=str(default_data_root()))

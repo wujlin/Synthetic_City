@@ -8,7 +8,7 @@ class TestAllocationExpansionSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.allocation_expansion import (
+        from synthpop.spatial.allocation_expansion import (
             expand_integer_allocation_to_persons,
             integerize_type_allocation_long,
         )
@@ -61,7 +61,7 @@ class TestAllocationExpansionSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.spatial.allocation_expansion import expand_integer_allocation_to_persons
+        from synthpop.spatial.allocation_expansion import expand_integer_allocation_to_persons
 
         alloc_int = pd.DataFrame(
             {

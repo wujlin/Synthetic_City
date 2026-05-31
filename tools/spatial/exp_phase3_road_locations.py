@@ -15,8 +15,8 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.paths import ensure_dir, project_root
-from src.synthpop.spatial.road_location_allocation import (
+from synthpop.paths import ensure_dir, project_root
+from synthpop.spatial.road_location_allocation import (
     _build_candidates_for_area,
     _home_codes,
     _resolve_work_eligible_mask,

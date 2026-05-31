@@ -47,7 +47,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         return areas, roads, persons
 
     def test_build_candidates_and_assign_locations_no_fallback(self) -> None:
-        from src.synthpop.spatial.road_location_allocation import (
+        from synthpop.spatial.road_location_allocation import (
             assign_home_work_locations,
             build_road_location_candidates,
         )
@@ -107,7 +107,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         self.assertEqual(int(assign_meta["work_fallback_assignments"]), 0)
 
     def test_build_candidates_and_assign_locations_with_optional_fallback(self) -> None:
-        from src.synthpop.spatial.road_location_allocation import (
+        from synthpop.spatial.road_location_allocation import (
             assign_home_work_locations,
             build_road_location_candidates,
         )
@@ -159,7 +159,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("geopandas/shapely not installed")
 
-        from src.synthpop.spatial.road_location_allocation import build_road_location_candidates
+        from synthpop.spatial.road_location_allocation import build_road_location_candidates
 
         areas = gpd.GeoDataFrame(
             {
@@ -200,7 +200,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("geopandas/shapely not installed")
 
-        from src.synthpop.spatial.road_location_allocation import (
+        from synthpop.spatial.road_location_allocation import (
             assign_home_work_locations,
             build_road_location_candidates,
         )
@@ -273,7 +273,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         self.assertEqual(int(assign_meta["work_fallback_assignments"]), 0)
 
     def test_parallel_candidate_generation_matches_serial(self) -> None:
-        from src.synthpop.spatial.road_location_allocation import build_road_location_candidates
+        from synthpop.spatial.road_location_allocation import build_road_location_candidates
 
         areas, roads, _ = self._build_toy_inputs()
         serial_home, serial_work, serial_meta = build_road_location_candidates(
@@ -318,7 +318,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("geopandas/shapely not installed")
 
-        from src.synthpop.spatial.road_location_allocation import build_road_location_candidates
+        from synthpop.spatial.road_location_allocation import build_road_location_candidates
 
         areas = gpd.GeoDataFrame(
             {
@@ -360,7 +360,7 @@ class TestRoadLocationAllocationSmoke(unittest.TestCase):
         self.assertGreater(int(work_candidates.shape[0]), 0)
 
     def test_assign_locations_respects_separate_work_group_col(self) -> None:
-        from src.synthpop.spatial.road_location_allocation import (
+        from synthpop.spatial.road_location_allocation import (
             assign_home_work_locations,
             build_road_location_candidates,
         )

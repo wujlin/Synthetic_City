@@ -8,7 +8,7 @@ class TestStatsMetricsTargetsSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("pandas not installed")
 
-        from src.synthpop.validation.stats import compute_stats_metrics_against_targets_long
+        from synthpop.validation.stats import compute_stats_metrics_against_targets_long
 
         synthetic = pd.DataFrame(
             {

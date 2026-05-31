@@ -19,7 +19,7 @@ torch>=2.0,<3
 # --------
 # Optional utilities
 # --------
-# YAML config support (src/synthpop/config.py)
+# YAML config support (synthpop/config.py)
 pyyaml>=6.0,<7
 
 # Parquet IO support (recommended; used when reading/writing *.parquet)

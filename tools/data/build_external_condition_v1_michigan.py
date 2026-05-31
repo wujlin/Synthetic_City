@@ -374,7 +374,7 @@ def _aggregate_to_puma(records: list[dict[str, Any]], tract_to_puma: dict[str, s
 
 
 def main() -> None:
-    from src.synthpop.paths import data_root as default_data_root
+    from synthpop.paths import data_root as default_data_root
 
     ap = argparse.ArgumentParser(prog="build_external_condition_v1_michigan")
     ap.add_argument("--data_root", default=str(default_data_root()))

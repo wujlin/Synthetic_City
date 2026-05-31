@@ -37,7 +37,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.model.diffusion_tabular import (
+from synthpop.model.diffusion_tabular import (
     TabDDPMConfig,
     _DenoiserMLP,
     _FiLMDenoiserMLP,

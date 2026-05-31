@@ -14,8 +14,8 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from src.synthpop.paths import ensure_dir, project_root
-from src.synthpop.spatial.allocation_expansion import (
+from synthpop.paths import ensure_dir, project_root
+from synthpop.spatial.allocation_expansion import (
     expand_integer_allocation_to_persons,
     integerize_type_allocation_long,
 )

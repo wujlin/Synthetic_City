@@ -8,8 +8,8 @@ class TestJointDiffusionSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("torch not installed")
 
-        from src.synthpop.model.diffusion_tabular import TabDDPMConfig
-        from src.synthpop.model.joint_diffusion import JointDiffusionConfig, JointDiffusionModel
+        from synthpop.model.diffusion_tabular import TabDDPMConfig
+        from synthpop.model.joint_diffusion import JointDiffusionConfig, JointDiffusionModel
 
         torch.manual_seed(0)
         z_person = torch.randn(64, 4)

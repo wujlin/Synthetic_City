@@ -9,7 +9,7 @@ class TestDiffusionTabularSmoke(unittest.TestCase):
         except Exception:
             self.skipTest("torch not installed")
 
-        from src.synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
+        from synthpop.model.diffusion_tabular import DiffusionTabularModel, TabDDPMConfig
 
         torch.manual_seed(0)
         x = torch.randn(64, 8)
