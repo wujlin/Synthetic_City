@@ -18,6 +18,8 @@ For each Public Use Microdata Area (PUMA), the pipeline builds:
 
 PUMS supplies observed co-occurrence patterns. ACS supplies accessible aggregate conditions. POI and LODES provide spatial context beyond census marginals.
 
+The POI vocabulary used in `h` is documented in `docs/STEP1_POI_FEATURES.md`.
+
 Manuscript-facing entrypoints:
 
 - `tools/workflow/step1_build_puma_joint_targets.py`

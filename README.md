@@ -40,6 +40,7 @@ Primary manuscript-facing entrypoints:
 - PUMA target distribution `p`: `tools/workflow/step1_build_puma_joint_targets.py`
 - PUMA census condition `c`: `tools/workflow/step1_build_puma_census_conditions.py`
 - PUMA spatial representation `h`: `tools/workflow/step1_build_puma_spatial_features.py`
+- POI feature vocabulary used in `h`: `docs/STEP1_POI_FEATURES.md`
 - Tract-level ACS constraints and state spatial assets: `tools/data/build_full_us_spatial_inputs.py`
 - LODES and TIGER support data helpers: `tools/data/download_lodes_functional_assets.py`, `tools/data/download_tiger2023_cache.py`, `tools/data/build_lodes_home_outbound_cache.py`
 - Shared data loading utilities: `synthpop/data/census.py`, `synthpop/data/lodes.py`, `synthpop/data/geo.py`
