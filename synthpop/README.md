@@ -11,9 +11,8 @@
 | `constraints/` | Projection, hard-rule, and soft-guidance utilities for constrained distributions |
 | `spatial/` | PUMA-to-tract allocation, individual expansion, work-destination assignment, and road-location placement |
 | `validation/` | Statistical and spatial validation metrics |
-| `config.py` | Shared configuration dataclasses and defaults |
 | `paths.py` | Path-resolution helpers for local and external data roots |
-| `cli.py` | Lightweight command-line dispatch support |
+| `plot_style.py` | Shared manuscript-figure plotting defaults |
 
 ## Design Contract
 

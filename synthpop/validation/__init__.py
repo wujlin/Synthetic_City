@@ -1,2 +1,1 @@
-"""Validation metrics (stats / spatial / temporal)."""
-
+"""Statistical and spatial validation metrics."""

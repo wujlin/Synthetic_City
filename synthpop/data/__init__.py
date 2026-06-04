@@ -1,3 +1,1 @@
-from __future__ import annotations
-
-__all__: list[str] = []
+"""Data loading, source harmonization, and geography utilities."""
