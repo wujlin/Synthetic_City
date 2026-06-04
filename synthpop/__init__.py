@@ -1,7 +1,6 @@
-"""Synthetic population generation (building-level) for Synthetic_City.
+"""Reusable modules for the Synthetic City synthetic population pipeline.
 
-Scope (v0):
-- Data path conventions and lightweight CLI utilities.
-- Detroit case pipeline will be added incrementally (raw → processed → outputs).
+The public workflow constructs PUMA-level target and condition vectors, recovers
+five-attribute joint distributions with a hierarchical generative model, and
+assigns synthetic individuals to home and workplace locations.
 """
-

@@ -136,6 +136,13 @@ Use the `step*` and `release*` entrypoints when citing code paths in manuscript 
 
 Large raw data, licensed data, model checkpoints, and generated state-level products are intentionally kept out of git. The public repository tracks code, documentation, lightweight tests, and manuscript-supporting assets.
 
+Directory guides:
+
+- `docs/README.md`
+- `synthpop/README.md`
+- `tools/README.md`
+- `tests/README.md`
+
 ## Getting Started
 
 Install the Python dependencies in an isolated environment, then run the smoke tests:
