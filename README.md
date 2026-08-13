@@ -2,8 +2,6 @@
 
 Research code for creating a multi-attribute geographically explicit synthetic population for the United States.
 
-The current mainline follows the SIGSPATIAL 2026 manuscript: a hierarchical diffusion-based generative framework reconstructs region-specific joint distributions of five attributes (age, gender, education, employment, and income), then converts the predicted joint distributions into synthetic individuals with geographically explicit home and workplace locations.
-
 ## Data Release
 
 The release-format synthetic population dataset is hosted on OSF:
